@@ -1,0 +1,625 @@
+{
+  "schemaVersion": 4,
+  "app": {
+    "name": "套子桌宠",
+    "appId": "com.taozi.pet",
+    "version": "1.0.0",
+    "language": "zh-CN"
+  },
+  "targets": {
+    "windows": {
+      "enabled": true,
+      "arch": "x64"
+    },
+    "macos": {
+      "enabled": false,
+      "arch": "current"
+    }
+  },
+  "character": {
+    "inputType": "single-image",
+    "coreAsset": "idle-01.png",
+    "displayName": "套子",
+    "archetype": "person",
+    "personality": [
+      "活泼",
+      "俏皮",
+      "元气"
+    ],
+    "preserveTraits": [
+      "蓝紫渐变长发",
+      "紫色眼睛",
+      "海星羽毛发饰",
+      "头顶光环",
+      "花瓣串成的上衣和裙子",
+      "手腕花瓣装饰",
+      "南瓜包"
+    ],
+    "style": "preserve",
+    "mirrorSafe": false
+  },
+  "assetPipeline": {
+    "backgroundMode": "adaptive-flood",
+    "generationBackground": "transparent-grid",
+    "backgroundTolerance": 28,
+    "edgeFeather": 12,
+    "safeMargin": 24,
+    "targetOccupancy": 0.78
+  },
+  "experience": {
+    "theme": {
+      "primary": "#8B7FD4",
+      "accent": "#F5A623",
+      "background": "#F5F0FF",
+      "surface": "#FFFFFF",
+      "text": "#3A2A4A",
+      "muted": "#9A8AAA",
+      "cornerRadius": 24
+    },
+    "petSizing": {
+      "baseWindowPx": 220,
+      "defaultScale": 0.8
+    },
+    "interactions": [
+      {
+        "id": "pet-head",
+        "emoji": "💗",
+        "label": "摸摸头",
+        "stateId": "pet-head",
+        "durationMs": 12000,
+        "affectionGain": 2,
+        "feedback": [
+          "嘿嘿，别乱摸啦~",
+          "头发会乱的！",
+          "好舒服呀~"
+        ]
+      },
+      {
+        "id": "pumpkin-bag",
+        "emoji": "🎃",
+        "label": "掏南瓜包",
+        "stateId": "pumpkin-bag",
+        "durationMs": 12000,
+        "affectionGain": 3,
+        "feedback": [
+          "猜猜我包里藏了什么？",
+          "给你看个宝贝~",
+          "嘿嘿，不告诉你！"
+        ]
+      },
+      {
+        "id": "petal-spin",
+        "emoji": "🌸",
+        "label": "花瓣转圈",
+        "stateId": "petal-spin",
+        "durationMs": 12000,
+        "affectionGain": 2,
+        "feedback": [
+          "好看吧？",
+          "这可是我亲手串的~",
+          "转圈圈~"
+        ]
+      },
+      {
+        "id": "starfish-wave",
+        "emoji": "👋",
+        "label": "海星招手",
+        "stateId": "starfish-wave",
+        "durationMs": 12000,
+        "affectionGain": 1,
+        "feedback": [
+          "嗨！",
+          "今天也要元气满满哦！",
+          "看到你真开心~"
+        ]
+      }
+    ]
+  },
+  "motion": {
+    "breathing": {
+      "enabled": true,
+      "periodMs": 3200,
+      "scaleX": 0.012,
+      "scaleY": 0.022
+    },
+    "squashStretch": {
+      "enabled": true,
+      "durationMs": 320,
+      "intensity": 0.08
+    },
+    "idleIntervalMs": {
+      "min": 7000,
+      "max": 13000
+    }
+  },
+  "features": {
+    "transparentWindow": true,
+    "drag": true,
+    "tray": true,
+    "edgeSnap": true,
+    "reminders": true,
+    "interactions": true,
+    "relationship": true,
+    "filePocket": false,
+    "dashboard": true,
+    "typingReaction": false,
+    "autonomousMovement": false
+  },
+  "states": [
+    {
+      "id": "idle",
+      "triggers": [
+        "app:start",
+        "ambient:idle"
+      ],
+      "frames": [
+        "idle-01.png",
+        "idle-02.png",
+        "idle-03.png",
+        "idle-04.png",
+        "idle-05.png",
+        "idle-06.png",
+        "idle-07.png",
+        "idle-08.png",
+        "idle-09.png",
+        "idle-10.png",
+        "idle-11.png",
+        "idle-12.png"
+      ],
+      "frameDurationMs": 250,
+      "loop": true,
+      "priority": 10,
+      "interrupt": "resume",
+      "cooldownMs": 0,
+      "direction": "neutral",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.95
+      },
+      "mirrorSafe": false
+    },
+    {
+      "id": "blink",
+      "triggers": [
+        "ambient:blink"
+      ],
+      "frames": [
+        "blink-01.png",
+        "blink-02.png",
+        "blink-03.png",
+        "blink-04.png",
+        "blink-05.png",
+        "blink-06.png",
+        "blink-07.png",
+        "blink-08.png",
+        "blink-09.png",
+        "blink-10.png",
+        "blink-11.png",
+        "blink-12.png",
+        "blink-01-r2.png",
+        "blink-02-r2.png",
+        "blink-03-r2.png",
+        "blink-04-r2.png",
+        "blink-05-r2.png",
+        "blink-06-r2.png",
+        "blink-07-r2.png",
+        "blink-08-r2.png",
+        "blink-09-r2.png",
+        "blink-10-r2.png",
+        "blink-11-r2.png",
+        "blink-12-r2.png"
+      ],
+      "frameDurationMs": 250,
+      "loop": false,
+      "priority": 30,
+      "interrupt": "restart",
+      "cooldownMs": 2500,
+      "direction": "neutral",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.95
+      },
+      "mirrorSafe": true
+    },
+    {
+      "id": "happy",
+      "triggers": [
+        "pointer:tap"
+      ],
+      "frames": [
+        "happy-01.png",
+        "happy-02.png",
+        "happy-03.png",
+        "happy-04.png",
+        "happy-05.png",
+        "happy-06.png",
+        "happy-07.png",
+        "happy-08.png",
+        "happy-09.png",
+        "happy-10.png",
+        "happy-11.png",
+        "happy-12.png",
+        "happy-01-r2.png",
+        "happy-02-r2.png",
+        "happy-03-r2.png",
+        "happy-04-r2.png",
+        "happy-05-r2.png",
+        "happy-06-r2.png",
+        "happy-07-r2.png",
+        "happy-08-r2.png",
+        "happy-09-r2.png",
+        "happy-10-r2.png",
+        "happy-11-r2.png",
+        "happy-12-r2.png"
+      ],
+      "frameDurationMs": 250,
+      "loop": false,
+      "priority": 70,
+      "interrupt": "restart",
+      "cooldownMs": 300,
+      "direction": "neutral",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.95
+      },
+      "mirrorSafe": true
+    },
+    {
+      "id": "notify",
+      "triggers": [
+        "reminder:due"
+      ],
+      "frames": [
+        "notify-01.png",
+        "notify-02.png",
+        "notify-03.png",
+        "notify-04.png",
+        "notify-05.png",
+        "notify-06.png",
+        "notify-07.png",
+        "notify-08.png",
+        "notify-09.png",
+        "notify-10.png",
+        "notify-11.png",
+        "notify-12.png",
+        "notify-01-r2.png",
+        "notify-02-r2.png",
+        "notify-03-r2.png",
+        "notify-04-r2.png",
+        "notify-05-r2.png",
+        "notify-06-r2.png",
+        "notify-07-r2.png",
+        "notify-08-r2.png",
+        "notify-09-r2.png",
+        "notify-10-r2.png",
+        "notify-11-r2.png",
+        "notify-12-r2.png"
+      ],
+      "frameDurationMs": 250,
+      "loop": false,
+      "priority": 95,
+      "interrupt": "restart",
+      "cooldownMs": 800,
+      "direction": "neutral",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.95
+      },
+      "mirrorSafe": true
+    },
+    {
+      "id": "peek",
+      "triggers": [
+        "window:edge-snap"
+      ],
+      "frames": [
+        "peek-01.png",
+        "peek-02.png",
+        "peek-03.png",
+        "peek-04.png",
+        "peek-05.png",
+        "peek-06.png",
+        "peek-07.png",
+        "peek-08.png",
+        "peek-09.png",
+        "peek-10.png",
+        "peek-11.png",
+        "peek-12.png",
+        "peek-01-r2.png",
+        "peek-02-r2.png",
+        "peek-03-r2.png",
+        "peek-04-r2.png",
+        "peek-05-r2.png",
+        "peek-06-r2.png",
+        "peek-07-r2.png",
+        "peek-08-r2.png",
+        "peek-09-r2.png",
+        "peek-10-r2.png",
+        "peek-11-r2.png",
+        "peek-12-r2.png"
+      ],
+      "frameDurationMs": 250,
+      "loop": false,
+      "priority": 55,
+      "interrupt": "resume",
+      "cooldownMs": 1800,
+      "direction": "neutral",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.95
+      },
+      "mirrorSafe": false
+    },
+    {
+      "id": "pet-head",
+      "triggers": [
+        "interaction:pet-head"
+      ],
+      "frames": [
+        "pet-head-01.png",
+        "pet-head-02.png",
+        "pet-head-03.png",
+        "pet-head-04.png",
+        "pet-head-05.png",
+        "pet-head-06.png",
+        "pet-head-07.png",
+        "pet-head-08.png",
+        "pet-head-09.png",
+        "pet-head-10.png",
+        "pet-head-11.png",
+        "pet-head-12.png",
+        "pet-head-01-r2.png",
+        "pet-head-02-r2.png",
+        "pet-head-03-r2.png",
+        "pet-head-04-r2.png",
+        "pet-head-05-r2.png",
+        "pet-head-06-r2.png",
+        "pet-head-07-r2.png",
+        "pet-head-08-r2.png",
+        "pet-head-09-r2.png",
+        "pet-head-10-r2.png",
+        "pet-head-11-r2.png",
+        "pet-head-12-r2.png"
+      ],
+      "frameDurationMs": 250,
+      "loop": false,
+      "priority": 85,
+      "interrupt": "restart",
+      "cooldownMs": 250,
+      "direction": "neutral",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.95
+      },
+      "mirrorSafe": true
+    },
+    {
+      "id": "pumpkin-bag",
+      "triggers": [
+        "interaction:pumpkin-bag"
+      ],
+      "frames": [
+        "pumpkin-bag-01.png",
+        "pumpkin-bag-02.png",
+        "pumpkin-bag-03.png",
+        "pumpkin-bag-04.png",
+        "pumpkin-bag-05.png",
+        "pumpkin-bag-06.png",
+        "pumpkin-bag-07.png",
+        "pumpkin-bag-08.png",
+        "pumpkin-bag-09.png",
+        "pumpkin-bag-10.png",
+        "pumpkin-bag-11.png",
+        "pumpkin-bag-12.png",
+        "pumpkin-bag-01-r2.png",
+        "pumpkin-bag-02-r2.png",
+        "pumpkin-bag-03-r2.png",
+        "pumpkin-bag-04-r2.png",
+        "pumpkin-bag-05-r2.png",
+        "pumpkin-bag-06-r2.png",
+        "pumpkin-bag-07-r2.png",
+        "pumpkin-bag-08-r2.png",
+        "pumpkin-bag-09-r2.png",
+        "pumpkin-bag-10-r2.png",
+        "pumpkin-bag-11-r2.png",
+        "pumpkin-bag-12-r2.png"
+      ],
+      "frameDurationMs": 250,
+      "loop": false,
+      "priority": 85,
+      "interrupt": "restart",
+      "cooldownMs": 300,
+      "direction": "neutral",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.95
+      },
+      "mirrorSafe": false
+    },
+    {
+      "id": "petal-spin",
+      "triggers": [
+        "interaction:petal-spin"
+      ],
+      "frames": [
+        "petal-spin-01.png",
+        "petal-spin-02.png",
+        "petal-spin-03.png",
+        "petal-spin-04.png",
+        "petal-spin-05.png",
+        "petal-spin-06.png",
+        "petal-spin-07.png",
+        "petal-spin-08.png",
+        "petal-spin-09.png",
+        "petal-spin-10.png",
+        "petal-spin-11.png",
+        "petal-spin-12.png",
+        "petal-spin-01-r2.png",
+        "petal-spin-02-r2.png",
+        "petal-spin-03-r2.png",
+        "petal-spin-04-r2.png",
+        "petal-spin-05-r2.png",
+        "petal-spin-06-r2.png",
+        "petal-spin-07-r2.png",
+        "petal-spin-08-r2.png",
+        "petal-spin-09-r2.png",
+        "petal-spin-10-r2.png",
+        "petal-spin-11-r2.png",
+        "petal-spin-12-r2.png"
+      ],
+      "frameDurationMs": 250,
+      "loop": false,
+      "priority": 85,
+      "interrupt": "restart",
+      "cooldownMs": 300,
+      "direction": "neutral",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.95
+      },
+      "mirrorSafe": false
+    },
+    {
+      "id": "starfish-wave",
+      "triggers": [
+        "interaction:starfish-wave"
+      ],
+      "frames": [
+        "starfish-wave-01.png",
+        "starfish-wave-02.png",
+        "starfish-wave-03.png",
+        "starfish-wave-04.png",
+        "starfish-wave-05.png",
+        "starfish-wave-06.png",
+        "starfish-wave-07.png",
+        "starfish-wave-08.png",
+        "starfish-wave-09.png",
+        "starfish-wave-10.png",
+        "starfish-wave-11.png",
+        "starfish-wave-12.png",
+        "starfish-wave-01-r2.png",
+        "starfish-wave-02-r2.png",
+        "starfish-wave-03-r2.png",
+        "starfish-wave-04-r2.png",
+        "starfish-wave-05-r2.png",
+        "starfish-wave-06-r2.png",
+        "starfish-wave-07-r2.png",
+        "starfish-wave-08-r2.png",
+        "starfish-wave-09-r2.png",
+        "starfish-wave-10-r2.png",
+        "starfish-wave-11-r2.png",
+        "starfish-wave-12-r2.png"
+      ],
+      "frameDurationMs": 250,
+      "loop": false,
+      "priority": 85,
+      "interrupt": "restart",
+      "cooldownMs": 300,
+      "direction": "neutral",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.95
+      },
+      "mirrorSafe": false
+    },
+    {
+      "id": "walk",
+      "triggers": [
+        "state:walk"
+      ],
+      "frames": [
+        "walk-01.png",
+        "walk-02.png",
+        "walk-03.png",
+        "walk-04.png",
+        "walk-01-r2.png",
+        "walk-02-r2.png",
+        "walk-03-r2.png",
+        "walk-04-r2.png"
+      ],
+      "frameDurationMs": 250,
+      "loop": true,
+      "priority": 45,
+      "interrupt": "resume",
+      "cooldownMs": 500,
+      "direction": "left",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.95
+      },
+      "mirrorSafe": true
+    },
+    {
+      "id": "sleep",
+      "triggers": [
+        "state:sleep"
+      ],
+      "frames": [
+        "sleep-01.png",
+        "sleep-02.png",
+        "sleep-03.png",
+        "sleep-04.png",
+        "sleep-01-r2.png",
+        "sleep-02-r2.png",
+        "sleep-03-r2.png",
+        "sleep-04-r2.png"
+      ],
+      "frameDurationMs": 500,
+      "loop": true,
+      "priority": 40,
+      "interrupt": "resume",
+      "cooldownMs": 1000,
+      "direction": "neutral",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.95
+      },
+      "mirrorSafe": true
+    },
+    {
+      "id": "sad",
+      "triggers": [
+        "state:sad"
+      ],
+      "frames": [
+        "sad-01.png",
+        "sad-02.png",
+        "sad-03.png",
+        "sad-04.png",
+        "sad-01-r2.png",
+        "sad-02-r2.png",
+        "sad-03-r2.png",
+        "sad-04-r2.png"
+      ],
+      "frameDurationMs": 400,
+      "loop": true,
+      "priority": 42,
+      "interrupt": "resume",
+      "cooldownMs": 1000,
+      "direction": "neutral",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.95
+      },
+      "mirrorSafe": true
+    }
+  ],
+  "storage": {
+    "userData": "app-user-data",
+    "filePocket": "documents-app-name"
+  },
+  "build": {
+    "windows": {
+      "arch": "x64",
+      "installer": "squirrel",
+      "portable": "zip"
+    },
+    "macos": {
+      "arch": "current",
+      "diskImage": "dmg",
+      "portable": "zip"
+    },
+    "timeoutMinutes": 40,
+    "unsigned": true
+  }
+}
