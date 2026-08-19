@@ -1,0 +1,429 @@
+{
+  "schemaVersion": 4,
+  "coreIp": "idle-01.png",
+  "character": {
+    "name": "套子",
+    "kind": "person",
+    "preserve": [
+      "蓝紫渐变长发",
+      "紫色眼睛",
+      "海星羽毛发饰",
+      "头顶光环",
+      "花瓣串成的上衣和裙子",
+      "手腕花瓣装饰",
+      "南瓜包"
+    ],
+    "style": "preserve"
+  },
+  "generationOrder": [
+    "confirm-core-ip",
+    "pilot-idle-group",
+    "process-and-qa-pilot",
+    "generate-remaining-states-one-group-at-a-time",
+    "retry-only-failed-state-frames"
+  ],
+  "prohibitedElements": [
+    "human hands",
+    "additional characters",
+    "unconfirmed props",
+    "text or lettering",
+    "logos or watermarks",
+    "decorative borders",
+    "scenery or rooms",
+    "ground or platform",
+    "cast shadows or contact shadows",
+    "glow or background color blocks"
+  ],
+  "states": [
+    {
+      "id": "idle",
+      "triggers": [
+        "app:start",
+        "ambient:idle"
+      ],
+      "frameDurationMs": 900,
+      "frames": [
+        {
+          "file": "idle-01.png",
+          "index": 1,
+          "count": 4,
+          "phase": "准备姿势；与母版保持同一身体尺度和脚底基线",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 1/4 for state idle triggered by app:start, ambient:idle. 准备姿势；与母版保持同一身体尺度和脚底基线. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "idle-02.png",
+          "index": 2,
+          "count": 4,
+          "phase": "动作开始；只改变完成动作所需的局部姿态",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 2/4 for state idle triggered by app:start, ambient:idle. 动作开始；只改变完成动作所需的局部姿态. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "idle-03.png",
+          "index": 3,
+          "count": 4,
+          "phase": "主动作或反馈峰值；保持身份、镜头和身体比例",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 3/4 for state idle triggered by app:start, ambient:idle. 主动作或反馈峰值；保持身份、镜头和身体比例. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "idle-04.png",
+          "index": 4,
+          "count": 4,
+          "phase": "回到基态；能够无跳变衔接 idle",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 4/4 for state idle triggered by app:start, ambient:idle. 回到基态；能够无跳变衔接 idle. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        }
+      ]
+    },
+    {
+      "id": "blink",
+      "triggers": [
+        "ambient:blink"
+      ],
+      "frameDurationMs": 75,
+      "frames": [
+        {
+          "file": "blink-01.png",
+          "index": 1,
+          "count": 5,
+          "phase": "准备姿势；与母版保持同一身体尺度和脚底基线",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 1/5 for state blink triggered by ambient:blink. 准备姿势；与母版保持同一身体尺度和脚底基线. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "blink-02.png",
+          "index": 2,
+          "count": 5,
+          "phase": "动作开始；只改变完成动作所需的局部姿态",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 2/5 for state blink triggered by ambient:blink. 动作开始；只改变完成动作所需的局部姿态. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "blink-03.png",
+          "index": 3,
+          "count": 5,
+          "phase": "主动作或反馈峰值；保持身份、镜头和身体比例",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 3/5 for state blink triggered by ambient:blink. 主动作或反馈峰值；保持身份、镜头和身体比例. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "blink-04.png",
+          "index": 4,
+          "count": 5,
+          "phase": "回弹或回位过渡；逐步恢复基态",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 4/5 for state blink triggered by ambient:blink. 回弹或回位过渡；逐步恢复基态. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "blink-05.png",
+          "index": 5,
+          "count": 5,
+          "phase": "回到基态；能够无跳变衔接 idle",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 5/5 for state blink triggered by ambient:blink. 回到基态；能够无跳变衔接 idle. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        }
+      ]
+    },
+    {
+      "id": "happy",
+      "triggers": [
+        "pointer:tap"
+      ],
+      "frameDurationMs": 110,
+      "frames": [
+        {
+          "file": "happy-01.png",
+          "index": 1,
+          "count": 5,
+          "phase": "准备姿势；与母版保持同一身体尺度和脚底基线",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 1/5 for state happy triggered by pointer:tap. 准备姿势；与母版保持同一身体尺度和脚底基线. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "happy-02.png",
+          "index": 2,
+          "count": 5,
+          "phase": "动作开始；只改变完成动作所需的局部姿态",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 2/5 for state happy triggered by pointer:tap. 动作开始；只改变完成动作所需的局部姿态. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "happy-03.png",
+          "index": 3,
+          "count": 5,
+          "phase": "主动作或反馈峰值；保持身份、镜头和身体比例",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 3/5 for state happy triggered by pointer:tap. 主动作或反馈峰值；保持身份、镜头和身体比例. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "happy-04.png",
+          "index": 4,
+          "count": 5,
+          "phase": "回弹或回位过渡；逐步恢复基态",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 4/5 for state happy triggered by pointer:tap. 回弹或回位过渡；逐步恢复基态. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "happy-05.png",
+          "index": 5,
+          "count": 5,
+          "phase": "回到基态；能够无跳变衔接 idle",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 5/5 for state happy triggered by pointer:tap. 回到基态；能够无跳变衔接 idle. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        }
+      ]
+    },
+    {
+      "id": "notify",
+      "triggers": [
+        "reminder:due"
+      ],
+      "frameDurationMs": 120,
+      "frames": [
+        {
+          "file": "notify-01.png",
+          "index": 1,
+          "count": 5,
+          "phase": "准备姿势；与母版保持同一身体尺度和脚底基线",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 1/5 for state notify triggered by reminder:due. 准备姿势；与母版保持同一身体尺度和脚底基线. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "notify-02.png",
+          "index": 2,
+          "count": 5,
+          "phase": "动作开始；只改变完成动作所需的局部姿态",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 2/5 for state notify triggered by reminder:due. 动作开始；只改变完成动作所需的局部姿态. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "notify-03.png",
+          "index": 3,
+          "count": 5,
+          "phase": "主动作或反馈峰值；保持身份、镜头和身体比例",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 3/5 for state notify triggered by reminder:due. 主动作或反馈峰值；保持身份、镜头和身体比例. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "notify-04.png",
+          "index": 4,
+          "count": 5,
+          "phase": "回弹或回位过渡；逐步恢复基态",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 4/5 for state notify triggered by reminder:due. 回弹或回位过渡；逐步恢复基态. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "notify-05.png",
+          "index": 5,
+          "count": 5,
+          "phase": "回到基态；能够无跳变衔接 idle",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 5/5 for state notify triggered by reminder:due. 回到基态；能够无跳变衔接 idle. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        }
+      ]
+    },
+    {
+      "id": "peek",
+      "triggers": [
+        "window:edge-snap"
+      ],
+      "frameDurationMs": 120,
+      "frames": [
+        {
+          "file": "peek-01.png",
+          "index": 1,
+          "count": 5,
+          "phase": "准备姿势；与母版保持同一身体尺度和脚底基线",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 1/5 for state peek triggered by window:edge-snap. 准备姿势；与母版保持同一身体尺度和脚底基线. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "peek-02.png",
+          "index": 2,
+          "count": 5,
+          "phase": "动作开始；只改变完成动作所需的局部姿态",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 2/5 for state peek triggered by window:edge-snap. 动作开始；只改变完成动作所需的局部姿态. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "peek-03.png",
+          "index": 3,
+          "count": 5,
+          "phase": "主动作或反馈峰值；保持身份、镜头和身体比例",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 3/5 for state peek triggered by window:edge-snap. 主动作或反馈峰值；保持身份、镜头和身体比例. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "peek-04.png",
+          "index": 4,
+          "count": 5,
+          "phase": "回弹或回位过渡；逐步恢复基态",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 4/5 for state peek triggered by window:edge-snap. 回弹或回位过渡；逐步恢复基态. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "peek-05.png",
+          "index": 5,
+          "count": 5,
+          "phase": "回到基态；能够无跳变衔接 idle",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 5/5 for state peek triggered by window:edge-snap. 回到基态；能够无跳变衔接 idle. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        }
+      ]
+    },
+    {
+      "id": "pet-head",
+      "triggers": [
+        "interaction:pet-head"
+      ],
+      "frameDurationMs": 120,
+      "frames": [
+        {
+          "file": "pet-head-01.png",
+          "index": 1,
+          "count": 5,
+          "phase": "准备姿势；与母版保持同一身体尺度和脚底基线",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 1/5 for state pet-head triggered by interaction:pet-head. 准备姿势；与母版保持同一身体尺度和脚底基线. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "pet-head-02.png",
+          "index": 2,
+          "count": 5,
+          "phase": "动作开始；只改变完成动作所需的局部姿态",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 2/5 for state pet-head triggered by interaction:pet-head. 动作开始；只改变完成动作所需的局部姿态. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "pet-head-03.png",
+          "index": 3,
+          "count": 5,
+          "phase": "主动作或反馈峰值；保持身份、镜头和身体比例",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 3/5 for state pet-head triggered by interaction:pet-head. 主动作或反馈峰值；保持身份、镜头和身体比例. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "pet-head-04.png",
+          "index": 4,
+          "count": 5,
+          "phase": "回弹或回位过渡；逐步恢复基态",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 4/5 for state pet-head triggered by interaction:pet-head. 回弹或回位过渡；逐步恢复基态. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "pet-head-05.png",
+          "index": 5,
+          "count": 5,
+          "phase": "回到基态；能够无跳变衔接 idle",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 5/5 for state pet-head triggered by interaction:pet-head. 回到基态；能够无跳变衔接 idle. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        }
+      ]
+    },
+    {
+      "id": "pumpkin-bag",
+      "triggers": [
+        "interaction:pumpkin-bag"
+      ],
+      "frameDurationMs": 120,
+      "frames": [
+        {
+          "file": "pumpkin-bag-01.png",
+          "index": 1,
+          "count": 5,
+          "phase": "准备姿势；与母版保持同一身体尺度和脚底基线",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 1/5 for state pumpkin-bag triggered by interaction:pumpkin-bag. 准备姿势；与母版保持同一身体尺度和脚底基线. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "pumpkin-bag-02.png",
+          "index": 2,
+          "count": 5,
+          "phase": "动作开始；只改变完成动作所需的局部姿态",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 2/5 for state pumpkin-bag triggered by interaction:pumpkin-bag. 动作开始；只改变完成动作所需的局部姿态. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "pumpkin-bag-03.png",
+          "index": 3,
+          "count": 5,
+          "phase": "主动作或反馈峰值；保持身份、镜头和身体比例",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 3/5 for state pumpkin-bag triggered by interaction:pumpkin-bag. 主动作或反馈峰值；保持身份、镜头和身体比例. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "pumpkin-bag-04.png",
+          "index": 4,
+          "count": 5,
+          "phase": "回弹或回位过渡；逐步恢复基态",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 4/5 for state pumpkin-bag triggered by interaction:pumpkin-bag. 回弹或回位过渡；逐步恢复基态. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "pumpkin-bag-05.png",
+          "index": 5,
+          "count": 5,
+          "phase": "回到基态；能够无跳变衔接 idle",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 5/5 for state pumpkin-bag triggered by interaction:pumpkin-bag. 回到基态；能够无跳变衔接 idle. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        }
+      ]
+    },
+    {
+      "id": "petal-spin",
+      "triggers": [
+        "interaction:petal-spin"
+      ],
+      "frameDurationMs": 110,
+      "frames": [
+        {
+          "file": "petal-spin-01.png",
+          "index": 1,
+          "count": 5,
+          "phase": "准备姿势；与母版保持同一身体尺度和脚底基线",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 1/5 for state petal-spin triggered by interaction:petal-spin. 准备姿势；与母版保持同一身体尺度和脚底基线. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "petal-spin-02.png",
+          "index": 2,
+          "count": 5,
+          "phase": "动作开始；只改变完成动作所需的局部姿态",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 2/5 for state petal-spin triggered by interaction:petal-spin. 动作开始；只改变完成动作所需的局部姿态. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "petal-spin-03.png",
+          "index": 3,
+          "count": 5,
+          "phase": "主动作或反馈峰值；保持身份、镜头和身体比例",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 3/5 for state petal-spin triggered by interaction:petal-spin. 主动作或反馈峰值；保持身份、镜头和身体比例. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "petal-spin-04.png",
+          "index": 4,
+          "count": 5,
+          "phase": "回弹或回位过渡；逐步恢复基态",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 4/5 for state petal-spin triggered by interaction:petal-spin. 回弹或回位过渡；逐步恢复基态. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "petal-spin-05.png",
+          "index": 5,
+          "count": 5,
+          "phase": "回到基态；能够无跳变衔接 idle",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 5/5 for state petal-spin triggered by interaction:petal-spin. 回到基态；能够无跳变衔接 idle. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        }
+      ]
+    },
+    {
+      "id": "starfish-wave",
+      "triggers": [
+        "interaction:starfish-wave"
+      ],
+      "frameDurationMs": 110,
+      "frames": [
+        {
+          "file": "starfish-wave-01.png",
+          "index": 1,
+          "count": 5,
+          "phase": "准备姿势；与母版保持同一身体尺度和脚底基线",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 1/5 for state starfish-wave triggered by interaction:starfish-wave. 准备姿势；与母版保持同一身体尺度和脚底基线. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "starfish-wave-02.png",
+          "index": 2,
+          "count": 5,
+          "phase": "动作开始；只改变完成动作所需的局部姿态",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 2/5 for state starfish-wave triggered by interaction:starfish-wave. 动作开始；只改变完成动作所需的局部姿态. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "starfish-wave-03.png",
+          "index": 3,
+          "count": 5,
+          "phase": "主动作或反馈峰值；保持身份、镜头和身体比例",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 3/5 for state starfish-wave triggered by interaction:starfish-wave. 主动作或反馈峰值；保持身份、镜头和身体比例. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "starfish-wave-04.png",
+          "index": 4,
+          "count": 5,
+          "phase": "回弹或回位过渡；逐步恢复基态",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 4/5 for state starfish-wave triggered by interaction:starfish-wave. 回弹或回位过渡；逐步恢复基态. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        },
+        {
+          "file": "starfish-wave-05.png",
+          "index": 5,
+          "count": 5,
+          "phase": "回到基态；能够无跳变衔接 idle",
+          "prompt": "Reference the confirmed core IP image idle-01.png. Create frame 5/5 for state starfish-wave triggered by interaction:starfish-wave. 回到基态；能够无跳变衔接 idle. Keep the same face, colors, material, body proportions, signature accessories, camera, head center, body scale, and foot baseline. Show the complete body centered with generous clear padding on all four sides. Output a standalone transparent PNG; if real alpha is unavailable, use only a light gray/white simulated transparency grid. Do not include: human hands, additional characters, unconfirmed props, text or lettering, logos or watermarks, decorative borders, scenery or rooms, ground or platform, cast shadows or contact shadows, glow or background color blocks."
+        }
+      ]
+    }
+  ]
+}
