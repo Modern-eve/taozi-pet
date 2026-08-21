@@ -51,8 +51,11 @@ function componentsOf(data, width, height) {
       const index = queue[head++];
       const x = index % width; const y = Math.floor(index / width);
       pixels += 1; minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
-      const neighbors = [x > 0 ? index - 1 : -1, x + 1 < width ? index + 1 : -1, y > 0 ? index - width : -1, y + 1 < height ? index + width : -1];
-      for (const next of neighbors) if (next >= 0 && !visited[next] && data[next * 4 + 3] >= 32) { visited[next] = 1; queue[tail++] = next; }
+      // 内联 4 邻域，避免每次分配 neighbors 数组（272 帧 × 数十万像素的 GC 压力）
+      if (x > 0) { const next = index - 1; if (!visited[next] && data[next * 4 + 3] >= 32) { visited[next] = 1; queue[tail++] = next; } }
+      if (x + 1 < width) { const next = index + 1; if (!visited[next] && data[next * 4 + 3] >= 32) { visited[next] = 1; queue[tail++] = next; } }
+      if (y > 0) { const next = index - width; if (!visited[next] && data[next * 4 + 3] >= 32) { visited[next] = 1; queue[tail++] = next; } }
+      if (y + 1 < height) { const next = index + width; if (!visited[next] && data[next * 4 + 3] >= 32) { visited[next] = 1; queue[tail++] = next; } }
     }
     components.push({ pixels, bounds: [minX, minY, maxX, maxY] });
   }
