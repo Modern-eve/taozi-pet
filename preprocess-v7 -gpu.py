@@ -7,7 +7,7 @@
 与 v7 完全一致的契约：
   - 输入 assets-raw/（纯白底 PNG）
   - 输出 assets-processed/（同名同尺寸透明 PNG）
-  - 保留 build-incoming-assets.py 所需的「白底已抠、保护色不丢、脚底线已清、
+  - 保留 assemble-incoming-assets.py 所需的「白底已抠、保护色不丢、脚底线已清、
     最大连通块」行为
 
 用法:
