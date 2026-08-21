@@ -6,8 +6,9 @@ import os
 import numpy as np
 from PIL import Image, ImageDraw
 
-INPUT_DIR = r"C:\Users\Modern_eve\Doubao\chats\2026-08-12\new-chat\assets-raw"
-OUTPUT_DIR = r"C:\Users\Modern_eve\Doubao\chats\2026-08-12\new-chat\assets-processed"
+ROOT = os.path.dirname(os.path.abspath(__file__))
+INPUT_DIR = os.path.join(ROOT, 'assets-raw')
+OUTPUT_DIR = os.path.join(ROOT, 'assets-processed')
 
 PADDING = 100
 BG_THRESHOLD = 20  # 只清除与边缘白色/灰色颜色差异小于20的连通像素
