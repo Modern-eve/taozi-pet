@@ -8232,27 +8232,27 @@
         1280,
         1280
       ],
-      "foregroundRatio": 0.33795166015625,
+      "foregroundRatio": 0.338592529296875,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        138,
-        274,
+        137,
+        273,
         1141,
         1231
       ],
       "sharedScale": 0.33699324324324326,
-      "normalizationCorrection": 0.9998992383331463,
+      "normalizationCorrection": 0.998423371494274,
       "referenceVisibleSize": [
         288,
         379
       ],
       "groupSourceMaximum": [
-        1004,
+        1005,
         1184
       ],
       "outputBounds": [
         87,
-        162,
+        163,
         424,
         484
       ]
@@ -8268,7 +8268,7 @@
         1280,
         1280
       ],
-      "foregroundRatio": 0.3498199462890625,
+      "foregroundRatio": 0.3486688232421875,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
         143,
@@ -8283,7 +8283,7 @@
         379
       ],
       "groupSourceMaximum": [
-        1004,
+        1005,
         1184
       ],
       "outputBounds": [
@@ -8319,7 +8319,7 @@
         379
       ],
       "groupSourceMaximum": [
-        1004,
+        1005,
         1184
       ],
       "outputBounds": [
@@ -8340,7 +8340,7 @@
         1280,
         1280
       ],
-      "foregroundRatio": 0.3331109619140625,
+      "foregroundRatio": 0.3317523193359375,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
         142,
@@ -8355,7 +8355,7 @@
         379
       ],
       "groupSourceMaximum": [
-        1004,
+        1005,
         1184
       ],
       "outputBounds": [
@@ -8391,7 +8391,7 @@
         379
       ],
       "groupSourceMaximum": [
-        1004,
+        1005,
         1184
       ],
       "outputBounds": [
@@ -8427,7 +8427,7 @@
         379
       ],
       "groupSourceMaximum": [
-        1004,
+        1005,
         1184
       ],
       "outputBounds": [
@@ -8463,7 +8463,7 @@
         379
       ],
       "groupSourceMaximum": [
-        1004,
+        1005,
         1184
       ],
       "outputBounds": [
@@ -8499,7 +8499,7 @@
         379
       ],
       "groupSourceMaximum": [
-        1004,
+        1005,
         1184
       ],
       "outputBounds": [
@@ -8535,7 +8535,7 @@
         379
       ],
       "groupSourceMaximum": [
-        1004,
+        1005,
         1184
       ],
       "outputBounds": [
@@ -8571,7 +8571,7 @@
         379
       ],
       "groupSourceMaximum": [
-        1004,
+        1005,
         1184
       ],
       "outputBounds": [
@@ -8592,27 +8592,27 @@
         1280,
         1280
       ],
-      "foregroundRatio": 0.33795166015625,
+      "foregroundRatio": 0.338592529296875,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        138,
-        274,
+        137,
+        273,
         1141,
         1231
       ],
       "sharedScale": 0.33699324324324326,
-      "normalizationCorrection": 0.9998992383331463,
+      "normalizationCorrection": 0.998423371494274,
       "referenceVisibleSize": [
         288,
         379
       ],
       "groupSourceMaximum": [
-        1004,
+        1005,
         1184
       ],
       "outputBounds": [
         87,
-        162,
+        163,
         424,
         484
       ]
@@ -8628,7 +8628,7 @@
         1280,
         1280
       ],
-      "foregroundRatio": 0.3498199462890625,
+      "foregroundRatio": 0.3486688232421875,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
         143,
@@ -8643,7 +8643,7 @@
         379
       ],
       "groupSourceMaximum": [
-        1004,
+        1005,
         1184
       ],
       "outputBounds": [
@@ -8679,7 +8679,7 @@
         379
       ],
       "groupSourceMaximum": [
-        1004,
+        1005,
         1184
       ],
       "outputBounds": [
@@ -8700,7 +8700,7 @@
         1280,
         1280
       ],
-      "foregroundRatio": 0.3331109619140625,
+      "foregroundRatio": 0.3317523193359375,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
         142,
@@ -8715,7 +8715,7 @@
         379
       ],
       "groupSourceMaximum": [
-        1004,
+        1005,
         1184
       ],
       "outputBounds": [
@@ -8751,7 +8751,7 @@
         379
       ],
       "groupSourceMaximum": [
-        1004,
+        1005,
         1184
       ],
       "outputBounds": [
@@ -8787,7 +8787,7 @@
         379
       ],
       "groupSourceMaximum": [
-        1004,
+        1005,
         1184
       ],
       "outputBounds": [
@@ -8823,7 +8823,7 @@
         379
       ],
       "groupSourceMaximum": [
-        1004,
+        1005,
         1184
       ],
       "outputBounds": [
@@ -8859,7 +8859,7 @@
         379
       ],
       "groupSourceMaximum": [
-        1004,
+        1005,
         1184
       ],
       "outputBounds": [
@@ -8895,7 +8895,7 @@
         379
       ],
       "groupSourceMaximum": [
-        1004,
+        1005,
         1184
       ],
       "outputBounds": [
@@ -8931,7 +8931,7 @@
         379
       ],
       "groupSourceMaximum": [
-        1004,
+        1005,
         1184
       ],
       "outputBounds": [
@@ -8967,7 +8967,7 @@
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
@@ -8988,28 +8988,28 @@
         1280,
         1280
       ],
-      "foregroundRatio": 0.316160888671875,
+      "foregroundRatio": 0.318365478515625,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
         170,
-        306,
-        1108,
+        305,
+        1109,
         1231
       ],
       "sharedScale": 0.33699324324324326,
-      "normalizationCorrection": 1.001459499682043,
+      "normalizationCorrection": 0.9998786628643231,
       "referenceVisibleSize": [
         257.5,
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
         98,
         173,
-        413,
+        414,
         484
       ]
     },
@@ -9024,10 +9024,10 @@
         1280,
         1280
       ],
-      "foregroundRatio": 0.3050152587890625,
+      "foregroundRatio": 0.306097412109375,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        196,
+        195,
         254,
         1084,
         1231
@@ -9039,7 +9039,7 @@
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
@@ -9060,7 +9060,7 @@
         1280,
         1280
       ],
-      "foregroundRatio": 0.3127557373046875,
+      "foregroundRatio": 0.31161865234375,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
         196,
@@ -9075,7 +9075,7 @@
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
@@ -9111,7 +9111,7 @@
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
@@ -9147,7 +9147,7 @@
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
@@ -9183,7 +9183,7 @@
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
@@ -9219,7 +9219,7 @@
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
@@ -9255,7 +9255,7 @@
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
@@ -9291,7 +9291,7 @@
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
@@ -9327,7 +9327,7 @@
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
@@ -9363,7 +9363,7 @@
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
@@ -9399,7 +9399,7 @@
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
@@ -9420,28 +9420,28 @@
         1280,
         1280
       ],
-      "foregroundRatio": 0.316160888671875,
+      "foregroundRatio": 0.318365478515625,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
         170,
-        306,
-        1108,
+        305,
+        1109,
         1231
       ],
       "sharedScale": 0.33699324324324326,
-      "normalizationCorrection": 1.001459499682043,
+      "normalizationCorrection": 0.9998786628643231,
       "referenceVisibleSize": [
         257.5,
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
         98,
         173,
-        413,
+        414,
         484
       ]
     },
@@ -9456,10 +9456,10 @@
         1280,
         1280
       ],
-      "foregroundRatio": 0.3050152587890625,
+      "foregroundRatio": 0.306097412109375,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        196,
+        195,
         254,
         1084,
         1231
@@ -9471,7 +9471,7 @@
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
@@ -9492,7 +9492,7 @@
         1280,
         1280
       ],
-      "foregroundRatio": 0.3127557373046875,
+      "foregroundRatio": 0.31161865234375,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
         196,
@@ -9507,7 +9507,7 @@
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
@@ -9543,7 +9543,7 @@
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
@@ -9579,7 +9579,7 @@
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
@@ -9615,7 +9615,7 @@
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
@@ -9651,7 +9651,7 @@
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
@@ -9687,7 +9687,7 @@
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
@@ -9723,7 +9723,7 @@
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
@@ -9759,7 +9759,7 @@
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
@@ -9795,7 +9795,7 @@
         384
       ],
       "groupSourceMaximum": [
-        939,
+        940,
         1184
       ],
       "outputBounds": [
