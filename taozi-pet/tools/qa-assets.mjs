@@ -135,7 +135,10 @@ function coloredGroundEvidence(data, width, height, bounds, mainPixels) {
 }
 
 for (const state of states) {
+  const checkedFiles = new Set(); // 双播状态下同一帧名重复引用两次，物理文件只有一份，只检测一次
   for (const frame of state.frames) {
+    if (checkedFiles.has(frame)) continue;
+    checkedFiles.add(frame);
     const errors = [];
     const diagnostics = [];
     const file = path.join(assetDir, frame);
@@ -245,15 +248,9 @@ for (const state of states) {
       else addDiagnostic(record.errors, record.diagnostics, 'ANCHOR_DRIFT', message);
     }
   }
-  // DUPLICATE_FRAME 检查：帧序列 sha256 去重。
-  // 双播序列（后半 == 前半逐帧，即"同一组帧播两遍"的合法动画设计，如 blink 眨两次眼）
-  // 只对前半做去重检查——后半必须等于前半是预期行为；前半内部若出现重复（如 walk-03/04
-  // 复制错误）仍会被拦截。
-  let checkRecords = stateRecords;
-  const halfLen = stateRecords.length / 2;
-  const isDoublePlay = Number.isInteger(halfLen) && halfLen >= 2
-    && stateRecords.slice(0, halfLen).every((record, index) => record.sha256 === stateRecords[index + halfLen].sha256);
-  if (isDoublePlay) checkRecords = stateRecords.slice(0, halfLen);
+  // DUPLICATE_FRAME 检查：帧序列 sha256 去重。状态帧已按文件名去重（双播的重复引用
+  // 只检测一次），这里检查的是"不同文件名的帧内容相同"——walk-03/04 类复制错误仍会被拦截。
+  const checkRecords = stateRecords;
 
   const seen = new Map();
   for (let index = 0; index < checkRecords.length; index += 1) {
