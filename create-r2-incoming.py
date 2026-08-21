@@ -2,8 +2,9 @@ import shutil
 import os
 import json
 
-INCOMING = r'C:\Users\Modern_eve\Doubao\chats\2026-08-12\new-chat\taozi-pet\incoming-assets'
-SPEC = r'C:\Users\Modern_eve\Doubao\chats\2026-08-12\new-chat\pet-spec.json'
+ROOT = os.path.dirname(os.path.abspath(__file__))
+INCOMING = os.path.join(ROOT, 'taozi-pet', 'incoming-assets')
+SPEC = os.path.join(ROOT, 'taozi-pet', 'pet-spec.json')
 
 with open(SPEC, encoding='utf-8') as f:
     spec = json.load(f)

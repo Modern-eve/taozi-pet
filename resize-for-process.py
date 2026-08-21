@@ -2,8 +2,9 @@ from PIL import Image
 import os
 import glob
 
-src_dir = r'C:\Users\Modern_eve\Doubao\chats\2026-08-12\new-chat\assets-processed'
-dst_dir = r'C:\Users\Modern_eve\Doubao\chats\2026-08-12\new-chat\taozi-pet\incoming-assets'
+ROOT = os.path.dirname(os.path.abspath(__file__))
+src_dir = os.path.join(ROOT, 'assets-processed')
+dst_dir = os.path.join(ROOT, 'taozi-pet', 'incoming-assets')
 
 target_width = 1024
 

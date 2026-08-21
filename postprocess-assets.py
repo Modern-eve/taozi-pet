@@ -10,8 +10,9 @@ import json
 from PIL import Image
 import numpy as np
 
-ASSET_DIR = r'C:\Users\Modern_eve\Doubao\chats\2026-08-12\new-chat\taozi-pet\src\assets\pet'
-SPEC_PATH = r'C:\Users\Modern_eve\Doubao\chats\2026-08-12\new-chat\taozi-pet\pet-spec.json'
+ROOT = os.path.dirname(os.path.abspath(__file__))
+ASSET_DIR = os.path.join(ROOT, 'taozi-pet', 'src', 'assets', 'pet')
+SPEC_PATH = os.path.join(ROOT, 'taozi-pet', 'pet-spec.json')
 
 # 读取 pet-spec 获取状态列表
 with open(SPEC_PATH, 'r', encoding='utf-8') as f:
