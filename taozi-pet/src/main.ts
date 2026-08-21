@@ -14,9 +14,8 @@ import { readValidatedJson } from './main/persistence';
 import trayIconPath from './assets/tray/tray-icon.png';
 
 const spec = specData as PetSpec;
-type Role = 'pet' | 'reminder' | 'dashboard';
+type Role = 'pet' | 'dashboard';
 let petWindow: BrowserWindow | undefined;
-let reminderWindow: BrowserWindow | undefined;
 let dashboardWindow: BrowserWindow | undefined;
 let tray: Tray | undefined;
 let logger: JsonLogger | undefined;
@@ -51,6 +50,8 @@ let fatalExitStarted = false;
 let quitPersisting = false;
 const roles = new Map<number, Role>();
 const reminderTimers = new Map<string, ReturnType<typeof setTimeout>>();
+// 已到点但尚未被用户点击消费的提醒 id（桌宠一直 notify 循环，直到用户点击其他动作）
+const pendingReminderIds = new Set<string>();
 const typingListener = new TypingListener();
 const expectedRuntimeAssets = new Set([spec.character.coreAsset, ...spec.states.flatMap((state) => state.frames)]);
 const runtimeReadyFile = path.join(process.cwd(), '.build', 'runtime-ready.json');
@@ -95,8 +96,8 @@ if (process.env.PET_E2E === '1') {
   }).__PET_E2E__ = {
     snapshot: () => ({
       tray: Boolean(tray && !tray.isDestroyed()),
-      roles: [petWindow, reminderWindow, dashboardWindow].map((window, index) => ({
-        role: (['pet', 'reminder', 'dashboard'] as const)[index]!,
+      roles: [petWindow, dashboardWindow].map((window, index) => ({
+        role: (['pet', 'dashboard'] as const)[index]!,
         visible: Boolean(window?.isVisible()),
         destroyed: Boolean(window?.isDestroyed()),
       })),
@@ -122,7 +123,7 @@ async function commitRuntimeReady(): Promise<void> {
     runtimeCommitted
     || !runtimeWindowReady
     || !runtimeRendererReport
-    || runtimeReadyRenderers.size !== 3
+    || runtimeReadyRenderers.size !== 2
     || !petWindow
     || petWindow.isDestroyed()
   ) return;
@@ -136,13 +137,12 @@ async function commitRuntimeReady(): Promise<void> {
     renderers: {
       pet: runtimeReadyRenderers.has('pet'),
       dashboard: runtimeReadyRenderers.has('dashboard'),
-      reminder: runtimeReadyRenderers.has('reminder'),
     },
     appName: spec.app.name,
     version: spec.app.version,
     timestamp: new Date().toISOString(),
   };
-  if (report.windowCount !== 3 || !report.petVisible) throw new Error(`Runtime window gate failed: windows=${report.windowCount}, visible=${report.petVisible}`);
+  if (report.windowCount !== 2 || !report.petVisible) throw new Error(`Runtime window gate failed: windows=${report.windowCount}, visible=${report.petVisible}`);
   await logger?.write('info', 'runtime-ready', report);
   await writeRuntimeFile(runtimeReadyFile, report);
   runtimeCommitted = true;
@@ -397,17 +397,6 @@ function scheduleSleep(): void {
   }, SLEEP_TRIGGER_MS);
 }
 
-function positionAbovePet(window: BrowserWindow): void {
-  if (!petWindow) return;
-  const petBounds = petWindow.getBounds();
-  const target = window.getBounds();
-  const workArea = screen.getDisplayMatching(petBounds).workArea;
-  const x = Math.min(workArea.x + workArea.width - target.width, Math.max(workArea.x, petBounds.x + Math.round((petBounds.width - target.width) / 2)));
-  const preferredY = petBounds.y - target.height - 12;
-  const y = preferredY >= workArea.y ? preferredY : Math.min(workArea.y + workArea.height - target.height, petBounds.y + petBounds.height + 12);
-  window.setPosition(x, y, false);
-}
-
 function createWindows(): void {
   const size = petSize();
   petWindow = secureWindow({
@@ -430,22 +419,6 @@ function createWindows(): void {
     else petWindow?.show();
     runtimeWindowReady = Boolean(petWindow?.isVisible());
     void commitRuntimeReady().catch((error) => fatalExit('runtime-ready-failed', error));
-  });
-  reminderWindow = secureWindow({
-    width: 390,
-    height: 360,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    show: false,
-    resizable: false,
-    alwaysOnTop: true,
-    hasShadow: true,
-    opacity: e2eMode ? 0 : 1,
-  }, 'reminder', REMINDER_WINDOW_PRELOAD_WEBPACK_ENTRY);
-  void reminderWindow.loadURL(REMINDER_WINDOW_WEBPACK_ENTRY);
-  reminderWindow.on('close', (event) => {
-    if (!isQuitting) { event.preventDefault(); reminderWindow?.hide(); }
   });
 
   dashboardWindow = secureWindow({
@@ -495,13 +468,13 @@ async function persistStats(): Promise<void> {
 
 function broadcastStats(): void {
   const value = publicStats();
-  for (const window of [petWindow, reminderWindow, dashboardWindow]) {
+  for (const window of [petWindow, dashboardWindow]) {
     if (window && !window.isDestroyed()) window.webContents.send('pet:stats', value);
   }
 }
 
 function broadcastRemindersUpdated(): void {
-  for (const window of [petWindow, reminderWindow, dashboardWindow]) {
+  for (const window of [petWindow, dashboardWindow]) {
     if (window && !window.isDestroyed()) window.webContents.send('reminders:updated');
   }
 }
@@ -532,22 +505,13 @@ async function triggerInteraction(id: string): Promise<InteractionResult> {
   const feedback = interaction.feedback[Math.floor(Math.random() * interaction.feedback.length)] ?? interaction.label;
   await persistStats();
   const result: InteractionResult = { interaction, feedback, stats: publicStats() };
+  // 用户触发互动（“点击其他动作”）即视为消费掉当前待处理的提醒
+  ackPendingReminder();
   sendActivity({ kind: 'interaction', stateId: interaction.stateId, durationMs: interaction.durationMs, feedback });
   broadcastStats();
   // 互动结束后检查心情，若仍低于阈值则回到sad
   setTimeout(() => checkMoodState(), interaction.durationMs + 200);
   return result;
-}
-
-function showReminderComposer(): void {
-  if (!spec.features.reminders || !reminderWindow) return;
-  positionAbovePet(reminderWindow);
-  if (e2eMode) reminderWindow.showInactive();
-  else {
-    reminderWindow.show();
-    reminderWindow.focus();
-  }
-  reminderWindow.webContents.send('reminder:compose');
 }
 
 function showDashboard(): void {
@@ -569,7 +533,7 @@ function buildPetMenu(): Electron.MenuItemConstructorOptions[] {
     }
     if (spec.experience.interactions.length) items.push({ type: 'separator' });
   }
-  if (spec.features.reminders) items.push({ label: '⏰ 添加提醒', click: showReminderComposer });
+  if (spec.features.reminders) items.push({ label: '⏰ 添加提醒', click: showDashboard });
   if (spec.features.dashboard) items.push({ label: `🏠 ${spec.character.displayName}的小屋`, click: showDashboard });
   if (spec.features.filePocket) items.push({ label: '📁 打开文件口袋', click: () => void openPocket() });
   items.push({ type: 'separator' });
@@ -618,7 +582,7 @@ function createTrayMenuRefresh(): void {
 }
 
 function broadcastTypingStatus(): void {
-  for (const window of [petWindow, reminderWindow, dashboardWindow]) {
+  for (const window of [petWindow, dashboardWindow]) {
     if (window && !window.isDestroyed()) window.webContents.send('typing:status', typingStatus);
   }
 }
@@ -648,22 +612,22 @@ function scheduleReminder(reminder: Reminder): void {
       scheduleReminder(reminder);
       return;
     }
-    if (reminderWindow) {
-      positionAbovePet(reminderWindow);
-      if (e2eMode) reminderWindow.showInactive();
-      else {
-        reminderWindow.show();
-        reminderWindow.focus();
-      }
-      reminderWindow.webContents.send('reminder:due', reminder);
-    }
+    // 到点触发：notify 动作 + 气泡持续循环，直到用户点击桌宠（ack）或触发其他动作后才删除
+    pendingReminderIds.add(reminder.id);
     const state = stateForTrigger('reminder:due');
-    sendActivity({ kind: 'notify', stateId: state?.id, durationMs: 1800, feedback: reminder.text });
-    // 触发后自动删除
-    reminders = reminders.filter((item) => item.id !== reminder.id);
-    void persistReminders();
-    broadcastRemindersUpdated();
+    sendActivity({ kind: 'notify', stateId: state?.id, durationMs: 0, feedback: reminder.text });
   }, delay));
+}
+
+// 用户点击桌宠或其他动作时消费掉所有待处理提醒
+function ackPendingReminder(): boolean {
+  if (pendingReminderIds.size === 0) return false;
+  reminders = reminders.filter((item) => !pendingReminderIds.has(item.id));
+  for (const id of pendingReminderIds) clearReminderTimer(id);
+  pendingReminderIds.clear();
+  void persistReminders();
+  broadcastRemindersUpdated();
+  return true;
 }
 
 async function persistReminders(): Promise<void> {
@@ -681,13 +645,13 @@ async function openPocket(): Promise<void> {
 function registerIpc(): void {
   if (process.env.PET_E2E === '1') {
     ipcMain.handle('runtime:e2e-snapshot', (event) => {
-      assertSender(event, ['pet', 'dashboard', 'reminder']);
+      assertSender(event, ['pet', 'dashboard']);
       return (globalThis as typeof globalThis & {
         __PET_E2E__?: { snapshot: () => unknown };
       }).__PET_E2E__?.snapshot();
     });
     ipcMain.handle('runtime:e2e-quit', (event) => {
-      assertSender(event, ['pet', 'dashboard', 'reminder']);
+      assertSender(event, ['pet', 'dashboard']);
       setTimeout(() => {
         isQuitting = true;
         app.quit();
@@ -695,7 +659,7 @@ function registerIpc(): void {
     });
   }
   ipcMain.handle('runtime:renderer-ready', async (event, payload: unknown) => {
-    const role = assertSender(event, ['pet', 'dashboard', 'reminder']);
+    const role = assertSender(event, ['pet', 'dashboard']);
     if (
       !payload
       || typeof payload !== 'object'
@@ -710,7 +674,7 @@ function registerIpc(): void {
     await commitRuntimeReady();
   });
   ipcMain.handle('runtime:renderer-failed', async (event, payload: unknown) => {
-    const role = assertSender(event, ['pet', 'dashboard', 'reminder']);
+    const role = assertSender(event, ['pet', 'dashboard']);
     const message = payload && typeof payload === 'object' && 'message' in payload && typeof payload.message === 'string'
       ? payload.message.slice(0, 2000)
       : 'Unknown renderer bootstrap failure';
@@ -731,15 +695,15 @@ function registerIpc(): void {
     assertRuntimeFailureReport(report);
     await fatalExit('renderer-runtime-failed', new Error(report.message), report as unknown as Record<string, unknown>);
   });
-  ipcMain.handle('settings:get', (event) => { assertSender(event, ['pet', 'reminder', 'dashboard']); return settings; });
+  ipcMain.handle('settings:get', (event) => { assertSender(event, ['pet', 'dashboard']); return settings; });
   ipcMain.handle('settings:update', async (event, patch: unknown) => {
     assertSender(event, ['dashboard']);
     assertSettingsPatch(patch);
     return saveSettings(parseSettings({ ...settings, ...patch }));
   });
-  ipcMain.handle('reminders:list', (event) => { assertSender(event, ['dashboard', 'reminder']); return reminders; });
+  ipcMain.handle('reminders:list', (event) => { assertSender(event, ['dashboard']); return reminders; });
   ipcMain.handle('reminders:save', async (event, input: unknown) => {
-    assertSender(event, ['dashboard', 'reminder']);
+    assertSender(event, ['dashboard']);
     assertReminderInput(input);
     const reminder: Reminder = { id: randomUUID(), text: input.text.trim(), dueAt: new Date(input.dueAt).toISOString(), createdAt: new Date().toISOString() };
     reminders.push(reminder);
@@ -748,12 +712,17 @@ function registerIpc(): void {
     broadcastRemindersUpdated();
     return reminder;
   });
+  ipcMain.handle('reminders:ack', (event) => {
+    assertSender(event, ['pet']);
+    return ackPendingReminder();
+  });
   ipcMain.handle('reminders:remove', async (event, id: unknown) => {
     assertSender(event, ['dashboard']);
     if (typeof id !== 'string' || id.length > 100) throw new TypeError('Invalid reminder id');
     const oldLength = reminders.length;
     reminders = reminders.filter((item) => item.id !== id);
     clearReminderTimer(id);
+    pendingReminderIds.delete(id);
     await persistReminders();
     broadcastRemindersUpdated();
     return oldLength !== reminders.length;
@@ -818,9 +787,7 @@ function registerIpc(): void {
     assertSender(event, ['pet']);
     if (petWindow) Menu.buildFromTemplate(buildPetMenu()).popup({ window: petWindow });
   });
-  ipcMain.handle('window:show-reminder', (event) => { assertSender(event, ['pet', 'dashboard']); showReminderComposer(); });
   ipcMain.handle('window:show-dashboard', (event) => { assertSender(event, ['pet']); showDashboard(); });
-  ipcMain.handle('window:hide-reminder', (event) => { assertSender(event, ['reminder']); reminderWindow?.hide(); });
   ipcMain.handle('window:hide-dashboard', (event) => { assertSender(event, ['dashboard']); dashboardWindow?.hide(); });
   ipcMain.handle('window:hide-pet', (event) => { assertSender(event, ['pet', 'dashboard']); petWindow?.hide(); });
 }

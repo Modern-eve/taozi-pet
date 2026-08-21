@@ -20,7 +20,7 @@ test('local date keys use calendar fields instead of UTC serialization', () => {
 });
 
 test('settings accept only complete, finite, whitelisted values', () => {
-  const valid = { edgeSnap: true, alwaysOnTop: true, typingReaction: false, clickThrough: false, petScale: 0.8 };
+  const valid = { edgeSnap: true, alwaysOnTop: true, typingReaction: false, clickThrough: false, petScale: 0.8, autoStart: true, randomWalk: true };
   assert.deepEqual(parseSettings(valid), valid);
   assert.throws(() => parseSettings({ ...valid, petScale: Number.NaN }), /petScale/);
   assert.throws(() => parseSettings({ ...valid, petScale: 0.81 }), /petScale/);
@@ -36,6 +36,8 @@ test('persisted stats and reminders reject malformed values', () => {
     todayInteractions: 3,
     totalCompanionMs: 1234,
     lastInteractionDate: '2026-07-28',
+    dailyInteractionDates: {},
+    lastMoodDecayMs: 123456789,
   };
   assert.deepEqual(parsePersistedStats(stats), stats);
   assert.throws(() => parsePersistedStats({ ...stats, todayInteractions: 1.5 }), /todayInteractions/);

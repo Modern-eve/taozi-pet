@@ -67,7 +67,10 @@ html, body {
   opacity: 0;
   transition: opacity 0.3s ease, transform 0.3s ease;
   pointer-events: none;
-  white-space: nowrap;
+  max-width: min(240px, 70vw);
+  white-space: normal;
+  word-break: break-word;
+  text-align: center;
 }
 
 #feedback-bubble.show {
