@@ -40,7 +40,10 @@ for (const state of spec.states ?? []) {
   if (!Array.isArray(state.frames) || state.frames.length < 1) errors.push(`state has no frames: ${state.id}`);
   for (const frame of state.frames ?? []) {
     if (typeof frame !== 'string' || /^[A-Za-z]:|^[/\\]|(?:^|[/\\])\.\.(?:[/\\]|$)/.test(frame)) errors.push(`unsafe frame path: ${frame}`);
-    if (frameOwners.has(frame)) errors.push(`frame ${frame} belongs to both ${frameOwners.get(frame)} and ${state.id}`);
+    // 同一状态内重复引用（双播：frames 里同一帧引用两次，如 blink-01 出现两次=眨两次眼）
+    // 是合法动画设计；只有跨状态共享同一帧才是冲突。
+    const prevOwner = frameOwners.get(frame);
+    if (prevOwner !== undefined && prevOwner !== state.id) errors.push(`frame ${frame} belongs to both ${prevOwner} and ${state.id}`);
     else frameOwners.set(frame, state.id);
   }
   if (!Array.isArray(state.triggers) || !state.triggers.length) errors.push(`state has no runtime trigger: ${state.id}`);

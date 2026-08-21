@@ -118,20 +118,8 @@ def main():
         fix_occupancy(n)
     # 4. GROUND
     fix_ground('pumpkin-bag-12.png', rows=2)
-    # 5. r2 重新生成 R+1：只处理 pet-spec.json 里声明了 -r2 的基础帧
-    #    （idle 无 -r2，不能生成，否则 validate-asset-links 报 orphan）
-    import json as _json
-    spec_path = os.path.join(os.path.dirname(__file__), 'taozi-pet', 'pet-spec.json')
-    spec = _json.load(open(spec_path, encoding='utf-8'))
-    r2_bases = set()
-    for st in spec['states']:
-        for f in st['frames']:
-            if f.endswith('-r2.png'):
-                r2_bases.add(f[:-7] + '.png')  # idle-01-r2.png -> idle-01.png
-    for base in sorted(r2_bases):
-        p = os.path.join(ASSET, base)
-        if os.path.exists(p):
-            rer2(base)
+    # 5. -r2 已停用：spec 不再引用 -r2（双播改为 frames 重复引用 base，见 r2 清理提交），
+    #    不再生成任何 -r2 文件（否则 validate-asset-links 报 orphan）。
     print('DONE')
 
 
