@@ -71,10 +71,6 @@ def render_new(raw_name, ref):
     scale = ref_h / subh
     new_w, new_h = max(1, round(subw * scale)), max(1, round(subh * scale))
     sub = sub.resize((new_w, new_h), Image.LANCZOS)
-    # 把 LANCZOS 插值产生的半透明边缘二值化（避免 process-assets 反推 RGB 时除法爆炸→白底）
-    sub_arr = np.array(sub)
-    sub_arr[:, :, 3] = (sub_arr[:, :, 3] >= 128).astype(np.uint8) * 255
-    sub = Image.fromarray(sub_arr, mode="RGBA")
     canvas = Image.new("RGBA", (ref_W, ref_H), (0, 0, 0, 0))
     px = int(round(ref_cx - new_w / 2))
     py = int(round(ref_bottom - new_h))
