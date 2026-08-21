@@ -3,7 +3,7 @@ import os
 from PIL import Image
 import numpy as np
 
-SRC = r'C:\Users\Modern_eve\Doubao\chats\2026-08-12\new-chat\taozi-pet\incoming-assets'
+SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'taozi-pet', 'incoming-assets')
 
 template = Image.open(os.path.join(SRC, 'idle-01.png')).convert('RGBA')
 print(f'Template size: {template.size}')
