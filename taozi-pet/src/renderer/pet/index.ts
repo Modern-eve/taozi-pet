@@ -2,6 +2,7 @@ import spec from '../../../pet-spec.json';
 import type { PetSpec, StateActivity } from '../../shared/contracts';
 import { exceedsDragThreshold } from '../../main/drag';
 import { PetStateMachine } from './state-machine';
+import { DEFAULT_QUOTE_GROUPS, loadAllQuotes, ensureQuotesSeeded } from '../../shared/quotes';
 import './index.css';
 
 const petSpec = spec as PetSpec;
@@ -69,8 +70,11 @@ function setState(stateId: string, durationMs?: number, mirror = false): void {
   currentMirror = mirror;
   if (mirror) {
     container.style.transform = 'scaleX(-1)';
+    // 气泡反向翻转，保证镜像播放时语录文字不被镜像
+    feedbackBubble.classList.add('mirrored');
   } else {
     container.style.transform = '';
+    feedbackBubble.classList.remove('mirrored');
   }
   if (!stateMachine.start(stateId, performance.now(), durationMs)) return;
   const snapshot = stateMachine.tick(performance.now());
@@ -89,9 +93,11 @@ function animate(timestamp: number): void {
     // peek 和 walk 状态保持镜像，切回其他状态时重置
     if (snapshot.stateId !== 'peek' && snapshot.stateId !== 'walk') {
       container.style.transform = '';
+      feedbackBubble.classList.remove('mirrored');
       currentMirror = false;
     } else if (currentMirror) {
       container.style.transform = 'scaleX(-1)';
+      feedbackBubble.classList.add('mirrored');
     }
   }
   animationFrame = requestAnimationFrame(animate);
@@ -112,81 +118,31 @@ function scheduleIdleEvents(): void {
 }
 
 // 点击语录
-// 所有状态默认语录
-const DEFAULT_QUOTES: Record<string, string[]> = {
-  __click__: [
-    '嘿嘿，被你发现啦~',
-    '怎么啦怎么啦？',
-    '戳我干嘛呀~',
-    '哇！吓我一跳！',
-    '嗯？在叫我吗？',
-    '今天也要开开心心哦！',
-    '你的手好温暖呀~',
-    '再戳一下嘛~',
-    '我在呢我在呢！',
-    '嘻嘻，好痒呀~',
-  ],
-  blink: [
-    '眨眼~',
-    '困困的...',
-    '眼睛有点酸',
-    '呼~',
-    '（眨眨眼）',
-  ],
-  peek: [
-    '嘿嘿，被你发现了~',
-    '我在偷看你哦',
-    '躲在这里...',
-    '嘘~别告诉别人我在这',
-    '被发现了！',
-  ],
-  walk: [
-    '散步去~',
-    '走走走',
-    '今天也要运动运动',
-    '溜达溜达~',
-    '这边看看，那边看看',
-  ],
-  sleep: [
-    '呼...呼...',
-    'Zzz...',
-    '好困呀...',
-    '晚安~',
-    '（睡着了）',
-    '不要吵醒我哦...',
-  ],
-  sad: [
-    '呜...不开心',
-    '心情有点低落...',
-    '好想被摸摸头',
-    '今天好难过呀',
-    '...',
-    '可以陪陪我吗？',
-  ],
-};
+// 默认语录已统一迁移到 src/shared/quotes.ts（DEFAULT_QUOTE_GROUPS），
+// pet 与 dashboard 共用 localStorage 作为统一数据源，不再各自维护镜像。
 
-// 自定义语录缓存（避免每次 getQuote 都 JSON.parse localStorage）
+// 自定义语录缓存（避免每次取语录都 JSON.parse localStorage）
 let customQuotesCache: Record<string, string[]> | null = null;
 function loadCustomQuotes(): Record<string, string[]> {
   if (customQuotesCache) return customQuotesCache;
-  try {
-    customQuotesCache = JSON.parse(localStorage.getItem('pet-custom-quotes-v1') || '{}');
-  } catch {
-    customQuotesCache = {};
-  }
+  customQuotesCache = loadAllQuotes();
   return customQuotesCache ?? {};
+}
+
+function invalidateQuotesCache(): void {
+  customQuotesCache = null;
 }
 
 function getQuote(stateId: string): string {
   try {
     const custom = loadCustomQuotes();
-    if (custom[stateId] && Array.isArray(custom[stateId]) && custom[stateId].length > 0) {
+    if (Array.isArray(custom[stateId]) && custom[stateId].length > 0) {
       const quotes = custom[stateId] as string[];
       const pick = quotes[Math.floor(Math.random() * quotes.length)];
       if (pick) return pick;
     }
   } catch { /* ignore */ }
-  const defaults = DEFAULT_QUOTES[stateId];
+  const defaults = DEFAULT_QUOTE_GROUPS[stateId]?.quotes;
   if (defaults && defaults.length > 0) {
     return defaults[Math.floor(Math.random() * defaults.length)] || '';
   }
@@ -297,6 +253,10 @@ window.petAPI?.events.onStateActivity((activity: StateActivity) => {
 // 初始化
 async function init(): Promise<void> {
   try {
+    // 首次运行：将默认语录（状态 + 互动）写入 localStorage，统一作为语录数据源
+    ensureQuotesSeeded(petSpec.experience.interactions);
+    invalidateQuotesCache();
+
     // 先设置 idle 状态
     setState('idle');
     scheduleIdleEvents();
