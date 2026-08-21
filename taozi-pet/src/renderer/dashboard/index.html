@@ -391,6 +391,36 @@
     .reminder-add-btn:hover {
       opacity: 0.9;
     }
+    .reminder-time-quick {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .reminder-time-quick .quick-label {
+      font-size: 12px;
+      color: var(--muted, #9a7b6a);
+    }
+    .quick-btn {
+      padding: 4px 10px;
+      border: 1px solid var(--accent, #ffc987);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text, #3a2a20);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .quick-btn:hover {
+      background: var(--background, #fff7ed);
+      border-color: var(--primary, #ff8a24);
+    }
+    .quick-preview {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--primary, #ff8a24);
+    }
   </style>
 </head>
 <body>
@@ -488,6 +518,14 @@
             <input type="text" id="reminder-text" placeholder="提醒内容...">
             <input type="datetime-local" id="reminder-time">
             <button class="reminder-add-btn" id="reminder-add-btn">添加提醒</button>
+          </div>
+          <div class="reminder-time-quick">
+            <span class="quick-label">快捷调整</span>
+            <button class="quick-btn" data-hours="-1">-1小时</button>
+            <button class="quick-btn" data-minutes="-30">-30分钟</button>
+            <button class="quick-btn" data-minutes="30">+30分钟</button>
+            <button class="quick-btn" data-hours="1">+1小时</button>
+            <span class="quick-preview" id="reminder-time-preview"></span>
           </div>
           <div id="reminders-container"></div>
         </div>
