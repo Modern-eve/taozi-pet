@@ -74,3 +74,12 @@ html, body {
   opacity: 1;
   transform: translateX(-50%) translateY(-10px);
 }
+
+/* 动作镜像（peek/walk 贴边反向）时，抵消 container 的 scaleX(-1)，保证语录文字不被镜像 */
+#feedback-bubble.mirrored {
+  transform: translateX(50%) scaleX(-1);
+}
+
+#feedback-bubble.mirrored.show {
+  transform: translateX(50%) translateY(-10px) scaleX(-1);
+}

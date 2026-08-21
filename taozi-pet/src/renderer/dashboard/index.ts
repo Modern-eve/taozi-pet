@@ -1,5 +1,6 @@
 import spec from '../../../pet-spec.json';
 import type { PetSpec, PetStats, Settings, InteractionSpec, Reminder } from '../../shared/contracts';
+import { DEFAULT_QUOTE_GROUPS, loadAllQuotes, saveAllQuotes, ensureQuotesSeeded } from '../../shared/quotes';
 import './index.css';
 
 // 引入头像图片
@@ -44,20 +45,15 @@ const sizeSelector = document.getElementById('size-selector') as HTMLDivElement;
 
 let currentSettings: Settings | null = null;
 
-// === 语录管理 ===
-const QUOTES_KEY = 'pet-custom-quotes-v1';
+// === 语录管理（统一数据源：localStorage，见 src/shared/quotes.ts）===
 const quotesContainer = document.getElementById('quotes-container') as HTMLDivElement;
 
 function loadCustomQuotes(): Record<string, string[]> {
-  try {
-    return JSON.parse(localStorage.getItem(QUOTES_KEY) || '{}');
-  } catch {
-    return {};
-  }
+  return loadAllQuotes();
 }
 
 function saveCustomQuotes(quotes: Record<string, string[]>): void {
-  localStorage.setItem(QUOTES_KEY, JSON.stringify(quotes));
+  saveAllQuotes(quotes);
 }
 
 function getQuotesForInteraction(interaction: InteractionSpec): string[] {
@@ -69,29 +65,8 @@ function getQuotesForInteraction(interaction: InteractionSpec): string[] {
   return [...(interaction.feedback || [])];
 }
 
-// 所有状态默认语录（需与 pet/index.ts 中 DEFAULT_QUOTES 保持一致）
-const STATE_DEFAULT_QUOTES: Record<string, { label: string; emoji: string; quotes: string[] }> = {
-  __click__: { label: '点击', emoji: '👆', quotes: [
-    '嘿嘿，被你发现啦~', '怎么啦怎么啦？', '戳我干嘛呀~', '哇！吓我一跳！',
-    '嗯？在叫我吗？', '今天也要开开心心哦！', '你的手好温暖呀~', '再戳一下嘛~',
-    '我在呢我在呢！', '嘻嘻，好痒呀~',
-  ]},
-  blink: { label: '眨眼', emoji: '😉', quotes: [
-    '眨眼~', '困困的...', '眼睛有点酸', '呼~', '（眨眨眼）',
-  ]},
-  peek: { label: '贴边窥视', emoji: '👀', quotes: [
-    '嘿嘿，被你发现了~', '我在偷看你哦', '躲在这里...', '嘘~别告诉别人我在这', '被发现了！',
-  ]},
-  walk: { label: '走路', emoji: '🚶', quotes: [
-    '散步去~', '走走走', '今天也要运动运动', '溜达溜达~', '这边看看，那边看看',
-  ]},
-  sleep: { label: '睡觉', emoji: '😴', quotes: [
-    '呼...呼...', 'Zzz...', '好困呀...', '晚安~', '（睡着了）', '不要吵醒我哦...',
-  ]},
-  sad: { label: '沮丧', emoji: '😢', quotes: [
-    '呜...不开心', '心情有点低落...', '好想被摸摸头', '今天好难过呀', '...', '可以陪陪我吗？',
-  ]},
-};
+// 默认语录统一来自 src/shared/quotes.ts（DEFAULT_QUOTE_GROUPS），
+// pet 与 dashboard 共用 localStorage 作为统一数据源，不再各自维护镜像。
 
 function renderQuoteGroup(key: string, label: string, emoji: string, defaultQuotes: string[]): void {
   const custom = loadCustomQuotes();
@@ -149,13 +124,16 @@ function renderQuoteGroup(key: string, label: string, emoji: string, defaultQuot
 }
 
 function renderQuotes(): void {
+  // 确保默认语录已落盘 localStorage（只补缺失键，不覆盖用户自定义）
+  ensureQuotesSeeded(petSpec.experience.interactions);
   quotesContainer.replaceChildren();
   // 点击语录
-  renderQuoteGroup('__click__', '点击', '👆', STATE_DEFAULT_QUOTES.__click__?.quotes || []);
+  const click = DEFAULT_QUOTE_GROUPS.__click__!;
+  renderQuoteGroup('__click__', click.label, click.emoji, click.quotes);
   // 自动触发状态语录
   const autoStates = ['blink', 'peek', 'walk', 'sleep', 'sad'];
   for (const stateId of autoStates) {
-    const s = STATE_DEFAULT_QUOTES[stateId];
+    const s = DEFAULT_QUOTE_GROUPS[stateId];
     if (s) renderQuoteGroup(stateId, s.label, s.emoji, s.quotes);
   }
   // 互动语录
