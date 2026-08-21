@@ -3,7 +3,7 @@ import os
 from PIL import Image
 import numpy as np
 
-ASSET_DIR = r'C:\Users\Modern_eve\Doubao\chats\2026-08-12\new-chat\taozi-pet\src\assets\pet'
+ASSET_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'taozi-pet', 'src', 'assets', 'pet')
 MAX_DIM = int(512 * 0.80)  # 409，留余量
 
 def get_bounds(arr):

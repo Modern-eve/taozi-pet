@@ -10,7 +10,7 @@ import os
 import numpy as np
 from PIL import Image
 
-ASSET = os.path.join(os.path.dirname(__file__), '..', 'src', 'assets', 'pet')
+ASSET = os.path.join(os.path.dirname(__file__), 'taozi-pet', 'src', 'assets', 'pet')
 ASSET = os.path.abspath(ASSET)
 MAX_DIM = 409
 
@@ -121,7 +121,7 @@ def main():
     # 5. r2 重新生成 R+1：只处理 pet-spec.json 里声明了 -r2 的基础帧
     #    （idle 无 -r2，不能生成，否则 validate-asset-links 报 orphan）
     import json as _json
-    spec_path = os.path.join(os.path.dirname(__file__), '..', 'pet-spec.json')
+    spec_path = os.path.join(os.path.dirname(__file__), 'taozi-pet', 'pet-spec.json')
     spec = _json.load(open(spec_path, encoding='utf-8'))
     r2_bases = set()
     for st in spec['states']:
