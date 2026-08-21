@@ -54,8 +54,21 @@ function playSquash(): void {
 // 显示反馈气泡
 // persist=true 时气泡不自动消失（用于提醒通知，直到用户点击桌宠或其他动作后才被替换/隐藏）
 let feedbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+// 气泡定位：短文本贴近桌宠（气泡区底部、精灵上方），长文本固定在气泡区顶部换行/滚动，始终不遮动画
+function positionBubble(): void {
+  const zoneHeight = window.innerHeight - window.innerWidth; // 顶部气泡区高度(px)，等于窗口高-精灵边长
+  const margin = 10;
+  const contentHeight = feedbackBubble.scrollHeight; // 内容自然高度（不受 max-height 截断影响）
+  const available = zoneHeight - margin * 2;
+  feedbackBubble.style.top = contentHeight <= available
+    ? `${zoneHeight - contentHeight - margin}px` // 短文本：贴住精灵上方
+    : `${margin}px`; // 长文本：固定在气泡区顶部，max-height 内滚动
+}
+
 function showFeedback(text: string, persist = false): void {
   feedbackBubble.textContent = text;
+  positionBubble();
   feedbackBubble.classList.add('show');
   if (feedbackTimer) clearTimeout(feedbackTimer); // 防止多次点击堆叠 timer
   if (persist) {
