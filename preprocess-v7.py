@@ -1,11 +1,9 @@
 """
 抠图算法 v7
 - 支持指定文件处理
-- 洪水填充前用白色替换黑色描边，填充后恢复描边
-- 仅从左、右、上边缘发起洪水填充，下方不发起
+- 仅从左、右、上边缘发起洪水填充，下方不发起（保护脚底）
 - 保护色（肤色、南瓜色）作为洪水填充障碍物
-- 内部纯白小空洞填充（HOLE_FILL_THRESHOLD）
-- 保守清除底部横线
+- 洪水填充后：去除与主体连通的底部横线（贴近画布底部的横向宽条）
 - 保留中心最大连通块
 用法:
   python preprocess-v7.py              # 处理全部
@@ -15,17 +13,11 @@ import os
 import sys
 import numpy as np
 from PIL import Image
-from collections import deque
 
 INPUT_DIR = r'D:\Documents\Doubao\chats\2026-08-12\new-chat\assets-raw'
 OUTPUT_DIR = r'D:\Documents\Doubao\chats\2026-08-12\new-chat\assets-processed'
 
 BG_THRESHOLD = 28
-FLOOD_STEP = 3
-HOLE_FILL_THRESHOLD = 3000
-STROKE_THRESHOLD = 80
-BOTTOM_LINE_HEIGHT = 15  # 底部横线检测高度
-BOTTOM_LINE_RATIO = 0.6  # 横线宽度占比阈值
 
 def get_protected_mask(arr, alpha):
     r = arr[:, :, 0].astype(int)
@@ -37,161 +29,138 @@ def get_protected_mask(arr, alpha):
     pumpkin = (r > 170) & (g > 110) & (b < 140) & ((r - b) > 70)
     return (skin | pumpkin) & (alpha > 16)
 
-def get_stroke_mask(arr, alpha):
-    r = arr[:, :, 0].astype(int)
-    g = arr[:, :, 1].astype(int)
-    b = arr[:, :, 2].astype(int)
-    return (r < STROKE_THRESHOLD) & (g < STROKE_THRESHOLD) & (b < STROKE_THRESHOLD) & (alpha > 16)
-
-def flood_fill_from_edges(arr, alpha):
+def flood_fill_from_edges(arr, alpha, protected=None):
+    """删与上/左/右三边连通的近背景像素（下方不发起，保护脚底）。
+    scipy.ndimage.label 向量化替代 Python deque BFS（等价且快 10×+）。"""
+    from scipy import ndimage
     h, w = arr.shape[:2]
+    if protected is None:
+        protected = get_protected_mask(arr, alpha)
     bg_ref = arr[0, 0].astype(int)
-    protected = get_protected_mask(arr, alpha)
     r = arr[:, :, 0].astype(int)
     g = arr[:, :, 1].astype(int)
     b = arr[:, :, 2].astype(int)
     dist = np.sqrt((r - bg_ref[0])**2 + (g - bg_ref[1])**2 + (b - bg_ref[2])**2)
     is_bg = (dist < BG_THRESHOLD) & (alpha > 16) & ~protected
-    mask = np.zeros((h, w), dtype=np.uint8)
-    mask[protected] = 2
-    queue = deque()
-    for y in range(0, h, FLOOD_STEP):
-        if is_bg[y, 0] and mask[y, 0] == 0:
-            mask[y, 0] = 1; queue.append((y, 0))
-        if is_bg[y, w-1] and mask[y, w-1] == 0:
-            mask[y, w-1] = 1; queue.append((y, w-1))
-    for x in range(0, w, FLOOD_STEP):
-        if is_bg[0, x] and mask[0, x] == 0:
-            mask[0, x] = 1; queue.append((0, x))
-    directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
-    while queue:
-        y, x = queue.popleft()
-        for dy, dx in directions:
-            ny, nx = y + dy, x + dx
-            if 0 <= ny < h and 0 <= nx < w and mask[ny, nx] == 0:
-                if protected[ny, nx]:
-                    mask[ny, nx] = 2
-                elif is_bg[ny, nx]:
-                    mask[ny, nx] = 1; queue.append((ny, nx))
-                else:
-                    mask[ny, nx] = 2
-    return mask == 1
 
-def fill_holes(alpha):
-    """填充内部小空洞"""
-    h, w = alpha.shape
-    # 从边缘洪水填充透明区域，未被填充的透明区域就是内部空洞
-    visited = np.zeros((h, w), dtype=bool)
-    queue = deque()
-    for y in range(h):
-        if alpha[y, 0] <= 16:
-            visited[y, 0] = True; queue.append((y, 0))
-        if alpha[y, w-1] <= 16:
-            visited[y, w-1] = True; queue.append((y, w-1))
-    for x in range(w):
-        if alpha[0, x] <= 16:
-            visited[0, x] = True; queue.append((0, x))
-        if alpha[h-1, x] <= 16:
-            visited[h-1, x] = True; queue.append((h-1, x))
-    while queue:
-        y, x = queue.popleft()
-        for dy, dx in [(-1,0),(1,0),(0,-1),(0,1)]:
-            ny, nx = y+dy, x+dx
-            if 0 <= ny < h and 0 <= nx < w and not visited[ny, nx] and alpha[ny, nx] <= 16:
-                visited[ny, nx] = True; queue.append((ny, nx))
-    # 未被访问的透明像素是内部空洞
-    hole_mask = ~visited & (alpha <= 16)
-    # 按连通区域填充小空洞
+    labeled, num = ndimage.label(is_bg)
+    if num == 0:
+        return np.zeros((h, w), dtype=bool)
+    # 只删与上/左/右边缘连通的块（底边不发起）
+    edge_labels = set(np.unique(labeled[0, :]))
+    edge_labels |= set(np.unique(labeled[:, 0]))
+    edge_labels |= set(np.unique(labeled[:, w - 1]))
+    edge_labels.discard(0)
+    if not edge_labels:
+        return np.zeros((h, w), dtype=bool)
+    return np.isin(labeled, list(edge_labels))
+
+def remove_connected_white_bg(arr, alpha, protected=None):
+    """洪水填充后清除与主体连通的底部横线（贴近画布底部的横向宽条）。
+    注意：不做"双腿间白色"清除——角色白色花瓣/浅色头发与背景白色 RGB 相同，
+    无法区分，强行删除会误伤角色主体（见 sleep-07 误删 11 万像素教训）。
+    双腿间白色若存在，应在 src 阶段（process-assets 之后）处理。
+    """
     from scipy import ndimage
-    labeled, num = ndimage.label(hole_mask)
-    for i in range(1, num+1):
-        region = labeled == i
-        area = region.sum()
-        if area <= HOLE_FILL_THRESHOLD:
-            alpha[region] = 255
+    h, w = alpha.shape
+    if protected is None:
+        protected = get_protected_mask(arr, alpha)
+    bg_ref = arr[0, 0].astype(int)
+    r = arr[:, :, 0].astype(int)
+    g = arr[:, :, 1].astype(int)
+    b = arr[:, :, 2].astype(int)
+    dist = np.sqrt((r - bg_ref[0])**2 + (g - bg_ref[1])**2 + (b - bg_ref[2])**2)
+    near_bg = (dist < BG_THRESHOLD) & (alpha > 16) & ~protected
+
+    # 连通块标记（scipy 向量化，替代 Python BFS）
+    labeled, num = ndimage.label(near_bg)
+    if num == 0:
+        return alpha
+    # 每个连通块的边界框
+    sl = ndimage.find_objects(labeled)
+    delete = np.zeros((h, w), dtype=bool)
+    for lab in range(1, num + 1):
+        obj = sl[lab - 1]
+        if obj is None:
+            continue
+        top, bot = obj[0].start, obj[0].stop - 1
+        left, right = obj[1].start, obj[1].stop - 1
+        hb, wb = bot - top + 1, right - left + 1
+        size = int((labeled[obj] == lab).sum())
+        if size < 30:
+            continue
+        # 仅删贴近画布底部的横向宽条（地面/阴影线）
+        if bot >= h - 15 and wb > w * 0.2 and wb >= hb:
+            delete |= (labeled == lab)
+
+    alpha[delete] = 0
     return alpha
 
-def remove_bottom_lines(arr, alpha):
-    """保守清除底部横线：要求 std<15（极均匀颜色）且整行均值>240（接近白）"""
-    h, w = arr.shape[:2]
-    for y in range(h - BOTTOM_LINE_HEIGHT, h):
-        row_alpha = alpha[y, :]
-        visible = row_alpha > 16
-        if visible.sum() / w > BOTTOM_LINE_RATIO:
-            row_pixels = arr[y, visible, :3]
-            if len(row_pixels) > 0:
-                std = row_pixels.std(axis=0).mean()
-                mean_val = row_pixels.mean()
-                if std < 15 and mean_val > 240:
-                    alpha[y, :] = 0
+def remove_bottom_ground_line(arr, alpha):
+    """删主体实际最底部的浅色横向地面线（如 happy-07 脚底 y=2000 mean=213 宽条）。
+    从主体 bbox 底部向上找第一个实体行（n>=15%宽）：
+      - 若该行平均色 >150（浅色，地面线/阴影带）→ 删除该行
+      - 若该行较深（<=150，如鞋底/裙摆）→ 保留，停止
+    """
+    h, w = alpha.shape
+    ys, xs = np.where(alpha > 16)
+    if not len(ys):
+        return alpha
+    y_bot = ys.max()
+    min_n = max(40, int(w * 0.15))
+    for y in range(y_bot, max(0, y_bot - 8), -1):
+        row = alpha[y, :] > 16
+        n = int(row.sum())
+        if n < min_n:
+            continue
+        rp = arr[y, row, :3]
+        mean = float(rp.mean())
+        if mean > 150:
+            alpha[y, row] = 0
+            print(f'    ground line cleared at y={y} n={n} mean={mean:.0f}')
+        break  # 找到主体底部实体行后即停（无论删否）
     return alpha
 
 def keep_largest_connected(alpha):
+    from scipy import ndimage
     h, w = alpha.shape
-    visited = np.zeros((h, w), dtype=bool)
-    regions = []
-    for y in range(h):
-        for x in range(w):
-            if alpha[y, x] > 16 and not visited[y, x]:
-                region = []
-                queue = deque([(y, x)])
-                visited[y, x] = True
-                while queue:
-                    cy, cx = queue.popleft()
-                    region.append((cy, cx))
-                    for dy, dx in [(-1,0),(1,0),(0,-1),(0,1)]:
-                        ny, nx = cy+dy, cx+dx
-                        if 0 <= ny < h and 0 <= nx < w and not visited[ny, nx] and alpha[ny, nx] > 16:
-                            visited[ny, nx] = True; queue.append((ny, nx))
-                cy_avg = np.mean([p[0] for p in region])
-                cx_avg = np.mean([p[1] for p in region])
-                dist = ((cy_avg - h/2)**2 + (cx_avg - w/2)**2) ** 0.5
-                regions.append((len(region), dist, region))
-    if not regions:
+    fg = alpha > 16
+    labeled, num = ndimage.label(fg)
+    if num == 0:
         return alpha
-    regions.sort(key=lambda r: (-r[0], r[1]))
-    keep = set(regions[0][2])
-    max_area = regions[0][0]
-    for area, dist, region in regions[1:]:
-        if area > max_area * 0.3 and dist < h * 0.4:
-            keep.update(region)
+    sizes = ndimage.sum(fg, labeled, range(1, num + 1))
+    # 质心（用于"近中心"判定）
+    centers = ndimage.center_of_mass(fg, labeled, range(1, num + 1))
+    max_area = float(sizes.max())
+    keep = np.zeros((h, w), dtype=bool)
+    for lab in range(1, num + 1):
+        area = float(sizes[lab - 1])
+        if area == max_area:
+            keep |= (labeled == lab)
+        elif area > max_area * 0.3:
+            cy, cx = centers[lab - 1]
+            if ((cy - h/2)**2 + (cx - w/2)**2) ** 0.5 < h * 0.4:
+                keep |= (labeled == lab)
     new_alpha = np.zeros((h, w), dtype=np.uint8)
-    for y, x in keep:
-        new_alpha[y, x] = alpha[y, x]
+    new_alpha[keep] = alpha[keep]
     return new_alpha
 
 def process_image(input_path, output_path):
     img = Image.open(input_path).convert('RGBA')
     arr = np.array(img)
     alpha = arr[:, :, 3].copy()
-    
-    # 1. 检测描边
-    stroke_mask = get_stroke_mask(arr, alpha)
-    # 2. 用白色替换描边（让洪水能冲入缝隙）
-    arr_no_stroke = arr.copy()
-    arr_no_stroke[stroke_mask, :3] = 255
-    arr_no_stroke[stroke_mask, 3] = 255
-    # 3. 洪水填充（在去描边的图上）
-    delete_mask = flood_fill_from_edges(arr_no_stroke, alpha)
-    # 4. 应用删除
+    protected = get_protected_mask(arr, alpha)  # 一帧只算一次，供各步复用
+
+    # 1. 洪水填充（只从左/右/上边缘发起，删背景）
+    delete_mask = flood_fill_from_edges(arr, alpha, protected)
     alpha[delete_mask] = 0
-    # 5. 恢复描边：被删除的描边像素如果相邻有保留的前景，则恢复
-    h, w = alpha.shape
-    for y in range(h):
-        for x in range(w):
-            if stroke_mask[y, x] and alpha[y, x] == 0:
-                for dy, dx in [(-1,0),(1,0),(0,-1),(0,1),(-1,-1),(-1,1),(1,-1),(1,1)]:
-                    ny, nx = y+dy, x+dx
-                    if 0 <= ny < h and 0 <= nx < w and alpha[ny, nx] > 16:
-                        alpha[y, x] = 255
-                        break
-    # 6. 填充内部小空洞
-    alpha = fill_holes(alpha)
-    # 7. 清除底部横线
-    alpha = remove_bottom_lines(arr, alpha)
-    # 8. 保留中心最大连通块
+    # 2. 去除与主体连通的底部横线（贴画布底的近背景宽条）
+    alpha = remove_connected_white_bg(arr, alpha, protected)
+    # 3. 去除主体实际最底部的浅色地面线（脚底阴影带）
+    alpha = remove_bottom_ground_line(arr, alpha)
+    # 4. 保留中心最大连通块
     alpha = keep_largest_connected(alpha)
-    
+
     arr[:, :, 3] = alpha
     Image.fromarray(arr).save(output_path)
 

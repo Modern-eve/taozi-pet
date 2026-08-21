@@ -171,9 +171,14 @@ async function extractForeground(name) {
       const nearest = detected.palette.reduce((best, color) => colorDistance(data, offset, color) < colorDistance(data, offset, best) ? color : best, detected.palette[0]);
       const distance = colorDistance(data, offset, nearest);
       alphaFactor = Math.max(0.08, Math.min(1, (distance - threshold) / Math.max(1, feather)));
-      for (let channel = 0; channel < 3; channel += 1) {
-        const foreground = (data[offset + channel] - (1 - alphaFactor) * nearest[channel]) / alphaFactor;
-        output[offset + channel] = Math.max(0, Math.min(255, Math.round(foreground)));
+      // RGB 反推保护：alphaFactor 过低时 (data - bg*(1-a)) / a 会除法爆炸，
+      // 把接近背景的半透明边缘反推成纯白像素（曾导致双腿间白底）。
+      // 此时直接保留原始 RGB，只靠 alpha 衰减羽化，不再反推。
+      if (alphaFactor >= 0.5) {
+        for (let channel = 0; channel < 3; channel += 1) {
+          const foreground = (data[offset + channel] - (1 - alphaFactor) * nearest[channel]) / alphaFactor;
+          output[offset + channel] = Math.max(0, Math.min(255, Math.round(foreground)));
+        }
       }
     }
     output[offset + 3] = Math.round(data[offset + 3] * alphaFactor);
@@ -196,9 +201,18 @@ async function extractForeground(name) {
   };
 }
 
-for (const name of names) {
-  try { extracted.set(name, await extractForeground(name)); }
-  catch (error) { failures.push({ ok: false, name, ...diagnosticFrom(error) }); }
+// 并行处理 272 帧（sharp decode/encode 异步，Promise.all 分 8 路并发提速）
+const PARALLEL = 8;
+const nameList = [...names];
+for (let start = 0; start < nameList.length; start += PARALLEL) {
+  const batch = nameList.slice(start, start + PARALLEL);
+  const results = await Promise.allSettled(batch.map((name) => extractForeground(name)));
+  for (let i = 0; i < batch.length; i += 1) {
+    const name = batch[i];
+    const result = results[i];
+    if (result.status === 'fulfilled') extracted.set(name, result.value);
+    else failures.push({ ok: false, name, ...diagnosticFrom(result.reason) });
+  }
 }
 
 const maximum = Math.min(512 - safeMargin * 2, Math.floor(512 * targetOccupancy));

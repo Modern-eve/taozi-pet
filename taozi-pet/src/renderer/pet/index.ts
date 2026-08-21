@@ -28,7 +28,6 @@ for (const state of petSpec.states) {
 
 const stateMachine = new PetStateMachine(petSpec.states, performance.now());
 container.dataset.state = stateMachine.currentStateId();
-let idleTimer: ReturnType<typeof setTimeout> | null = null;
 let blinkTimer: ReturnType<typeof setTimeout> | null = null;
 let animationFrame: number | null = null;
 
@@ -52,10 +51,12 @@ function playSquash(): void {
 }
 
 // 显示反馈气泡
+let feedbackTimer: ReturnType<typeof setTimeout> | null = null;
 function showFeedback(text: string): void {
   feedbackBubble.textContent = text;
   feedbackBubble.classList.add('show');
-  setTimeout(() => {
+  if (feedbackTimer) clearTimeout(feedbackTimer); // 防止多次点击堆叠 timer
+  feedbackTimer = setTimeout(() => {
     feedbackBubble.classList.remove('show');
   }, 2000);
 }
@@ -78,11 +79,11 @@ function setState(stateId: string, durationMs?: number, mirror = false): void {
   if (frameUrl) sprite.src = frameUrl;
 }
 
-// 动画循环
+// 动画循环：仅在帧/状态变化时更新 DOM，减少无变化帧的布局/绘制开销
 function animate(timestamp: number): void {
   const snapshot = stateMachine.tick(timestamp);
-  container.dataset.state = snapshot.stateId;
   if (snapshot.stateChanged) {
+    container.dataset.state = snapshot.stateId;
     const frameUrl = assetMap.get(snapshot.frame);
     if (frameUrl) sprite.src = frameUrl;
     // peek 和 walk 状态保持镜像，切回其他状态时重置
@@ -96,10 +97,9 @@ function animate(timestamp: number): void {
   animationFrame = requestAnimationFrame(animate);
 }
 
-// 调度空闲事件（眨眼、随机动作）
+// 调度空闲事件（眨眼）
 function scheduleIdleEvents(): void {
   if (blinkTimer) clearTimeout(blinkTimer);
-  if (idleTimer) clearTimeout(idleTimer);
 
   // 随机眨眼
   const blinkDelay = 5000 + Math.random() * 10000;
@@ -109,15 +109,6 @@ function scheduleIdleEvents(): void {
     }
     scheduleIdleEvents();
   }, blinkDelay);
-
-  // 随机空闲动作
-  const idleMin = petSpec.motion.idleIntervalMs.min;
-  const idleMax = petSpec.motion.idleIntervalMs.max;
-  const idleDelay = idleMin + Math.random() * (idleMax - idleMin);
-  idleTimer = setTimeout(() => {
-    // 暂时不实现随机动作，保持 idle
-    scheduleIdleEvents();
-  }, idleDelay);
 }
 
 // 点击语录
@@ -174,9 +165,21 @@ const DEFAULT_QUOTES: Record<string, string[]> = {
   ],
 };
 
+// 自定义语录缓存（避免每次 getQuote 都 JSON.parse localStorage）
+let customQuotesCache: Record<string, string[]> | null = null;
+function loadCustomQuotes(): Record<string, string[]> {
+  if (customQuotesCache) return customQuotesCache;
+  try {
+    customQuotesCache = JSON.parse(localStorage.getItem('pet-custom-quotes-v1') || '{}');
+  } catch {
+    customQuotesCache = {};
+  }
+  return customQuotesCache ?? {};
+}
+
 function getQuote(stateId: string): string {
   try {
-    const custom = JSON.parse(localStorage.getItem('pet-custom-quotes-v1') || '{}');
+    const custom = loadCustomQuotes();
     if (custom[stateId] && Array.isArray(custom[stateId]) && custom[stateId].length > 0) {
       const quotes = custom[stateId] as string[];
       const pick = quotes[Math.floor(Math.random() * quotes.length)];
@@ -269,9 +272,9 @@ window.petAPI?.events.onStateActivity((activity: StateActivity) => {
       const interaction = petSpec.experience.interactions.find((i) => i.stateId === activity.stateId);
       if (interaction) {
         try {
-          const custom = JSON.parse(localStorage.getItem('pet-custom-quotes-v1') || '{}');
-          if (custom[interaction.id] && custom[interaction.id].length > 0) {
-            const quotes = custom[interaction.id] as string[];
+          const custom = loadCustomQuotes();
+          const quotes = custom[interaction.id];
+          if (quotes && quotes.length > 0) {
             feedback = quotes[Math.floor(Math.random() * quotes.length)];
           }
         } catch { /* ignore */ }
