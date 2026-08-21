@@ -6,7 +6,7 @@ import path from 'node:path';
 
 export interface AppSnapshot {
   tray: boolean;
-  roles: Array<{ role: 'pet' | 'reminder' | 'dashboard'; visible: boolean; destroyed: boolean }>;
+  roles: Array<{ role: 'pet' | 'dashboard'; visible: boolean; destroyed: boolean }>;
   quitting: boolean;
 }
 
@@ -93,20 +93,19 @@ function pages(application: PackagedApplication): Page[] {
   return application.browser.contexts().flatMap((context) => context.pages());
 }
 
-export async function waitForWindows(application: PackagedApplication): Promise<Record<'pet' | 'dashboard' | 'reminder', Page>> {
+export async function waitForWindows(application: PackagedApplication): Promise<Record<'pet' | 'dashboard', Page>> {
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
     const currentPages = pages(application);
     const pet = currentPages.find((page) => page.url().includes('/pet_window/'));
     const dashboard = currentPages.find((page) => page.url().includes('/dashboard_window/'));
-    const reminder = currentPages.find((page) => page.url().includes('/reminder_window/'));
-    if (pet && dashboard && reminder) {
-      await Promise.all([pet.waitForLoadState(), dashboard.waitForLoadState(), reminder.waitForLoadState()]);
-      return { pet, dashboard, reminder };
+    if (pet && dashboard) {
+      await Promise.all([pet.waitForLoadState(), dashboard.waitForLoadState()]);
+      return { pet, dashboard };
     }
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  throw new Error('Packaged app did not create pet, dashboard and reminder windows');
+  throw new Error('Packaged app did not create pet and dashboard windows');
 }
 
 export async function snapshot(application: PackagedApplication): Promise<AppSnapshot> {

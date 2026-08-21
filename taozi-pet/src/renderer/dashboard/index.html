@@ -358,6 +358,39 @@
       color: var(--muted, #9a7b6a);
       margin-bottom: 8px;
     }
+    .reminder-form {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .reminder-form input {
+      flex: 1;
+      min-width: 120px;
+      padding: 8px 10px;
+      border: 1px solid var(--accent, #ffc987);
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--text, #3a2a20);
+      background: white;
+      outline: none;
+    }
+    .reminder-form input:focus {
+      border-color: var(--primary, #ff8a24);
+    }
+    .reminder-add-btn {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 8px;
+      background: var(--primary, #ff8a24);
+      color: white;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .reminder-add-btn:hover {
+      opacity: 0.9;
+    }
   </style>
 </head>
 <body>
@@ -449,7 +482,13 @@
         </div>
 
         <div class="settings-group">
-          <div class="section-title">⏰ 提醒列表</div>
+          <div class="section-title">⏰ 提醒管理</div>
+          <div class="section-hint">到点后桌宠会一直提醒，点击桌宠或其他动作即可完成提醒</div>
+          <div class="reminder-form">
+            <input type="text" id="reminder-text" placeholder="提醒内容...">
+            <input type="datetime-local" id="reminder-time">
+            <button class="reminder-add-btn" id="reminder-add-btn">添加提醒</button>
+          </div>
           <div id="reminders-container"></div>
         </div>
       </div>
