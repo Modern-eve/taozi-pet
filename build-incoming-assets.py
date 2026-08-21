@@ -78,6 +78,7 @@ def render_new(raw_name, ref):
     return canvas
 
 def make_r2(base_path):
+    """生成 -r2 副本（R 通道 +1）。已停用：spec 不再使用 -r2（见 r2 清理），保留函数避免误引用。"""
     im = Image.open(base_path).convert("RGBA")
     arr = np.array(im)
     mask = arr[:, :, 3] > 16
@@ -103,10 +104,10 @@ for state, items in PLAN.items():
             render_new(src, ref).save(dst)
         placed.append(final)
         print(f"  {kind} {src} -> {final}")
-    # 生成 -r2
-    for final in placed:
-        base = os.path.join(INC, final + ".png")
-        make_r2(base).save(os.path.join(INC, final + "-r2.png"))
-    print(f"  + r2 x{len(placed)}")
+    # -r2 已停用（spec 不再引用 -r2，避免 DUPLICATE_FRAME 的合规产物；见 r2 清理提交）
+    # for final in placed:
+    #     base = os.path.join(INC, final + ".png")
+    #     make_r2(base).save(os.path.join(INC, final + "-r2.png"))
+    # print(f"  + r2 x{len(placed)}")
 
 print("\nDONE: incoming-assets 已就绪")

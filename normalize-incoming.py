@@ -25,6 +25,7 @@ def subject_bbox(arr):
     return ys.min(), ys.max(), xs.min(), xs.max()
 
 def make_r2(base_path):
+    """生成 -r2 副本（R 通道 +1）。已停用：spec 不再使用 -r2（见 r2 清理），保留函数避免误引用。"""
     im = Image.open(base_path).convert("RGBA")
     arr = np.array(im)
     mask = arr[:, :, 3] > 16
@@ -60,6 +61,7 @@ for state in ["sleep", "sad"]:
         px, py = (CANVAS - nw2) // 2, CANVAS - MARGIN - nh2
         canvas.paste(sub, (px, py), sub)
         canvas.save(os.path.join(INC, name))
-        make_r2(os.path.join(INC, name)).save(os.path.join(INC, name[:-4] + "-r2.png"))
+        # -r2 已停用（spec 不再引用 -r2，见 r2 清理提交）
+        # make_r2(os.path.join(INC, name)).save(os.path.join(INC, name[:-4] + "-r2.png"))
     occ = sorted(((max(nw, nh) ** 2 if False else (nw * nh)) for (_, _, _, _, _, _, nw, nh) in scaled))[len(scaled)//2] / (CANVAS*CANVAS)
     print(f"{state}: 目标占用率->{TARGET_OCC} fitScale={fit:.3f} 实际中位占用≈{occ:.3f} (画布 {CANVAS})")
