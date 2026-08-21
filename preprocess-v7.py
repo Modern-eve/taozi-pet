@@ -17,8 +17,8 @@ import numpy as np
 from PIL import Image
 from collections import deque
 
-INPUT_DIR = r'C:\Users\Modern_eve\Doubao\chats\2026-08-12\new-chat\assets-raw'
-OUTPUT_DIR = r'C:\Users\Modern_eve\Doubao\chats\2026-08-12\new-chat\assets-processed'
+INPUT_DIR = r'D:\Documents\Doubao\chats\2026-08-12\new-chat\assets-raw'
+OUTPUT_DIR = r'D:\Documents\Doubao\chats\2026-08-12\new-chat\assets-processed'
 
 BG_THRESHOLD = 28
 FLOOD_STEP = 3
@@ -31,7 +31,9 @@ def get_protected_mask(arr, alpha):
     r = arr[:, :, 0].astype(int)
     g = arr[:, :, 1].astype(int)
     b = arr[:, :, 2].astype(int)
-    skin = (r > 170) & (g > 130) & (b > 90) & (r > g) & (g > b) & ((r - b) > 25)
+    # 肤色：r-b > 3 即可保护，避免高光像素（r-b≈6-11、距白色<28）被误判为背景。
+    # 纯白背景 r-b=0 仍不满足；南瓜色保持不变。
+    skin = (r > 150) & (g > 110) & (b > 70) & (r >= g) & (g >= b) & ((r - b) > 3)
     pumpkin = (r > 170) & (g > 110) & (b < 140) & ((r - b) > 70)
     return (skin | pumpkin) & (alpha > 16)
 
@@ -110,18 +112,17 @@ def fill_holes(alpha):
     return alpha
 
 def remove_bottom_lines(arr, alpha):
-    """保守清除底部横线"""
+    """保守清除底部横线：要求 std<15（极均匀颜色）且整行均值>240（接近白）"""
     h, w = arr.shape[:2]
-    # 检查底部 BOTTOM_LINE_HEIGHT 行内的横线
     for y in range(h - BOTTOM_LINE_HEIGHT, h):
         row_alpha = alpha[y, :]
         visible = row_alpha > 16
         if visible.sum() / w > BOTTOM_LINE_RATIO:
-            # 检查这一行是否主要是单一颜色（横线）
             row_pixels = arr[y, visible, :3]
             if len(row_pixels) > 0:
                 std = row_pixels.std(axis=0).mean()
-                if std < 20:  # 颜色一致，认为是横线
+                mean_val = row_pixels.mean()
+                if std < 15 and mean_val > 240:
                     alpha[y, :] = 0
     return alpha
 
