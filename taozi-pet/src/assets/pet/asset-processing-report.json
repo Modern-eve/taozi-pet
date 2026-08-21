@@ -7365,31 +7365,31 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1084,
-        1425
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.2874085582961093,
+      "foregroundRatio": 0.2453924560546875,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        135,
-        102,
-        996,
-        1382
+        223,
+        48,
+        1055,
+        1231
       ],
-      "sharedScale": 0.3114754098360656,
-      "normalizationCorrection": 1.0180255012258528,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.011109456339954,
       "referenceVisibleSize": [
-        279.5,
-        396.5
+        288,
+        398
       ],
       "groupSourceMaximum": [
-        936,
-        1281
+        858,
+        1184
       ],
       "outputBounds": [
-        120,
-        79,
-        392,
+        114,
+        82,
+        397,
         484
       ]
     },
@@ -7401,31 +7401,31 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1084,
-        1425
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.3370686864763385,
+      "foregroundRatio": 0.2631134033203125,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        50,
-        112,
-        985,
-        1378
+        213,
+        74,
+        1066,
+        1231
       ],
-      "sharedScale": 0.3114754098360656,
-      "normalizationCorrection": 0.9802176729271462,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.010204345918597,
       "referenceVisibleSize": [
-        279.5,
-        396.5
+        288,
+        398
       ],
       "groupSourceMaximum": [
-        936,
-        1281
+        858,
+        1184
       ],
       "outputBounds": [
-        113,
-        98,
-        398,
+        111,
+        91,
+        401,
         484
       ]
     },
@@ -7437,31 +7437,31 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1536,
-        2048
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.1511087417602539,
+      "foregroundRatio": 0.238751220703125,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        307,
-        764,
-        1228,
-        2037
+        213,
+        49,
+        1065,
+        1228
       ],
-      "sharedScale": 0.3114754098360656,
-      "normalizationCorrection": 0.9862256650091914,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.0017406453556186,
       "referenceVisibleSize": [
-        279.5,
-        396.5
+        288,
+        398
       ],
       "groupSourceMaximum": [
-        936,
-        1281
+        858,
+        1184
       ],
       "outputBounds": [
-        115,
-        93,
-        397,
+        113,
+        86,
+        399,
         484
       ]
     },
@@ -7473,31 +7473,319 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1084,
-        1425
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.27391079173949634,
+      "foregroundRatio": 0.2494390869140625,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        134,
-        109,
-        1005,
-        1380
+        212,
+        49,
+        1066,
+        1228
       ],
-      "sharedScale": 0.3114754098360656,
-      "normalizationCorrection": 1.014332771203208,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1,
       "referenceVisibleSize": [
-        279.5,
-        396.5
+        288,
+        398
       ],
       "groupSourceMaximum": [
-        936,
-        1281
+        858,
+        1184
       ],
       "outputBounds": [
-        118,
-        83,
-        393,
+        112,
+        87,
+        399,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "walk-05.png",
+      "state": "walk",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.248978271484375,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        210,
+        49,
+        1067,
+        1228
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.9982683969692435,
+      "referenceVisibleSize": [
+        288,
+        398
+      ],
+      "groupSourceMaximum": [
+        858,
+        1184
+      ],
+      "outputBounds": [
+        112,
+        88,
+        399,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "walk-06.png",
+      "state": "walk",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.22122314453125,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        235,
+        49,
+        1043,
+        1228
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.027105182026191,
+      "referenceVisibleSize": [
+        288,
+        398
+      ],
+      "groupSourceMaximum": [
+        858,
+        1184
+      ],
+      "outputBounds": [
+        116,
+        76,
+        395,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "walk-07.png",
+      "state": "walk",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2460107421875,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        213,
+        49,
+        1065,
+        1228
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.0017406453556186,
+      "referenceVisibleSize": [
+        288,
+        398
+      ],
+      "groupSourceMaximum": [
+        858,
+        1184
+      ],
+      "outputBounds": [
+        113,
+        86,
+        399,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "walk-08.png",
+      "state": "walk",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2326776123046875,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        212,
+        49,
+        1066,
+        1228
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1,
+      "referenceVisibleSize": [
+        288,
+        398
+      ],
+      "groupSourceMaximum": [
+        858,
+        1184
+      ],
+      "outputBounds": [
+        112,
+        87,
+        399,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "walk-09.png",
+      "state": "walk",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2491241455078125,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        211,
+        49,
+        1066,
+        1228
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1,
+      "referenceVisibleSize": [
+        288,
+        398
+      ],
+      "groupSourceMaximum": [
+        858,
+        1184
+      ],
+      "outputBounds": [
+        112,
+        87,
+        399,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "walk-10.png",
+      "state": "walk",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2432513427734375,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        211,
+        49,
+        1066,
+        1228
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1,
+      "referenceVisibleSize": [
+        288,
+        398
+      ],
+      "groupSourceMaximum": [
+        858,
+        1184
+      ],
+      "outputBounds": [
+        112,
+        87,
+        399,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "walk-11.png",
+      "state": "walk",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2336065673828125,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        217,
+        49,
+        1060,
+        1228
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.007017629956027,
+      "referenceVisibleSize": [
+        288,
+        398
+      ],
+      "groupSourceMaximum": [
+        858,
+        1184
+      ],
+      "outputBounds": [
+        113,
+        84,
+        398,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "walk-12.png",
+      "state": "walk",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2453912353515625,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        212,
+        49,
+        1065,
+        1228
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1,
+      "referenceVisibleSize": [
+        288,
+        398
+      ],
+      "groupSourceMaximum": [
+        858,
+        1184
+      ],
+      "outputBounds": [
+        112,
+        87,
+        399,
         484
       ]
     },
@@ -7509,31 +7797,31 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1084,
-        1425
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.2874085582961093,
+      "foregroundRatio": 0.2453924560546875,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        135,
-        102,
-        996,
-        1382
+        223,
+        48,
+        1055,
+        1231
       ],
-      "sharedScale": 0.3114754098360656,
-      "normalizationCorrection": 1.0180255012258528,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.011109456339954,
       "referenceVisibleSize": [
-        279.5,
-        396.5
+        288,
+        398
       ],
       "groupSourceMaximum": [
-        936,
-        1281
+        858,
+        1184
       ],
       "outputBounds": [
-        120,
-        79,
-        392,
+        114,
+        82,
+        397,
         484
       ]
     },
@@ -7545,31 +7833,31 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1084,
-        1425
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.3370686864763385,
+      "foregroundRatio": 0.2631134033203125,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        50,
-        112,
-        985,
-        1378
+        213,
+        74,
+        1066,
+        1231
       ],
-      "sharedScale": 0.3114754098360656,
-      "normalizationCorrection": 0.9802176729271462,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.010204345918597,
       "referenceVisibleSize": [
-        279.5,
-        396.5
+        288,
+        398
       ],
       "groupSourceMaximum": [
-        936,
-        1281
+        858,
+        1184
       ],
       "outputBounds": [
-        113,
-        98,
-        398,
+        111,
+        91,
+        401,
         484
       ]
     },
@@ -7581,31 +7869,31 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1536,
-        2048
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.1511087417602539,
+      "foregroundRatio": 0.238751220703125,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        307,
-        764,
-        1228,
-        2037
+        213,
+        49,
+        1065,
+        1228
       ],
-      "sharedScale": 0.3114754098360656,
-      "normalizationCorrection": 0.9862256650091914,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.0017406453556186,
       "referenceVisibleSize": [
-        279.5,
-        396.5
+        288,
+        398
       ],
       "groupSourceMaximum": [
-        936,
-        1281
+        858,
+        1184
       ],
       "outputBounds": [
-        115,
-        93,
-        397,
+        113,
+        86,
+        399,
         484
       ]
     },
@@ -7617,31 +7905,319 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1084,
-        1425
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.27391079173949634,
+      "foregroundRatio": 0.2494390869140625,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        134,
-        109,
-        1005,
-        1380
+        212,
+        49,
+        1066,
+        1228
       ],
-      "sharedScale": 0.3114754098360656,
-      "normalizationCorrection": 1.014332771203208,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1,
       "referenceVisibleSize": [
-        279.5,
-        396.5
+        288,
+        398
       ],
       "groupSourceMaximum": [
-        936,
-        1281
+        858,
+        1184
       ],
       "outputBounds": [
-        118,
-        83,
-        393,
+        112,
+        87,
+        399,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "walk-05-r2.png",
+      "state": "walk",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.248978271484375,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        210,
+        49,
+        1067,
+        1228
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.9982683969692435,
+      "referenceVisibleSize": [
+        288,
+        398
+      ],
+      "groupSourceMaximum": [
+        858,
+        1184
+      ],
+      "outputBounds": [
+        112,
+        88,
+        399,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "walk-06-r2.png",
+      "state": "walk",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.22122314453125,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        235,
+        49,
+        1043,
+        1228
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.027105182026191,
+      "referenceVisibleSize": [
+        288,
+        398
+      ],
+      "groupSourceMaximum": [
+        858,
+        1184
+      ],
+      "outputBounds": [
+        116,
+        76,
+        395,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "walk-07-r2.png",
+      "state": "walk",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2460107421875,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        213,
+        49,
+        1065,
+        1228
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.0017406453556186,
+      "referenceVisibleSize": [
+        288,
+        398
+      ],
+      "groupSourceMaximum": [
+        858,
+        1184
+      ],
+      "outputBounds": [
+        113,
+        86,
+        399,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "walk-08-r2.png",
+      "state": "walk",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2326776123046875,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        212,
+        49,
+        1066,
+        1228
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1,
+      "referenceVisibleSize": [
+        288,
+        398
+      ],
+      "groupSourceMaximum": [
+        858,
+        1184
+      ],
+      "outputBounds": [
+        112,
+        87,
+        399,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "walk-09-r2.png",
+      "state": "walk",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2491241455078125,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        211,
+        49,
+        1066,
+        1228
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1,
+      "referenceVisibleSize": [
+        288,
+        398
+      ],
+      "groupSourceMaximum": [
+        858,
+        1184
+      ],
+      "outputBounds": [
+        112,
+        87,
+        399,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "walk-10-r2.png",
+      "state": "walk",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2432513427734375,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        211,
+        49,
+        1066,
+        1228
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1,
+      "referenceVisibleSize": [
+        288,
+        398
+      ],
+      "groupSourceMaximum": [
+        858,
+        1184
+      ],
+      "outputBounds": [
+        112,
+        87,
+        399,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "walk-11-r2.png",
+      "state": "walk",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2336065673828125,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        217,
+        49,
+        1060,
+        1228
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.007017629956027,
+      "referenceVisibleSize": [
+        288,
+        398
+      ],
+      "groupSourceMaximum": [
+        858,
+        1184
+      ],
+      "outputBounds": [
+        113,
+        84,
+        398,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "walk-12-r2.png",
+      "state": "walk",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2453912353515625,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        212,
+        49,
+        1065,
+        1228
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1,
+      "referenceVisibleSize": [
+        288,
+        398
+      ],
+      "groupSourceMaximum": [
+        858,
+        1184
+      ],
+      "outputBounds": [
+        112,
+        87,
+        399,
         484
       ]
     },
@@ -7653,31 +8229,31 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1084,
-        1084
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.5082566277692298,
+      "foregroundRatio": 0.33795166015625,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        30,
-        89,
-        1046,
-        1053
+        138,
+        274,
+        1141,
+        1231
       ],
-      "sharedScale": 0.3896484375,
-      "normalizationCorrection": 1.0098543313125234,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.9998992383331463,
       "referenceVisibleSize": [
-        397.5,
-        382
+        288,
+        379
       ],
       "groupSourceMaximum": [
-        1024,
-        999
+        1004,
+        1184
       ],
       "outputBounds": [
-        56,
-        105,
-        455,
+        87,
+        162,
+        424,
         484
       ]
     },
@@ -7689,31 +8265,31 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1084,
-        1084
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.5459365340885881,
+      "foregroundRatio": 0.3498199462890625,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        30,
-        55,
-        1053,
-        1053
+        143,
+        263,
+        1136,
+        1231
       ],
-      "sharedScale": 0.3896484375,
-      "normalizationCorrection": 0.9890972615149329,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.9982046049015257,
       "referenceVisibleSize": [
-        397.5,
-        382
+        288,
+        379
       ],
       "groupSourceMaximum": [
-        1024,
-        999
+        1004,
+        1184
       ],
       "outputBounds": [
-        59,
-        100,
-        453,
+        89,
+        159,
+        422,
         484
       ]
     },
@@ -7725,31 +8301,31 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1084,
-        1084
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.475257349436963,
+      "foregroundRatio": 0.322515869140625,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        46,
-        88,
-        1038,
-        1053
+        142,
+        264,
+        1136,
+        1231
       ],
-      "sharedScale": 0.3896484375,
-      "normalizationCorrection": 1.0215293357204305,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.999734421285571,
       "referenceVisibleSize": [
-        397.5,
-        382
+        288,
+        379
       ],
       "groupSourceMaximum": [
-        1024,
-        999
+        1004,
+        1184
       ],
       "outputBounds": [
-        59,
-        101,
-        453,
+        89,
+        159,
+        423,
         484
       ]
     },
@@ -7761,31 +8337,247 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1084,
-        1084
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.5210160196620416,
+      "foregroundRatio": 0.3331109619140625,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        30,
-        58,
-        1053,
-        1053
+        142,
+        264,
+        1136,
+        1231
       ],
-      "sharedScale": 0.3896484375,
-      "normalizationCorrection": 0.9903710511754059,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.999734421285571,
       "referenceVisibleSize": [
-        397.5,
-        382
+        288,
+        379
       ],
       "groupSourceMaximum": [
-        1024,
-        999
+        1004,
+        1184
       ],
       "outputBounds": [
-        59,
-        101,
-        453,
+        89,
+        159,
+        423,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sleep-05.png",
+      "state": "sleep",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2400555419921875,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        213,
+        104,
+        1065,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.00042169725846,
+      "referenceVisibleSize": [
+        288,
+        379
+      ],
+      "groupSourceMaximum": [
+        1004,
+        1184
+      ],
+      "outputBounds": [
+        113,
+        105,
+        399,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sleep-06.png",
+      "state": "sleep",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.260283203125,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        233,
+        48,
+        1045,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.9992038980276791,
+      "referenceVisibleSize": [
+        288,
+        379
+      ],
+      "groupSourceMaximum": [
+        1004,
+        1184
+      ],
+      "outputBounds": [
+        119,
+        86,
+        392,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sleep-07.png",
+      "state": "sleep",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2377740478515625,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        220,
+        84,
+        1058,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.9983139702205316,
+      "referenceVisibleSize": [
+        288,
+        379
+      ],
+      "groupSourceMaximum": [
+        1004,
+        1184
+      ],
+      "outputBounds": [
+        115,
+        99,
+        397,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sleep-08.png",
+      "state": "sleep",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.26180419921875,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        210,
+        110,
+        1068,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.999587985644412,
+      "referenceVisibleSize": [
+        288,
+        379
+      ],
+      "groupSourceMaximum": [
+        1004,
+        1184
+      ],
+      "outputBounds": [
+        112,
+        107,
+        400,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sleep-09.png",
+      "state": "sleep",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2617462158203125,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        230,
+        58,
+        1049,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.9993410213452396,
+      "referenceVisibleSize": [
+        288,
+        379
+      ],
+      "groupSourceMaximum": [
+        1004,
+        1184
+      ],
+      "outputBounds": [
+        118,
+        89,
+        393,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sleep-10.png",
+      "state": "sleep",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2232049560546875,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        214,
+        102,
+        1065,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.999107945283613,
+      "referenceVisibleSize": [
+        288,
+        379
+      ],
+      "groupSourceMaximum": [
+        1004,
+        1184
+      ],
+      "outputBounds": [
+        113,
+        104,
+        399,
         484
       ]
     },
@@ -7797,31 +8589,31 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1084,
-        1084
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.5082566277692298,
+      "foregroundRatio": 0.33795166015625,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        30,
-        89,
-        1046,
-        1053
+        138,
+        274,
+        1141,
+        1231
       ],
-      "sharedScale": 0.3896484375,
-      "normalizationCorrection": 1.0098543313125234,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.9998992383331463,
       "referenceVisibleSize": [
-        397.5,
-        382
+        288,
+        379
       ],
       "groupSourceMaximum": [
-        1024,
-        999
+        1004,
+        1184
       ],
       "outputBounds": [
-        56,
-        105,
-        455,
+        87,
+        162,
+        424,
         484
       ]
     },
@@ -7833,31 +8625,31 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1084,
-        1084
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.5459365340885881,
+      "foregroundRatio": 0.3498199462890625,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        30,
-        55,
-        1053,
-        1053
+        143,
+        263,
+        1136,
+        1231
       ],
-      "sharedScale": 0.3896484375,
-      "normalizationCorrection": 0.9890972615149329,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.9982046049015257,
       "referenceVisibleSize": [
-        397.5,
-        382
+        288,
+        379
       ],
       "groupSourceMaximum": [
-        1024,
-        999
+        1004,
+        1184
       ],
       "outputBounds": [
-        59,
-        100,
-        453,
+        89,
+        159,
+        422,
         484
       ]
     },
@@ -7869,31 +8661,31 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1084,
-        1084
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.475257349436963,
+      "foregroundRatio": 0.322515869140625,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        46,
-        88,
-        1038,
-        1053
+        142,
+        264,
+        1136,
+        1231
       ],
-      "sharedScale": 0.3896484375,
-      "normalizationCorrection": 1.0215293357204305,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.999734421285571,
       "referenceVisibleSize": [
-        397.5,
-        382
+        288,
+        379
       ],
       "groupSourceMaximum": [
-        1024,
-        999
+        1004,
+        1184
       ],
       "outputBounds": [
-        59,
-        101,
-        453,
+        89,
+        159,
+        423,
         484
       ]
     },
@@ -7905,31 +8697,247 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1084,
-        1084
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.5210160196620416,
+      "foregroundRatio": 0.3331109619140625,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        30,
-        58,
-        1053,
-        1053
+        142,
+        264,
+        1136,
+        1231
       ],
-      "sharedScale": 0.3896484375,
-      "normalizationCorrection": 0.9903710511754059,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.999734421285571,
       "referenceVisibleSize": [
-        397.5,
-        382
+        288,
+        379
       ],
       "groupSourceMaximum": [
-        1024,
-        999
+        1004,
+        1184
       ],
       "outputBounds": [
-        59,
-        101,
-        453,
+        89,
+        159,
+        423,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sleep-05-r2.png",
+      "state": "sleep",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2400555419921875,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        213,
+        104,
+        1065,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.00042169725846,
+      "referenceVisibleSize": [
+        288,
+        379
+      ],
+      "groupSourceMaximum": [
+        1004,
+        1184
+      ],
+      "outputBounds": [
+        113,
+        105,
+        399,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sleep-06-r2.png",
+      "state": "sleep",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.260283203125,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        233,
+        48,
+        1045,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.9992038980276791,
+      "referenceVisibleSize": [
+        288,
+        379
+      ],
+      "groupSourceMaximum": [
+        1004,
+        1184
+      ],
+      "outputBounds": [
+        119,
+        86,
+        392,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sleep-07-r2.png",
+      "state": "sleep",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2377740478515625,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        220,
+        84,
+        1058,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.9983139702205316,
+      "referenceVisibleSize": [
+        288,
+        379
+      ],
+      "groupSourceMaximum": [
+        1004,
+        1184
+      ],
+      "outputBounds": [
+        115,
+        99,
+        397,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sleep-08-r2.png",
+      "state": "sleep",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.26180419921875,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        210,
+        110,
+        1068,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.999587985644412,
+      "referenceVisibleSize": [
+        288,
+        379
+      ],
+      "groupSourceMaximum": [
+        1004,
+        1184
+      ],
+      "outputBounds": [
+        112,
+        107,
+        400,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sleep-09-r2.png",
+      "state": "sleep",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2617462158203125,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        230,
+        58,
+        1049,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.9993410213452396,
+      "referenceVisibleSize": [
+        288,
+        379
+      ],
+      "groupSourceMaximum": [
+        1004,
+        1184
+      ],
+      "outputBounds": [
+        118,
+        89,
+        393,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sleep-10-r2.png",
+      "state": "sleep",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2232049560546875,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        214,
+        102,
+        1065,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.999107945283613,
+      "referenceVisibleSize": [
+        288,
+        379
+      ],
+      "groupSourceMaximum": [
+        1004,
+        1184
+      ],
+      "outputBounds": [
+        113,
+        104,
+        399,
         484
       ]
     },
@@ -7941,31 +8949,31 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1084,
-        1084
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.4287761604553315,
+      "foregroundRatio": 0.29583251953125,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        86,
-        82,
-        967,
-        1053
+        195,
+        253,
+        1083,
+        1231
       ],
-      "sharedScale": 0.4054878048780488,
-      "normalizationCorrection": 0.9993652807992707,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.99939375562782,
       "referenceVisibleSize": [
-        358,
-        393.5
+        257.5,
+        384
       ],
       "groupSourceMaximum": [
-        984,
-        972
+        939,
+        1184
       ],
       "outputBounds": [
-        77,
-        91,
-        434,
+        106,
+        155,
+        405,
         484
       ]
     },
@@ -7977,31 +8985,31 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1084,
-        1084
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.5060158834983184,
+      "foregroundRatio": 0.316160888671875,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        57,
-        86,
-        1040,
-        1053
+        170,
+        306,
+        1108,
+        1231
       ],
-      "sharedScale": 0.4054878048780488,
-      "normalizationCorrection": 0.9478315453923687,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.001459499682043,
       "referenceVisibleSize": [
-        358,
-        393.5
+        257.5,
+        384
       ],
       "groupSourceMaximum": [
-        984,
-        972
+        939,
+        1184
       ],
       "outputBounds": [
-        67,
-        113,
-        444,
+        98,
+        173,
+        413,
         484
       ]
     },
@@ -8013,31 +9021,31 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1084,
-        1084
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.44029305837338817,
+      "foregroundRatio": 0.3050152587890625,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        85,
-        84,
-        968,
-        1053
+        196,
+        254,
+        1084,
+        1231
       ],
-      "sharedScale": 0.4054878048780488,
-      "normalizationCorrection": 1.000635930111968,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.99939375562782,
       "referenceVisibleSize": [
-        358,
-        393.5
+        257.5,
+        384
       ],
       "groupSourceMaximum": [
-        984,
-        972
+        939,
+        1184
       ],
       "outputBounds": [
-        77,
-        92,
-        434,
+        106,
+        155,
+        405,
         484
       ]
     },
@@ -8049,31 +9057,319 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1084,
-        1084
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.44439839462970276,
+      "foregroundRatio": 0.3127557373046875,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        84,
-        83,
-        962,
-        1053
+        196,
+        251,
+        1082,
+        1231
       ],
-      "sharedScale": 0.4054878048780488,
-      "normalizationCorrection": 1.002168554975653,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.9995502631238451,
       "referenceVisibleSize": [
-        358,
-        393.5
+        257.5,
+        384
       ],
       "groupSourceMaximum": [
-        984,
-        972
+        939,
+        1184
       ],
       "outputBounds": [
+        107,
+        154,
+        405,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sad-05.png",
+      "state": "sad",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2607037353515625,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        237,
+        153,
+        1042,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.9993533785292185,
+      "referenceVisibleSize": [
+        257.5,
+        384
+      ],
+      "groupSourceMaximum": [
+        939,
+        1184
+      ],
+      "outputBounds": [
+        120,
+        121,
+        391,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sad-06.png",
+      "state": "sad",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2299884033203125,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        260,
+        87,
+        1019,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.0003237817795707,
+      "referenceVisibleSize": [
+        257.5,
+        384
+      ],
+      "groupSourceMaximum": [
+        939,
+        1184
+      ],
+      "outputBounds": [
+        128,
+        99,
+        383,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sad-07.png",
+      "state": "sad",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2371356201171875,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        272,
+        48,
+        1006,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.99963612103835,
+      "referenceVisibleSize": [
+        257.5,
+        384
+      ],
+      "groupSourceMaximum": [
+        939,
+        1184
+      ],
+      "outputBounds": [
+        132,
+        86,
+        379,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sad-08.png",
+      "state": "sad",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2398101806640625,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        270,
+        54,
+        1008,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.0001365570928809,
+      "referenceVisibleSize": [
+        257.5,
+        384
+      ],
+      "groupSourceMaximum": [
+        939,
+        1184
+      ],
+      "outputBounds": [
+        132,
+        88,
+        380,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sad-09.png",
+      "state": "sad",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.26240966796875,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        257,
+        94,
+        1022,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.000333905028505,
+      "referenceVisibleSize": [
+        257.5,
+        384
+      ],
+      "groupSourceMaximum": [
+        939,
+        1184
+      ],
+      "outputBounds": [
+        127,
+        102,
+        384,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sad-10.png",
+      "state": "sad",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2452569580078125,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        260,
+        86,
+        1018,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.0003237817795707,
+      "referenceVisibleSize": [
+        257.5,
+        384
+      ],
+      "groupSourceMaximum": [
+        939,
+        1184
+      ],
+      "outputBounds": [
+        128,
+        99,
+        383,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sad-11.png",
+      "state": "sad",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2495281982421875,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        263,
         78,
-        90,
-        434,
+        1016,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.0003744010978692,
+      "referenceVisibleSize": [
+        257.5,
+        384
+      ],
+      "groupSourceMaximum": [
+        939,
+        1184
+      ],
+      "outputBounds": [
+        129,
+        96,
+        382,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sad-12.png",
+      "state": "sad",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2371453857421875,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        258,
+        91,
+        1020,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.9996714807285341,
+      "referenceVisibleSize": [
+        257.5,
+        384
+      ],
+      "groupSourceMaximum": [
+        939,
+        1184
+      ],
+      "outputBounds": [
+        128,
+        100,
+        384,
         484
       ]
     },
@@ -8085,31 +9381,31 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1084,
-        1084
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.4287761604553315,
+      "foregroundRatio": 0.29583251953125,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        86,
-        82,
-        967,
-        1053
+        195,
+        253,
+        1083,
+        1231
       ],
-      "sharedScale": 0.4054878048780488,
-      "normalizationCorrection": 0.9993652807992707,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.99939375562782,
       "referenceVisibleSize": [
-        358,
-        393.5
+        257.5,
+        384
       ],
       "groupSourceMaximum": [
-        984,
-        972
+        939,
+        1184
       ],
       "outputBounds": [
-        77,
-        91,
-        434,
+        106,
+        155,
+        405,
         484
       ]
     },
@@ -8121,31 +9417,31 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1084,
-        1084
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.5060158834983184,
+      "foregroundRatio": 0.316160888671875,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        57,
-        86,
-        1040,
-        1053
+        170,
+        306,
+        1108,
+        1231
       ],
-      "sharedScale": 0.4054878048780488,
-      "normalizationCorrection": 0.9478315453923687,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.001459499682043,
       "referenceVisibleSize": [
-        358,
-        393.5
+        257.5,
+        384
       ],
       "groupSourceMaximum": [
-        984,
-        972
+        939,
+        1184
       ],
       "outputBounds": [
-        67,
-        113,
-        444,
+        98,
+        173,
+        413,
         484
       ]
     },
@@ -8157,31 +9453,31 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1084,
-        1084
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.44029305837338817,
+      "foregroundRatio": 0.3050152587890625,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        85,
-        84,
-        968,
-        1053
+        196,
+        254,
+        1084,
+        1231
       ],
-      "sharedScale": 0.4054878048780488,
-      "normalizationCorrection": 1.000635930111968,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.99939375562782,
       "referenceVisibleSize": [
-        358,
-        393.5
+        257.5,
+        384
       ],
       "groupSourceMaximum": [
-        984,
-        972
+        939,
+        1184
       ],
       "outputBounds": [
-        77,
-        92,
-        434,
+        106,
+        155,
+        405,
         484
       ]
     },
@@ -8193,31 +9489,319 @@
       "backgroundPalette": [],
       "borderCoverage": 1,
       "sourceSize": [
-        1084,
-        1084
+        1280,
+        1280
       ],
-      "foregroundRatio": 0.44439839462970276,
+      "foregroundRatio": 0.3127557373046875,
       "backgroundLikeForegroundRatio": 0,
       "sourceBounds": [
-        84,
-        83,
-        962,
-        1053
+        196,
+        251,
+        1082,
+        1231
       ],
-      "sharedScale": 0.4054878048780488,
-      "normalizationCorrection": 1.002168554975653,
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.9995502631238451,
       "referenceVisibleSize": [
-        358,
-        393.5
+        257.5,
+        384
       ],
       "groupSourceMaximum": [
-        984,
-        972
+        939,
+        1184
       ],
       "outputBounds": [
+        107,
+        154,
+        405,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sad-05-r2.png",
+      "state": "sad",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2607037353515625,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        237,
+        153,
+        1042,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.9993533785292185,
+      "referenceVisibleSize": [
+        257.5,
+        384
+      ],
+      "groupSourceMaximum": [
+        939,
+        1184
+      ],
+      "outputBounds": [
+        120,
+        121,
+        391,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sad-06-r2.png",
+      "state": "sad",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2299884033203125,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        260,
+        87,
+        1019,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.0003237817795707,
+      "referenceVisibleSize": [
+        257.5,
+        384
+      ],
+      "groupSourceMaximum": [
+        939,
+        1184
+      ],
+      "outputBounds": [
+        128,
+        99,
+        383,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sad-07-r2.png",
+      "state": "sad",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2371356201171875,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        272,
+        48,
+        1006,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.99963612103835,
+      "referenceVisibleSize": [
+        257.5,
+        384
+      ],
+      "groupSourceMaximum": [
+        939,
+        1184
+      ],
+      "outputBounds": [
+        132,
+        86,
+        379,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sad-08-r2.png",
+      "state": "sad",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2398101806640625,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        270,
+        54,
+        1008,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.0001365570928809,
+      "referenceVisibleSize": [
+        257.5,
+        384
+      ],
+      "groupSourceMaximum": [
+        939,
+        1184
+      ],
+      "outputBounds": [
+        132,
+        88,
+        380,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sad-09-r2.png",
+      "state": "sad",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.26240966796875,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        257,
+        94,
+        1022,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.000333905028505,
+      "referenceVisibleSize": [
+        257.5,
+        384
+      ],
+      "groupSourceMaximum": [
+        939,
+        1184
+      ],
+      "outputBounds": [
+        127,
+        102,
+        384,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sad-10-r2.png",
+      "state": "sad",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2452569580078125,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        260,
+        86,
+        1018,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.0003237817795707,
+      "referenceVisibleSize": [
+        257.5,
+        384
+      ],
+      "groupSourceMaximum": [
+        939,
+        1184
+      ],
+      "outputBounds": [
+        128,
+        99,
+        383,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sad-11-r2.png",
+      "state": "sad",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2495281982421875,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        263,
         78,
-        90,
-        434,
+        1016,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 1.0003744010978692,
+      "referenceVisibleSize": [
+        257.5,
+        384
+      ],
+      "groupSourceMaximum": [
+        939,
+        1184
+      ],
+      "outputBounds": [
+        129,
+        96,
+        382,
+        484
+      ]
+    },
+    {
+      "ok": true,
+      "name": "sad-12-r2.png",
+      "state": "sad",
+      "backgroundInput": "real-alpha",
+      "backgroundPalette": [],
+      "borderCoverage": 1,
+      "sourceSize": [
+        1280,
+        1280
+      ],
+      "foregroundRatio": 0.2371453857421875,
+      "backgroundLikeForegroundRatio": 0,
+      "sourceBounds": [
+        258,
+        91,
+        1020,
+        1231
+      ],
+      "sharedScale": 0.33699324324324326,
+      "normalizationCorrection": 0.9996714807285341,
+      "referenceVisibleSize": [
+        257.5,
+        384
+      ],
+      "groupSourceMaximum": [
+        939,
+        1184
+      ],
+      "outputBounds": [
+        128,
+        100,
+        384,
         484
       ]
     }
