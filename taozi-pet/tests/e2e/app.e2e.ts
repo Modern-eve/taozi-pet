@@ -13,7 +13,7 @@ try {
   let windows = await waitForWindows(application);
   const initial = await snapshot(application);
   assert.equal(initial.tray, true, 'tray should be created');
-  assert.deepEqual(initial.roles.map((item) => item.role).sort(), ['dashboard', 'pet', 'reminder']);
+  assert.deepEqual(initial.roles.map((item) => item.role).sort(), ['dashboard', 'pet']);
   assert.equal(initial.roles.every((item) => !item.destroyed), true);
 
   const interactions = await windows.pet.evaluate(() => window.petAPI!.interactions.list());
@@ -37,12 +37,12 @@ try {
     (alwaysOnTop) => window.petAPI!.settings.update({ alwaysOnTop }),
     expectedAlwaysOnTop,
   );
-  const savedReminder = await windows.reminder.evaluate(() => window.petAPI!.reminders.save({
+  const savedReminder = await windows.dashboard.evaluate(() => window.petAPI!.reminders.save({
     text: 'E2E reminder',
     dueAt: new Date(Date.now() + 300_000).toISOString(),
   }));
   assert.equal(
-    (await windows.reminder.evaluate(() => window.petAPI!.reminders.list())).some((item) => item.id === savedReminder.id),
+    (await windows.dashboard.evaluate(() => window.petAPI!.reminders.list())).some((item) => item.id === savedReminder.id),
     true,
     'saved reminder should be visible immediately',
   );
@@ -52,7 +52,6 @@ try {
     await window.petAPI!.window.hidePet();
   });
   await windows.dashboard.evaluate(() => window.petAPI!.window.hideDashboard());
-  await windows.reminder.evaluate(() => window.petAPI!.window.hideReminder());
   const hidden = await snapshot(application);
   assert.equal(hidden.roles.every((item) => !item.visible), true, 'all windows should be hideable while tray keeps app alive');
 
@@ -90,7 +89,7 @@ try {
     'settings should persist across a normal restart',
   );
   assert.equal(
-    (await windows.reminder.evaluate(() => window.petAPI!.reminders.list())).some((item) => item.id === savedReminder.id),
+    (await windows.dashboard.evaluate(() => window.petAPI!.reminders.list())).some((item) => item.id === savedReminder.id),
     true,
     'reminder should survive a normal restart',
   );
@@ -100,7 +99,7 @@ try {
     'saved reminder should be removable',
   );
   await quitGracefully(application);
-  console.log('E2E: PASS (startup, three windows, tray, interactions, settings/reminder persistence, hide/show, exit, single instance).');
+  console.log('E2E: PASS (startup, two windows, tray, interactions, settings/reminder persistence, hide/show, exit, single instance).');
 } finally {
   try {
     await application.close();

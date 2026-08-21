@@ -29,7 +29,10 @@ export class PetStateMachine {
   }
 
   private durationFor(state: PetState, requested?: number): number {
+    // 显式 0 时长 = 无限循环（用于 notify 提醒，直到被更高优先级动作打断）
+    if (requested !== undefined && Number.isFinite(requested) && requested === 0) return 0;
     if (requested !== undefined && Number.isFinite(requested) && requested > 0) return requested;
+    // 未指定时长时仅 idle 无限循环，其余按帧长播放一轮后回 idle
     if (state.id === this.idleState.id && state.loop) return 0;
     return Math.max(1, state.frames.length * state.frameDurationMs);
   }

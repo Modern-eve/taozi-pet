@@ -18,6 +18,11 @@ test('dragged bounds preserve size and apply rounded cursor delta', () => {
 test('snap bounds attach near work-area edges', () => {
   assert.deepEqual(
     snapBounds({ x: 12, y: 742, width: 256, height: 256 }, { x: 0, y: 0, width: 1440, height: 1000 }),
-    { x: 0, y: 744, width: 256, height: 256 },
+    { x: 0, y: 742, width: 256, height: 256 },
+  );
+  // 上下边缘不吸附，仅左右贴边：靠近顶部时 y 保持不变
+  assert.deepEqual(
+    snapBounds({ x: 12, y: 8, width: 256, height: 256 }, { x: 0, y: 0, width: 1440, height: 1000 }),
+    { x: 0, y: 8, width: 256, height: 256 },
   );
 });

@@ -144,6 +144,38 @@ function renderQuotes(): void {
 
 // === 提醒列表 ===
 const remindersContainer = document.getElementById('reminders-container') as HTMLDivElement;
+const reminderTextInput = document.getElementById('reminder-text') as HTMLInputElement;
+const reminderTimeInput = document.getElementById('reminder-time') as HTMLInputElement;
+const reminderAddBtn = document.getElementById('reminder-add-btn') as HTMLButtonElement;
+
+// 默认提醒时间为1小时后
+function setDefaultReminderTime(): void {
+  const now = new Date();
+  now.setHours(now.getHours() + 1);
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  reminderTimeInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+reminderAddBtn.addEventListener('click', async () => {
+  const text = reminderTextInput.value.trim();
+  const time = reminderTimeInput.value;
+  if (!text || !time) return;
+  try {
+    await window.petAPI?.reminders.save({
+      text,
+      dueAt: new Date(time).toISOString(),
+    });
+    reminderTextInput.value = '';
+    setDefaultReminderTime();
+    await loadReminders();
+  } catch (error) {
+    console.error('Failed to save reminder:', error);
+  }
+});
 
 function formatReminderTime(iso: string): string {
   const d = new Date(iso);
@@ -166,7 +198,7 @@ async function loadReminders(): Promise<void> {
     if (reminders.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'reminder-empty';
-      empty.textContent = '暂无提醒，右键桌宠可添加';
+      empty.textContent = '暂无提醒，在上方添加';
       remindersContainer.appendChild(empty);
       return;
     }
@@ -402,6 +434,7 @@ window.petAPI?.events.onRemindersUpdated(() => {
 
 // 初始化
 async function init(): Promise<void> {
+  setDefaultReminderTime();
   await loadInteractions();
   await loadSettings();
   await loadStats();

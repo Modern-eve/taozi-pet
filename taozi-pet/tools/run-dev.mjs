@@ -84,8 +84,7 @@ function validReadyReport(report) {
     && report.petVisible === true
     && report.ipcReady === true
     && report.renderers?.pet === true
-    && report.renderers?.dashboard === true
-    && report.renderers?.reminder === true;
+    && report.renderers?.dashboard === true;
 }
 
 async function waitForRuntimeReady(timeoutMs = 60_000) {
@@ -100,7 +99,7 @@ async function waitForRuntimeReady(timeoutMs = 60_000) {
     }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error(`Source development preview did not prove three ready renderers within ${Math.round(timeoutMs / 1000)} seconds.`);
+  throw new Error(`Source development preview did not prove two ready renderers within ${Math.round(timeoutMs / 1000)} seconds.`);
 }
 
 async function terminateChild() {
@@ -195,7 +194,7 @@ try {
     await childExit;
   } else {
     console.log(
-      `DEV_PREVIEW_READY mode=source-dev renderers=pet,dashboard,reminder ipc=true `
+      `DEV_PREVIEW_READY mode=source-dev renderers=pet,dashboard ipc=true `
       + `assets=${first.report.assetCount} image=${first.report.naturalWidth}x${first.report.naturalHeight} `
       + `state=${first.report.stateId} devPort=${selectedPorts.dev} loggerPort=${selectedPorts.logger}`,
     );

@@ -145,7 +145,6 @@ export interface RuntimeReadyReport {
   renderers?: {
     pet: boolean;
     dashboard: boolean;
-    reminder: boolean;
   };
 }
 
@@ -173,6 +172,7 @@ export interface PetAPI {
     list: () => Promise<Reminder[]>;
     save: (input: { text: string; dueAt: string }) => Promise<Reminder>;
     remove: (id: string) => Promise<boolean>;
+    ack: () => Promise<boolean>;
   };
   interactions: {
     list: () => Promise<InteractionSpec[]>;
@@ -189,9 +189,7 @@ export interface PetAPI {
     updateDrag: () => Promise<void>;
     endDrag: () => Promise<void>;
     showContextMenu: () => Promise<void>;
-    showReminder: () => Promise<void>;
     showDashboard: () => Promise<void>;
-    hideReminder: () => Promise<void>;
     hideDashboard: () => Promise<void>;
     hidePet: () => Promise<void>;
   };
@@ -201,8 +199,6 @@ export interface PetAPI {
   };
   events: {
     onStateActivity: (listener: (activity: StateActivity) => void) => () => void;
-    onReminder: (listener: (reminder: Reminder) => void) => () => void;
-    onReminderCompose: (listener: () => void) => () => void;
     onRemindersUpdated: (listener: () => void) => () => void;
     onStats: (listener: (stats: PetStats) => void) => () => void;
     onTypingStatus: (listener: (status: TypingStatus) => void) => () => void;
@@ -215,7 +211,7 @@ declare global {
     __petE2E?: {
       snapshot: () => Promise<{
         tray: boolean;
-        roles: Array<{ role: 'pet' | 'reminder' | 'dashboard'; visible: boolean; destroyed: boolean }>;
+        roles: Array<{ role: 'pet' | 'dashboard'; visible: boolean; destroyed: boolean }>;
         quitting: boolean;
       }>;
       quit: () => Promise<void>;

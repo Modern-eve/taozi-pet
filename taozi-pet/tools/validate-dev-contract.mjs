@@ -30,8 +30,6 @@ const requiredFiles = [
   'src/renderer/pet/index.ts',
   'src/renderer/dashboard/index.html',
   'src/renderer/dashboard/index.ts',
-  'src/renderer/reminder/index.html',
-  'src/renderer/reminder/index.ts',
   'tools/run-dev.mjs',
   'tools/dev-smoke-client.mjs',
 ];
@@ -62,7 +60,7 @@ requireMatch(forgeConfig, /loggerPort/, 'forge.config.js', 'missing-configurable
 requireMatch(rendererConfig, /devtool\s*:\s*['"]source-map['"]/, 'webpack.renderer.config.js', 'unsafe-renderer-devtool', 'renderer devtool must be source-map');
 forbidMatch(rendererConfig, /devtool\s*:\s*['"][^'"]*eval[^'"]*['"]/, 'webpack.renderer.config.js', 'eval-renderer-devtool', 'eval-based renderer devtools are incompatible with strict CSP');
 
-for (const role of ['pet', 'dashboard', 'reminder']) {
+for (const role of ['pet', 'dashboard']) {
   requireMatch(forgeConfig, new RegExp(`name:\\s*['"]${role}_window['"]`), 'forge.config.js', 'missing-renderer-entry', `missing ${role} renderer entry`);
   const html = requiredContents[`src/renderer/${role}/index.html`];
   requireMatch(html, /Content-Security-Policy/i, `src/renderer/${role}/index.html`, 'missing-csp', `${role} renderer needs CSP`);
@@ -70,7 +68,7 @@ for (const role of ['pet', 'dashboard', 'reminder']) {
   forbidMatch(html, /unsafe-eval/i, `src/renderer/${role}/index.html`, 'unsafe-eval-csp', `${role} renderer must not allow unsafe-eval`);
 }
 
-requireMatch(requiredContents['src/main.ts'], /runtime:renderer-ready/, 'src/main.ts', 'missing-three-renderer-gate', 'main process must collect renderer bootstrap readiness');
+requireMatch(requiredContents['src/main.ts'], /runtime:renderer-ready/, 'src/main.ts', 'missing-renderer-gate', 'main process must collect renderer bootstrap readiness');
 requireMatch(requiredContents['src/main.ts'], /console-message/, 'src/main.ts', 'missing-renderer-error-gate', 'main process must fail on renderer CSP/bootstrap console errors');
 requireMatch(requiredContents['src/preload.ts'], /runtime:renderer-ready/, 'src/preload.ts', 'missing-renderer-ready-signal', 'preload must report renderer bootstrap readiness');
 
@@ -81,7 +79,7 @@ const report = {
     sourceDev: true,
     strictCsp: true,
     nonEvalSourceMap: true,
-    threeRendererGate: true,
+    rendererGate: true,
     isolatedSmoke: true,
   },
   issues,

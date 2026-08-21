@@ -62,7 +62,6 @@ module.exports = {
           config: path.resolve(__dirname, 'webpack.renderer.config.js'),
           entryPoints: [
             { html: './src/renderer/pet/index.html', js: './src/renderer/pet/index.ts', name: 'pet_window', preload: { js: './src/preload.ts' } },
-            { html: './src/renderer/reminder/index.html', js: './src/renderer/reminder/index.ts', name: 'reminder_window', preload: { js: './src/preload.ts' } },
             { html: './src/renderer/dashboard/index.html', js: './src/renderer/dashboard/index.ts', name: 'dashboard_window', preload: { js: './src/preload.ts' } },
           ],
         },

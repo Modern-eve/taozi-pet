@@ -52,14 +52,19 @@ function playSquash(): void {
 }
 
 // 显示反馈气泡
+// persist=true 时气泡不自动消失（用于提醒通知，直到用户点击桌宠或其他动作后才被替换/隐藏）
 let feedbackTimer: ReturnType<typeof setTimeout> | null = null;
-function showFeedback(text: string): void {
+function showFeedback(text: string, persist = false): void {
   feedbackBubble.textContent = text;
   feedbackBubble.classList.add('show');
   if (feedbackTimer) clearTimeout(feedbackTimer); // 防止多次点击堆叠 timer
+  if (persist) {
+    feedbackTimer = null;
+    return;
+  }
   feedbackTimer = setTimeout(() => {
     feedbackBubble.classList.remove('show');
-  }, 2000);
+  }, 5000);
 }
 
 // 切换状态
@@ -158,6 +163,8 @@ container.addEventListener('click', () => {
   playSquash();
   setState('happy');
   scheduleIdleEvents();
+  // 点击桌宠即消费待处理提醒（notify 循环被 happy 打断，气泡被点击语录替换）
+  void window.petAPI?.reminders.ack().catch(() => {});
   showFeedback(getQuote('__click__'));
 });
 
@@ -238,8 +245,10 @@ window.petAPI?.events.onStateActivity((activity: StateActivity) => {
     }
     setState(activity.stateId, activity.durationMs, mirror);
     scheduleIdleEvents();
-    // 显示语录：互动有feedback则显示，自动触发状态（除idle和notify）有默认语录则显示
-    if (feedback) {
+    // 提醒到点：notify 动作 + 气泡持续显示，直到用户点击其他动作
+    if (activity.kind === 'notify' && feedback) {
+      showFeedback(feedback, true);
+    } else if (feedback) {
       showFeedback(feedback);
     } else if (activity.stateId !== 'idle' && activity.stateId !== 'notify' && activity.kind !== 'interaction') {
       const quote = getQuote(activity.stateId);

@@ -12,16 +12,15 @@ async function waitForTargets(timeoutMs = 15_000) {
       const roles = new Set(targets.map((target) => {
         if (target.url.includes('/pet_window/')) return 'pet';
         if (target.url.includes('/dashboard_window/')) return 'dashboard';
-        if (target.url.includes('/reminder_window/')) return 'reminder';
         return undefined;
       }).filter(Boolean));
-      if (roles.size === 3) return targets;
+      if (roles.size === 2) return targets;
     } catch {
       // The local debugging endpoint may need a moment after Electron starts.
     }
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
-  throw new Error('Dev smoke could not find pet, dashboard and reminder debugging targets.');
+  throw new Error('Dev smoke could not find pet and dashboard debugging targets.');
 }
 
 function targetForRole(targets, role) {
@@ -58,9 +57,8 @@ async function evaluate(target, expression) {
 const targets = await waitForTargets();
 const pet = targetForRole(targets, 'pet');
 const dashboard = targetForRole(targets, 'dashboard');
-const reminder = targetForRole(targets, 'reminder');
 
-for (const [role, target] of Object.entries({ pet, dashboard, reminder })) {
+for (const [role, target] of Object.entries({ pet, dashboard })) {
   const bootstrap = await evaluate(target, '({apiReady:Boolean(window.petAPI),documentReady:document.readyState==="complete"})');
   if (!bootstrap?.apiReady || !bootstrap?.documentReady) throw new Error(`${role} renderer did not finish bootstrap.`);
 }
@@ -87,7 +85,7 @@ if (toggled?.edgeSnap === settingsBefore.edgeSnap) throw new Error('Settings upd
 await evaluate(dashboard, `window.petAPI.settings.update({edgeSnap:${JSON.stringify(settingsBefore.edgeSnap)}})`);
 
 const testReminder = await evaluate(
-  reminder,
+  dashboard,
   'window.petAPI.reminders.save({text:"Doubao dev smoke",dueAt:new Date(Date.now()+300000).toISOString()})',
 );
 const reminders = await evaluate(dashboard, 'window.petAPI.reminders.list()');
@@ -97,8 +95,6 @@ if (!removed) throw new Error('Reminder cleanup failed.');
 
 await evaluate(pet, 'window.petAPI.window.showDashboard()');
 await evaluate(dashboard, 'window.petAPI.window.hideDashboard()');
-await evaluate(pet, 'window.petAPI.window.showReminder()');
-await evaluate(reminder, 'window.petAPI.window.hideReminder()');
 await evaluate(pet, 'window.petAPI.window.beginDrag().then(()=>window.petAPI.window.updateDrag()).then(()=>window.petAPI.window.endDrag())');
 
-console.log('Dev smoke: PASS (three renderers, interaction recovery, strict settings, reminder, windows, drag IPC).');
+console.log('Dev smoke: PASS (two renderers, interaction recovery, strict settings, reminder, windows, drag IPC).');

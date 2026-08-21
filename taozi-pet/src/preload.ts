@@ -16,6 +16,7 @@ const api: PetAPI = {
     list: () => ipcRenderer.invoke('reminders:list') as Promise<Reminder[]>,
     save: (input) => ipcRenderer.invoke('reminders:save', input) as Promise<Reminder>,
     remove: (id) => ipcRenderer.invoke('reminders:remove', id) as Promise<boolean>,
+    ack: () => ipcRenderer.invoke('reminders:ack') as Promise<boolean>,
   },
   interactions: {
     list: () => ipcRenderer.invoke('interactions:list') as Promise<InteractionSpec[]>,
@@ -32,9 +33,7 @@ const api: PetAPI = {
     updateDrag: () => ipcRenderer.invoke('window:drag-update') as Promise<void>,
     endDrag: () => ipcRenderer.invoke('window:drag-end') as Promise<void>,
     showContextMenu: () => ipcRenderer.invoke('window:show-context-menu') as Promise<void>,
-    showReminder: () => ipcRenderer.invoke('window:show-reminder') as Promise<void>,
     showDashboard: () => ipcRenderer.invoke('window:show-dashboard') as Promise<void>,
-    hideReminder: () => ipcRenderer.invoke('window:hide-reminder') as Promise<void>,
     hideDashboard: () => ipcRenderer.invoke('window:hide-dashboard') as Promise<void>,
     hidePet: () => ipcRenderer.invoke('window:hide-pet') as Promise<void>,
   },
@@ -44,8 +43,6 @@ const api: PetAPI = {
   },
   events: {
     onStateActivity: (listener) => subscribe<StateActivity>('state:activity', listener),
-    onReminder: (listener) => subscribe<Reminder>('reminder:due', listener),
-    onReminderCompose: (listener) => subscribe<void>('reminder:compose', listener),
     onRemindersUpdated: (listener) => subscribe<void>('reminders:updated', listener),
     onStats: (listener) => subscribe<PetStats>('pet:stats', listener),
     onTypingStatus: (listener) => subscribe<TypingStatus>('typing:status', listener),
@@ -60,11 +57,10 @@ if (process.env.PET_E2E === '1') {
   });
 }
 
-function currentRole(): 'pet' | 'dashboard' | 'reminder' | undefined {
+function currentRole(): 'pet' | 'dashboard' | undefined {
   const pathname = window.location.pathname;
   if (pathname.includes('/pet_window/')) return 'pet';
   if (pathname.includes('/dashboard_window/')) return 'dashboard';
-  if (pathname.includes('/reminder_window/')) return 'reminder';
   return undefined;
 }
 

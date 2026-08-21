@@ -296,8 +296,8 @@
         "notify-12.png"
       ],
       "frameDurationMs": 250,
-      "loop": false,
-      "priority": 95,
+      "loop": true,
+      "priority": 60,
       "interrupt": "restart",
       "cooldownMs": 800,
       "direction": "neutral",
