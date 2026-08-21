@@ -155,7 +155,14 @@ function getQuote(stateId: string): string {
 }
 
 // 点击事件
-container.addEventListener('click', () => {
+// 顶部气泡区（0 ~ 100vh-100vw）是留给气泡的透明留白：真实用户点那里不触发桌宠互动
+// （程序化 click 事件 isTrusted=false，不在此限制内，e2e 测试仍可正常点击）
+function inBubbleZone(event: MouseEvent | PointerEvent): boolean {
+  return event.isTrusted && event.clientY < window.innerHeight - window.innerWidth;
+}
+
+container.addEventListener('click', (event) => {
+  if (inBubbleZone(event)) return;
   if (suppressNextClick) {
     suppressNextClick = false;
     return;
@@ -177,6 +184,7 @@ let suppressNextClick = false;
 let dragBegin: Promise<void> | undefined;
 
 container.addEventListener('pointerdown', (event) => {
+  if (inBubbleZone(event)) return;
   if (event.button !== 0 || activePointerId !== undefined) return;
   activePointerId = event.pointerId;
   pointerStart = { x: event.clientX, y: event.clientY };

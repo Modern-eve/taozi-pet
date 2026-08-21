@@ -39,6 +39,7 @@ const RANDOM_WALK_SPEED = 2; // 每帧移动像素（匀速）
 const RANDOM_WALK_FRAME_MS = 16; // 约60fps
 const SLEEP_TRIGGER_MS = 3 * 60 * 1000; // 3分钟无互动触发睡觉
 const MOOD_SAD_THRESHOLD = 25; // 心情低于25触发sad
+const PET_BUBBLE_ZONE = 110; // 桌宠窗口顶部预留气泡区高度（px）：气泡固定在此区内，换行也不会遮住精灵动画
 let sleepTimer: ReturnType<typeof setTimeout> | undefined;
 let lastActivityTime = Date.now();
 let currentStateId = 'idle';
@@ -215,10 +216,16 @@ function secureWindow(options: Electron.BrowserWindowConstructorOptions, role: R
 
 function petSize(): number { return Math.round(spec.experience.petSizing.baseWindowPx * settings.petScale); }
 
+// 桌宠窗口 = 精灵正方形(宽) + 顶部气泡区(高)：精灵贴底显示，气泡固定在该区内浮动
+function petWindowSize(): { width: number; height: number } {
+  const size = petSize();
+  return { width: size, height: size + PET_BUBBLE_ZONE };
+}
+
 function applyPetSettings(): void {
   if (!petWindow || petWindow.isDestroyed()) return;
-  const size = petSize();
-  petWindow.setSize(size, size, true);
+  const { width, height } = petWindowSize();
+  petWindow.setSize(width, height, true);
   petWindow.setAlwaysOnTop(settings.alwaysOnTop);
   petWindow.setIgnoreMouseEvents(settings.clickThrough, { forward: true });
 }
@@ -279,7 +286,6 @@ function randomWalkStep(): void {
   const bounds = petWindow.getBounds();
   const display = screen.getDisplayMatching(bounds);
   const workArea = display.workArea;
-  const size = petSize();
 
   // 随机选择方向：0=上, 1=下, 2=左, 3=右
   const direction = Math.floor(Math.random() * 4);
@@ -304,9 +310,9 @@ function randomWalkStep(): void {
     targetY = randomWalkCenter.y + Math.round(dy * scale);
   }
 
-  // 限制在屏幕工作区内
-  targetX = Math.max(workArea.x, Math.min(workArea.x + workArea.width - size, targetX));
-  targetY = Math.max(workArea.y, Math.min(workArea.y + workArea.height - size, targetY));
+  // 限制在屏幕工作区内（用窗口实际宽高，窗口含顶部气泡区）
+  targetX = Math.max(workArea.x, Math.min(workArea.x + workArea.width - bounds.width, targetX));
+  targetY = Math.max(workArea.y, Math.min(workArea.y + workArea.height - bounds.height, targetY));
 
   // 匀速移动
   const startX = bounds.x;
@@ -398,10 +404,10 @@ function scheduleSleep(): void {
 }
 
 function createWindows(): void {
-  const size = petSize();
+  const { width, height } = petWindowSize();
   petWindow = secureWindow({
-    width: size,
-    height: size,
+    width,
+    height,
     transparent: true,
     frame: false,
     resizable: false,

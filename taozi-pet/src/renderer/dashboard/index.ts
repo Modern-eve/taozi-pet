@@ -147,18 +147,57 @@ const remindersContainer = document.getElementById('reminders-container') as HTM
 const reminderTextInput = document.getElementById('reminder-text') as HTMLInputElement;
 const reminderTimeInput = document.getElementById('reminder-time') as HTMLInputElement;
 const reminderAddBtn = document.getElementById('reminder-add-btn') as HTMLButtonElement;
+const reminderTimeQuick = document.querySelector('.reminder-time-quick') as HTMLDivElement;
+const reminderTimePreview = document.getElementById('reminder-time-preview') as HTMLSpanElement;
+
+// 从 datetime-local 读取时间；无效或为空时退回当前时间
+function readReminderDate(): Date {
+  const d = new Date(reminderTimeInput.value);
+  return isNaN(d.getTime()) ? new Date() : d;
+}
+
+// 写入 datetime-local（含日期部分），并同步更新右侧可读预览
+function writeReminderDate(d: Date): void {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  reminderTimeInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+  updateReminderPreview();
+}
+
+// 预览文案：与 formatReminderTime 保持一致（今天/明天/具体日期）
+function updateReminderPreview(): void {
+  const d = readReminderDate();
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+  const isTomorrow = d.toDateString() === tomorrow.toDateString();
+  const time = d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+  reminderTimePreview.textContent = sameDay ? `今天 ${time}` : isTomorrow ? `明天 ${time}` : d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
 
 // 默认提醒时间为1小时后
 function setDefaultReminderTime(): void {
   const now = new Date();
   now.setHours(now.getHours() + 1);
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const hours = String(now.getHours()).padStart(2, '0');
-  const minutes = String(now.getMinutes()).padStart(2, '0');
-  reminderTimeInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+  writeReminderDate(now);
 }
+
+// 快捷调整：按给定小时/分钟增减，日期随之自动联动（跨天自动进位）
+reminderTimeQuick.addEventListener('click', (event) => {
+  const target = event.target as HTMLElement;
+  if (!target.classList.contains('quick-btn')) return;
+  const d = readReminderDate();
+  d.setHours(d.getHours() + Number(target.dataset.hours || 0));
+  d.setMinutes(d.getMinutes() + Number(target.dataset.minutes || 0));
+  writeReminderDate(d);
+});
+
+// 手动编辑 datetime-local 时，预览同步更新
+reminderTimeInput.addEventListener('input', updateReminderPreview);
 
 reminderAddBtn.addEventListener('click', async () => {
   const text = reminderTextInput.value.trim();
