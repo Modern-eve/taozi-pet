@@ -245,11 +245,21 @@ for (const state of states) {
       else addDiagnostic(record.errors, record.diagnostics, 'ANCHOR_DRIFT', message);
     }
   }
+  // DUPLICATE_FRAME 检查：帧序列 sha256 去重。
+  // 双播序列（后半 == 前半逐帧，即"同一组帧播两遍"的合法动画设计，如 blink 眨两次眼）
+  // 只对前半做去重检查——后半必须等于前半是预期行为；前半内部若出现重复（如 walk-03/04
+  // 复制错误）仍会被拦截。
+  let checkRecords = stateRecords;
+  const halfLen = stateRecords.length / 2;
+  const isDoublePlay = Number.isInteger(halfLen) && halfLen >= 2
+    && stateRecords.slice(0, halfLen).every((record, index) => record.sha256 === stateRecords[index + halfLen].sha256);
+  if (isDoublePlay) checkRecords = stateRecords.slice(0, halfLen);
+
   const seen = new Map();
-  for (let index = 0; index < stateRecords.length; index += 1) {
-    const record = stateRecords[index];
+  for (let index = 0; index < checkRecords.length; index += 1) {
+    const record = checkRecords[index];
     const previous = seen.get(record.sha256);
-    const allowedBlinkClosure = state.id === 'blink' && previous === 0 && index === stateRecords.length - 1 && stateRecords.length >= 3;
+    const allowedBlinkClosure = state.id === 'blink' && previous === 0 && index === checkRecords.length - 1 && checkRecords.length >= 3;
     if (previous !== undefined && !allowedBlinkClosure) {
       const message = `duplicate pixels do not create a real animation frame: ${record.frame}`;
       if (regressionFixture) record.warnings.push(message);
