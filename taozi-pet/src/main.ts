@@ -3,7 +3,7 @@ import { copyFile, lstat, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import specData from '../pet-spec.json';
-import type { InteractionResult, PetSpec, PetStats, Reminder, RuntimeFailureReport, RuntimeReadyReport, Settings, StateActivity, TypingStatus } from './shared/contracts';
+import type { DashboardView, InteractionResult, PetSpec, PetStats, Reminder, RuntimeFailureReport, RuntimeReadyReport, Settings, StateActivity, TypingStatus } from './shared/contracts';
 import { assertInteractionId, assertReminderInput, assertRuntimeFailureReport, assertRuntimeReadyReport, assertSettingsPatch, assertStringArray } from './shared/contracts';
 import { draggedBounds, snapBounds, type Point, type Rect } from './main/drag';
 import { JsonLogger } from './main/logger';
@@ -520,7 +520,7 @@ async function triggerInteraction(id: string): Promise<InteractionResult> {
   return result;
 }
 
-function showDashboard(): void {
+function showDashboard(view: DashboardView = 'status'): void {
   if (!spec.features.dashboard || !dashboardWindow) return;
   dashboardWindow.center();
   if (e2eMode) dashboardWindow.showInactive();
@@ -529,6 +529,7 @@ function showDashboard(): void {
     dashboardWindow.focus();
   }
   broadcastStats();
+  dashboardWindow.webContents.send('dashboard:view', view);
 }
 
 function buildPetMenu(): Electron.MenuItemConstructorOptions[] {
@@ -539,12 +540,29 @@ function buildPetMenu(): Electron.MenuItemConstructorOptions[] {
     }
     if (spec.experience.interactions.length) items.push({ type: 'separator' });
   }
-  if (spec.features.reminders) items.push({ label: '⏰ 添加提醒', click: showDashboard });
-  if (spec.features.dashboard) items.push({ label: `🏠 ${spec.character.displayName}的小屋`, click: showDashboard });
+  if (spec.features.dashboard) {
+    items.push({ label: '🏠 状态', click: () => showDashboard('status') });
+    items.push({ label: '💬 语录', click: () => showDashboard('quotes') });
+  }
+  if (spec.features.reminders) items.push({ label: '⏰ 提醒', click: () => showDashboard('reminders') });
   if (spec.features.filePocket) items.push({ label: '📁 打开文件口袋', click: () => void openPocket() });
   items.push({ type: 'separator' });
   items.push({ label: settings.clickThrough ? '🖱️ 关闭鼠标穿透' : '🖱️ 开启鼠标穿透', click: () => void saveSettings({ ...settings, clickThrough: !settings.clickThrough }) });
   items.push({ label: '🙈 隐藏桌宠', click: () => petWindow?.hide() });
+  return items;
+}
+
+function trayMenuItems(): Electron.MenuItemConstructorOptions[] {
+  const items: Electron.MenuItemConstructorOptions[] = [];
+  items.push({ label: `🐾 显示${spec.character.displayName}`, click: () => petWindow?.show() });
+  if (spec.features.dashboard) {
+    items.push({ label: '🏠 状态', click: () => showDashboard('status') });
+    items.push({ label: '💬 语录', click: () => showDashboard('quotes') });
+  }
+  if (spec.features.reminders) items.push({ label: '⏰ 提醒', click: () => showDashboard('reminders') });
+  items.push({ label: settings.clickThrough ? '🖱️ 关闭鼠标穿透' : '🖱️ 开启鼠标穿透', click: () => void saveSettings({ ...settings, clickThrough: !settings.clickThrough }) });
+  items.push({ type: 'separator' });
+  items.push({ label: '🚪 退出', click: () => { isQuitting = true; app.quit(); } });
   return items;
 }
 
@@ -555,13 +573,7 @@ function createTray(): void {
   if (trayImage.isEmpty()) throw new Error(`Tray icon is empty: ${resolvedTrayIconPath}`);
   tray = new Tray(trayImage.resize({ width: 32, height: 32, quality: 'best' }));
   tray.setToolTip(spec.app.name);
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: `🐾 显示${spec.character.displayName}`, click: () => petWindow?.show() },
-    { label: `🏠 ${spec.character.displayName}的小屋`, click: showDashboard },
-    { label: settings.clickThrough ? '🖱️ 关闭鼠标穿透' : '🖱️ 开启鼠标穿透', click: () => void saveSettings({ ...settings, clickThrough: !settings.clickThrough }) },
-    { type: 'separator' },
-    { label: '🚪 退出', click: () => { isQuitting = true; app.quit(); } },
-  ]));
+  tray.setContextMenu(Menu.buildFromTemplate(trayMenuItems()));
   tray.on('click', () => petWindow?.isVisible() ? petWindow.hide() : petWindow?.show());
 }
 
@@ -578,13 +590,7 @@ async function saveSettings(next: Settings): Promise<Settings> {
 
 function createTrayMenuRefresh(): void {
   if (!tray) return;
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: `🐾 显示${spec.character.displayName}`, click: () => petWindow?.show() },
-    { label: `🏠 ${spec.character.displayName}的小屋`, click: showDashboard },
-    { label: settings.clickThrough ? '🖱️ 关闭鼠标穿透' : '🖱️ 开启鼠标穿透', click: () => void saveSettings({ ...settings, clickThrough: !settings.clickThrough }) },
-    { type: 'separator' },
-    { label: '🚪 退出', click: () => { isQuitting = true; app.quit(); } },
-  ]));
+  tray.setContextMenu(Menu.buildFromTemplate(trayMenuItems()));
 }
 
 function broadcastTypingStatus(): void {
@@ -793,7 +799,7 @@ function registerIpc(): void {
     assertSender(event, ['pet']);
     if (petWindow) Menu.buildFromTemplate(buildPetMenu()).popup({ window: petWindow });
   });
-  ipcMain.handle('window:show-dashboard', (event) => { assertSender(event, ['pet']); showDashboard(); });
+  ipcMain.handle('window:show-dashboard', (event, view?: DashboardView) => { assertSender(event, ['pet']); showDashboard(view); });
   ipcMain.handle('window:hide-dashboard', (event) => { assertSender(event, ['dashboard']); dashboardWindow?.hide(); });
   ipcMain.handle('window:hide-pet', (event) => { assertSender(event, ['pet', 'dashboard']); petWindow?.hide(); });
 }

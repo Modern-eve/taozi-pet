@@ -163,6 +163,9 @@ export interface TypingStatus {
   reason: string;
 }
 
+// 小屋面板的视图：状态 / 语录 / 提醒，由桌宠右键或托盘右键三个选项分别进入
+export type DashboardView = 'status' | 'quotes' | 'reminders';
+
 export interface PetAPI {
   settings: {
     get: () => Promise<Settings>;
@@ -189,7 +192,7 @@ export interface PetAPI {
     updateDrag: () => Promise<void>;
     endDrag: () => Promise<void>;
     showContextMenu: () => Promise<void>;
-    showDashboard: () => Promise<void>;
+    showDashboard: (view?: DashboardView) => Promise<void>;
     hideDashboard: () => Promise<void>;
     hidePet: () => Promise<void>;
   };
@@ -200,6 +203,7 @@ export interface PetAPI {
   events: {
     onStateActivity: (listener: (activity: StateActivity) => void) => () => void;
     onRemindersUpdated: (listener: () => void) => () => void;
+    onDashboardView: (listener: (view: DashboardView) => void) => () => void;
     onStats: (listener: (stats: PetStats) => void) => () => void;
     onTypingStatus: (listener: (status: TypingStatus) => void) => () => void;
   };

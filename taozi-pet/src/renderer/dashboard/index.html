@@ -98,29 +98,6 @@
       color: var(--text, #3a2a20);
       margin-bottom: 12px;
     }
-    .interactions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-    .interaction-btn {
-      padding: 10px 16px;
-      border: none;
-      border-radius: 12px;
-      background: var(--background, #fff7ed);
-      color: var(--text, #3a2a20);
-      font-size: 14px;
-      cursor: pointer;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .interaction-btn:hover {
-      background: var(--accent, #ffc987);
-      transform: translateY(-1px);
-    }
     .settings-group {
       margin-bottom: 16px;
     }
@@ -229,6 +206,36 @@
     }
     .content-scroll::-webkit-scrollbar-thumb:hover {
       background: var(--primary, #ff8a24);
+    }
+    .view-tabs {
+      display: flex;
+      gap: 8px;
+      padding: 0 48px 12px 0; /* 右侧留出关闭按钮位置 */
+      -webkit-app-region: no-drag;
+    }
+    .view-tab {
+      flex: 1;
+      padding: 8px 0;
+      border: none;
+      border-radius: 12px;
+      background: var(--background, #fff7ed);
+      color: var(--text, #3a2a20);
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .view-tab:hover {
+      background: var(--accent, #ffc987);
+    }
+    .view-tab.active {
+      background: var(--primary, #ff8a24);
+      color: white;
+    }
+    .view {
+      display: none;
+    }
+    .view.active {
+      display: block;
     }
     .quote-group {
       margin-bottom: 12px;
@@ -427,108 +434,113 @@
   <div id="dashboard">
     <div class="card" style="position: relative; flex: 1; display: flex; flex-direction: column;">
       <button class="close-btn" id="close-btn">×</button>
+      <nav class="view-tabs">
+        <button class="view-tab active" data-view="status">🏠 状态</button>
+        <button class="view-tab" data-view="quotes">💬 语录</button>
+        <button class="view-tab" data-view="reminders">⏰ 提醒</button>
+      </nav>
       <div class="content-scroll">
-        <div class="header">
-          <img class="pet-avatar" id="pet-avatar" alt="头像">
-          <div class="pet-info">
-            <h2 id="pet-name">桌宠</h2>
-            <p id="pet-personality">正在加载角色信息</p>
+        <section id="view-status" class="view active">
+          <div class="header">
+            <img class="pet-avatar" id="pet-avatar" alt="头像">
+            <div class="pet-info">
+              <h2 id="pet-name">桌宠</h2>
+              <p id="pet-personality">正在加载角色信息</p>
+            </div>
           </div>
-        </div>
 
-        <div class="stats-grid">
-          <div class="stat-item">
-            <div class="stat-label">💕 好感度</div>
-            <div class="stat-value" id="affection">0</div>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <div class="stat-label">💕 好感度</div>
+              <div class="stat-value" id="affection">0</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">😊 心情</div>
+              <div class="stat-value" id="mood">80</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">🎯 今日互动</div>
+              <div class="stat-value" id="today-interactions">0</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">⏰ 陪伴时长</div>
+              <div class="stat-value" id="companion-minutes">0<small>分钟</small></div>
+            </div>
           </div>
-          <div class="stat-item">
-            <div class="stat-label">😊 心情</div>
-            <div class="stat-value" id="mood">80</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-label">🎯 今日互动</div>
-            <div class="stat-value" id="today-interactions">0</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-label">⏰ 陪伴时长</div>
-            <div class="stat-value" id="companion-minutes">0<small>分钟</small></div>
-          </div>
-        </div>
 
-        <div class="settings-group">
-          <div class="section-title">✨ 互动</div>
-          <div class="interactions" id="interactions-list">
+          <div class="settings-group">
+            <div class="section-title">⚙️ 设置</div>
+            <div class="setting-item">
+              <div>
+                <div class="setting-label">置顶显示</div>
+                <div class="setting-desc">桌宠窗口始终在最前面</div>
+              </div>
+              <div class="toggle active" id="toggle-always-on-top"></div>
+            </div>
+            <div class="setting-item">
+              <div>
+                <div class="setting-label">鼠标穿透</div>
+                <div class="setting-desc">点击穿透到后面的窗口</div>
+              </div>
+              <div class="toggle" id="toggle-click-through"></div>
+            </div>
+            <div class="setting-item">
+              <div>
+                <div class="setting-label">桌宠大小</div>
+                <div class="setting-desc">调整桌宠显示大小</div>
+              </div>
+              <div class="size-selector" id="size-selector">
+                <button class="size-btn" data-scale="0.65">小</button>
+                <button class="size-btn active" data-scale="0.8">标准</button>
+                <button class="size-btn" data-scale="1">大</button>
+                <button class="size-btn" data-scale="1.2">超大</button>
+              </div>
+            </div>
+            <div class="setting-item">
+              <div>
+                <div class="setting-label">开机自启动</div>
+                <div class="setting-desc">开机时自动启动桌宠</div>
+              </div>
+              <div class="toggle active" id="toggle-auto-start"></div>
+            </div>
+            <div class="setting-item">
+              <div>
+                <div class="setting-label">随机行走</div>
+                <div class="setting-desc">桌宠在屏幕上随机移动</div>
+              </div>
+              <div class="toggle" id="toggle-random-walk"></div>
+            </div>
           </div>
-        </div>
+        </section>
 
-        <div class="settings-group">
-          <div class="section-title">⚙️ 设置</div>
-          <div class="setting-item">
-            <div>
-              <div class="setting-label">置顶显示</div>
-              <div class="setting-desc">桌宠窗口始终在最前面</div>
-            </div>
-            <div class="toggle active" id="toggle-always-on-top"></div>
+        <section id="view-quotes" class="view">
+          <div class="settings-group">
+            <div class="section-title">💬 语录管理</div>
+            <div class="section-hint">编辑互动时气泡显示的文案，即时生效</div>
+            <div id="quotes-container"></div>
           </div>
-          <div class="setting-item">
-            <div>
-              <div class="setting-label">鼠标穿透</div>
-              <div class="setting-desc">点击穿透到后面的窗口</div>
-            </div>
-            <div class="toggle" id="toggle-click-through"></div>
-          </div>
-          <div class="setting-item">
-            <div>
-              <div class="setting-label">桌宠大小</div>
-              <div class="setting-desc">调整桌宠显示大小</div>
-            </div>
-            <div class="size-selector" id="size-selector">
-              <button class="size-btn" data-scale="0.65">小</button>
-              <button class="size-btn active" data-scale="0.8">标准</button>
-              <button class="size-btn" data-scale="1">大</button>
-              <button class="size-btn" data-scale="1.2">超大</button>
-            </div>
-          </div>
-          <div class="setting-item">
-            <div>
-              <div class="setting-label">开机自启动</div>
-              <div class="setting-desc">开机时自动启动桌宠</div>
-            </div>
-            <div class="toggle active" id="toggle-auto-start"></div>
-          </div>
-          <div class="setting-item">
-            <div>
-              <div class="setting-label">随机行走</div>
-              <div class="setting-desc">桌宠在屏幕上随机移动</div>
-            </div>
-            <div class="toggle" id="toggle-random-walk"></div>
-          </div>
-        </div>
+        </section>
 
-        <div class="settings-group">
-          <div class="section-title">💬 语录管理</div>
-          <div class="section-hint">编辑互动时气泡显示的文案，即时生效</div>
-          <div id="quotes-container"></div>
-        </div>
-
-        <div class="settings-group">
-          <div class="section-title">⏰ 提醒管理</div>
-          <div class="section-hint">到点后桌宠会一直提醒，点击桌宠或其他动作即可完成提醒</div>
-          <div class="reminder-form">
-            <input type="text" id="reminder-text" placeholder="提醒内容...">
-            <input type="datetime-local" id="reminder-time">
-            <button class="reminder-add-btn" id="reminder-add-btn">添加提醒</button>
+        <section id="view-reminders" class="view">
+          <div class="settings-group">
+            <div class="section-title">⏰ 提醒管理</div>
+            <div class="section-hint">到点后桌宠会一直提醒，点击桌宠或其他动作即可完成提醒</div>
+            <div class="reminder-form">
+              <input type="text" id="reminder-text" placeholder="提醒内容...">
+              <input type="datetime-local" id="reminder-time">
+              <button class="reminder-add-btn" id="reminder-add-btn">添加提醒</button>
+            </div>
+            <div class="reminder-time-quick">
+              <span class="quick-label">快捷调整</span>
+              <button class="quick-btn" data-hours="-1">-1小时</button>
+              <button class="quick-btn" data-minutes="-30">-30分钟</button>
+              <button class="quick-btn" data-minutes="30">+30分钟</button>
+              <button class="quick-btn" data-hours="1">+1小时</button>
+              <span class="quick-preview" id="reminder-time-preview"></span>
+            </div>
+            <div id="reminders-container"></div>
           </div>
-          <div class="reminder-time-quick">
-            <span class="quick-label">快捷调整</span>
-            <button class="quick-btn" data-hours="-1">-1小时</button>
-            <button class="quick-btn" data-minutes="-30">-30分钟</button>
-            <button class="quick-btn" data-minutes="30">+30分钟</button>
-            <button class="quick-btn" data-hours="1">+1小时</button>
-            <span class="quick-preview" id="reminder-time-preview"></span>
-          </div>
-          <div id="reminders-container"></div>
-        </div>
+        </section>
       </div>
     </div>
   </div>
