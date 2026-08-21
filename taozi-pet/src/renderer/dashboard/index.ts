@@ -36,12 +36,32 @@ const affectionEl = document.getElementById('affection') as HTMLDivElement;
 const moodEl = document.getElementById('mood') as HTMLDivElement;
 const todayInteractionsEl = document.getElementById('today-interactions') as HTMLDivElement;
 const companionMinutesEl = document.getElementById('companion-minutes') as HTMLDivElement;
-const interactionsList = document.getElementById('interactions-list') as HTMLDivElement;
 const toggleAlwaysOnTop = document.getElementById('toggle-always-on-top') as HTMLDivElement;
 const toggleClickThrough = document.getElementById('toggle-click-through') as HTMLDivElement;
 const toggleAutoStart = document.getElementById('toggle-auto-start') as HTMLDivElement;
 const toggleRandomWalk = document.getElementById('toggle-random-walk') as HTMLDivElement;
 const sizeSelector = document.getElementById('size-selector') as HTMLDivElement;
+
+// === 视图切换：状态 / 语录 / 提醒（由桌宠右键或托盘右键分别进入）===
+const viewTabs = document.querySelectorAll<HTMLButtonElement>('.view-tab');
+const viewSections = new Map<string, HTMLElement>();
+for (const section of document.querySelectorAll<HTMLElement>('.view')) {
+  viewSections.set(section.id.replace('view-', ''), section);
+}
+
+function switchView(view: 'status' | 'quotes' | 'reminders'): void {
+  viewTabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.view === view));
+  viewSections.forEach((section, key) => section.classList.toggle('active', key === view));
+}
+
+viewTabs.forEach((tab) => {
+  tab.addEventListener('click', () => {
+    const view = tab.dataset.view as 'status' | 'quotes' | 'reminders';
+    if (view) switchView(view);
+  });
+});
+
+window.petAPI?.events.onDashboardView((view) => switchView(view));
 
 let currentSettings: Settings | null = null;
 
@@ -273,35 +293,6 @@ async function loadReminders(): Promise<void> {
   }
 }
 
-// 加载互动列表
-async function loadInteractions(): Promise<void> {
-  try {
-    const interactions = await window.petAPI?.interactions.list();
-    if (!interactions) return;
-
-    interactionsList.replaceChildren();
-    for (const interaction of interactions) {
-      const btn = document.createElement('button');
-      btn.className = 'interaction-btn';
-      const emoji = document.createElement('span');
-      emoji.textContent = interaction.emoji;
-      const label = document.createElement('span');
-      label.textContent = interaction.label;
-      btn.append(emoji, label);
-      btn.addEventListener('click', async () => {
-        try {
-          await window.petAPI?.interactions.trigger(interaction.id);
-        } catch (error) {
-          console.error('Failed to trigger interaction:', error);
-        }
-      });
-      interactionsList.appendChild(btn);
-    }
-  } catch (error) {
-    console.error('Failed to load interactions:', error);
-  }
-}
-
 // 加载设置
 async function loadSettings(): Promise<void> {
   try {
@@ -474,7 +465,7 @@ window.petAPI?.events.onRemindersUpdated(() => {
 // 初始化
 async function init(): Promise<void> {
   setDefaultReminderTime();
-  await loadInteractions();
+  switchView('status');
   await loadSettings();
   await loadStats();
   renderQuotes();

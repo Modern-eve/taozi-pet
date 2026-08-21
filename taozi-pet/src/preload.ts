@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
-import type { InteractionResult, InteractionSpec, PetAPI, PetStats, Reminder, RuntimeFailureReport, RuntimeReadyReport, Settings, StateActivity, TypingStatus } from './shared/contracts';
+import type { DashboardView, InteractionResult, InteractionSpec, PetAPI, PetStats, Reminder, RuntimeFailureReport, RuntimeReadyReport, Settings, StateActivity, TypingStatus } from './shared/contracts';
 
 function subscribe<T>(channel: string, listener: (value: T) => void): () => void {
   const wrapped = (_event: Electron.IpcRendererEvent, value: T) => listener(value);
@@ -33,7 +33,7 @@ const api: PetAPI = {
     updateDrag: () => ipcRenderer.invoke('window:drag-update') as Promise<void>,
     endDrag: () => ipcRenderer.invoke('window:drag-end') as Promise<void>,
     showContextMenu: () => ipcRenderer.invoke('window:show-context-menu') as Promise<void>,
-    showDashboard: () => ipcRenderer.invoke('window:show-dashboard') as Promise<void>,
+    showDashboard: (view?: DashboardView) => ipcRenderer.invoke('window:show-dashboard', view) as Promise<void>,
     hideDashboard: () => ipcRenderer.invoke('window:hide-dashboard') as Promise<void>,
     hidePet: () => ipcRenderer.invoke('window:hide-pet') as Promise<void>,
   },
@@ -44,6 +44,7 @@ const api: PetAPI = {
   events: {
     onStateActivity: (listener) => subscribe<StateActivity>('state:activity', listener),
     onRemindersUpdated: (listener) => subscribe<void>('reminders:updated', listener),
+    onDashboardView: (listener) => subscribe<DashboardView>('dashboard:view', listener),
     onStats: (listener) => subscribe<PetStats>('pet:stats', listener),
     onTypingStatus: (listener) => subscribe<TypingStatus>('typing:status', listener),
   },
