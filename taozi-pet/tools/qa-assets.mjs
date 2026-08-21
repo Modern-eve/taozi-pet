@@ -31,10 +31,10 @@ const REPAIRS = {
   ASSET_READ_FAILED: 'Restore the referenced PNG or correct its exact case-sensitive path.',
 };
 
-function addDiagnostic(errors, diagnostics, code, message, confidence = 'high') {
+function addDiagnostic(errors, diagnostics, code, message, confidence = 'high', blocking = true) {
   const repair = REPAIRS[code] || 'Inspect and repair only the affected state.';
-  errors.push(`[${code}] ${message}`);
-  diagnostics.push({ code, message, repair, confidence, blocking: true });
+  if (blocking) errors.push(`[${code}] ${message}`);
+  diagnostics.push({ code, message, repair, confidence, blocking });
 }
 
 function componentsOf(data, width, height) {
@@ -188,7 +188,7 @@ for (const state of states) {
         const message = `wide flat ground/shadow remains near y=${flatGround.y} (run ${(flatGround.runRatio * 100).toFixed(1)}%)`;
         if (regressionFixture) warnings.push(message);
         else if (flatGround.runRatio >= 0.8 && flatGround.colorDeviation < 18) addDiagnostic(errors, diagnostics, 'GROUND_RESIDUE', message);
-        else addDiagnostic(errors, diagnostics, 'GROUND_RESIDUE_REVIEW', message, 'medium');
+        else addDiagnostic(errors, diagnostics, 'GROUND_RESIDUE_REVIEW', message, 'medium', false); // review 级不阻塞，记录供人工查看
       }
       const coloredGround = coloredGroundEvidence(data, info.width, info.height, bounds, main?.pixels ?? opaque);
       if (coloredGround) {
@@ -264,9 +264,9 @@ const tiles = [];
 const columns = 4;
 const tileWidth = 220;
 const tileHeight = 250;
-for (let index = 0; index < records.length; index += 1) {
-  const record = records[index];
-  if (!record || !record.frame) continue;
+// 缩略图并行生成（272 帧串行 sharp → Promise.all，contact sheet 生成提速）
+await Promise.all(records.map(async (record, index) => {
+  if (!record || !record.frame) return;
   try {
     const thumb = await sharp(path.join(assetDir, record.frame)).resize(190, 190, { fit: 'contain' }).png().toBuffer();
     const size = record.bounds ? `${record.bounds[2] - record.bounds[0] + 1}×${record.bounds[3] - record.bounds[1] + 1}` : 'missing';
@@ -276,10 +276,33 @@ for (let index = 0; index < records.length; index += 1) {
     tiles.push({ input: thumb, left: (index % columns) * tileWidth + 15, top: Math.floor(index / columns) * tileHeight + 10 });
     tiles.push({ input: label, left: (index % columns) * tileWidth, top: Math.floor(index / columns) * tileHeight + 205 });
   } catch { /* missing file is already in the JSON report */ }
+}));
+// 回归基准对比：记录每帧 sha256，下次 QA 检测"帧内容静默变化"（防 process-assets 改版/PNG 编码漂移）
+const baselinePath = path.join(qaDir, 'asset-hashes.json');
+const currentHashes = Object.fromEntries(records.map((record) => [record.frame, record.sha256]));
+let driftCount = 0;
+let baselineSaved = false;
+try {
+  const previous = JSON.parse(await readFile(baselinePath, 'utf8'));
+  const drifted = Object.entries(currentHashes).filter(([frame, hash]) => previous[frame] && previous[frame] !== hash);
+  driftCount = drifted.length;
+  if (driftCount) {
+    const sample = drifted.slice(0, 5).map(([frame]) => frame).join(', ');
+    console.warn(`Asset QA baseline drift: ${driftCount} frame(s) changed since last run (${sample}${driftCount > 5 ? ', …' : ''}); verify the pipeline did not unintentionally alter assets.`);
+  }
+  baselineSaved = true;
+} catch (error) {
+  if (error && error.code !== 'ENOENT') console.warn(`Asset QA baseline: could not read ${baselinePath}: ${error.message}`);
 }
+try {
+  await writeFile(baselinePath, `${JSON.stringify(currentHashes, null, 0)}\n`, 'utf8');
+} catch (error) {
+  console.warn(`Asset QA baseline: could not write ${baselinePath}: ${error.message}`);
+}
+
 const rows = Math.max(1, Math.ceil(records.length / columns));
 await sharp({ create: { width: columns * tileWidth, height: rows * tileHeight, channels: 4, background: '#f1f3f5' } }).composite(tiles).png().toFile(path.join(qaDir, 'contact-sheet.png'));
-const report = { generatedAt: new Date().toISOString(), scope: selectedStateId || 'all', passed: records.every((item) => item.ok), regressionFixture, warningCount: records.reduce((total, item) => total + item.warnings.length, 0), assets: records };
+const report = { generatedAt: new Date().toISOString(), scope: selectedStateId || 'all', passed: records.every((item) => item.ok), regressionFixture, warningCount: records.reduce((total, item) => total + item.warnings.length + item.diagnostics.filter((d) => !d.blocking).length, 0), baselineDrift: driftCount, assets: records };
 await writeFile(path.join(qaDir, 'assets-report.json'), `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 console.log(`Asset QA: ${report.passed ? 'PASS' : 'FAIL'} (${records.filter((item) => item.ok).length}/${records.length})`);
 if (report.warningCount) console.warn(`Asset QA warnings: ${report.warningCount}; inspect the contact sheet before delivery.`);
