@@ -9,18 +9,34 @@ import { draggedBounds, snapBounds, type Point, type Rect } from './main/drag';
 import { JsonLogger } from './main/logger';
 import { atomicWriteJson, uniqueDestination } from './main/persistence';
 import { TypingListener } from './main/typing-listener';
-import { localDateKey, nextReminderDelay, parsePersistedStats, parseReminders, parseSettings, type PersistedStats } from './main/data-validation';
+import { localDateKey, nextReminderDelay, parsePersistedStats, parseQuotes, parseReminders, parseSettings, type PersistedStats } from './main/data-validation';
 import { readValidatedJson } from './main/persistence';
 import trayIconPath from './assets/tray/tray-icon.png';
 
 const spec = specData as PetSpec;
 type Role = 'pet' | 'dashboard';
+
+// 语录种子：全部语录文本统一定义在 pet-spec.json（experience.quotes 状态语录 +
+// interactions[].feedback 互动语录）。首次启动据此生成 userData/quotes.json，
+// 之后语录页与桌宠都只读写这份运行时文件，编辑即同步。
+function initialQuotes(): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const [key, group] of Object.entries(spec.experience.quotes ?? {})) {
+    if (group.quotes.length) out[key] = [...group.quotes];
+  }
+  for (const interaction of spec.experience.interactions ?? []) {
+    if (interaction.feedback.length) out[interaction.id] = [...interaction.feedback];
+  }
+  return out;
+}
+
 let petWindow: BrowserWindow | undefined;
 let dashboardWindow: BrowserWindow | undefined;
 let tray: Tray | undefined;
 let logger: JsonLogger | undefined;
 let settings: Settings;
 let reminders: Reminder[] = [];
+let quotes: Record<string, string[]> = {};
 let stats: PersistedStats;
 let sessionStartedAt = Date.now();
 let typingStatus: TypingStatus = { enabled: false, reason: 'not-started' };
@@ -39,7 +55,17 @@ const RANDOM_WALK_SPEED = 2; // 每帧移动像素（匀速）
 const RANDOM_WALK_FRAME_MS = 16; // 约60fps
 const SLEEP_TRIGGER_MS = 3 * 60 * 1000; // 3分钟无互动触发睡觉
 const MOOD_SAD_THRESHOLD = 25; // 心情低于25触发sad
-const PET_BUBBLE_ZONE = 110; // 桌宠窗口顶部预留气泡区高度（px）：气泡固定在此区内，换行也不会遮住精灵动画
+const PET_BUBBLE_ZONE = 110; // 顶部气泡区高度（px）：气泡固定在此区内，换行也不会遮住精灵动画
+const PET_BUBBLE_ZONE_WIDTH = 240; // 气泡区最小宽度（px）：保证小尺寸桌宠时气泡也不会被窗口宽度压缩
+
+function petSize(): number { return Math.round(spec.experience.petSizing.baseWindowPx * settings.petScale); }
+
+// 桌宠窗口 = 精灵正方形(高) + 顶部气泡区(高)；宽度取「精灵宽 与 气泡区最小宽度」较大者，使气泡尺寸不随桌宠大小变化
+function petWindowSize(): { width: number; height: number } {
+  const size = petSize();
+  return { width: Math.max(size, PET_BUBBLE_ZONE_WIDTH), height: size + PET_BUBBLE_ZONE };
+}
+
 let sleepTimer: ReturnType<typeof setTimeout> | undefined;
 let lastActivityTime = Date.now();
 let currentStateId = 'idle';
@@ -212,14 +238,6 @@ function secureWindow(options: Electron.BrowserWindowConstructorOptions, role: R
       devTools: !app.isPackaged,
     },
   }), role);
-}
-
-function petSize(): number { return Math.round(spec.experience.petSizing.baseWindowPx * settings.petScale); }
-
-// 桌宠窗口 = 精灵正方形(宽) + 顶部气泡区(高)：精灵贴底显示，气泡固定在该区内浮动
-function petWindowSize(): { width: number; height: number } {
-  const size = petSize();
-  return { width: size, height: size + PET_BUBBLE_ZONE };
 }
 
 function applyPetSettings(): void {
@@ -508,7 +526,10 @@ async function triggerInteraction(id: string): Promise<InteractionResult> {
   }
   stats.mood = Math.min(100, stats.mood + Math.max(1, Math.ceil(interaction.affectionGain / 2)));
   stats.todayInteractions += 1;
-  const feedback = interaction.feedback[Math.floor(Math.random() * interaction.feedback.length)] ?? interaction.label;
+  // 互动语录以运行时语录（userData/quotes.json，与语录页编辑同步）为准
+  const customList = quotes[interaction.id];
+  const list = customList && customList.length > 0 ? customList : interaction.feedback;
+  const feedback = list[Math.floor(Math.random() * list.length)] ?? interaction.label;
   await persistStats();
   const result: InteractionResult = { interaction, feedback, stats: publicStats() };
   // 用户触发互动（“点击其他动作”）即视为消费掉当前待处理的提醒
@@ -739,6 +760,37 @@ function registerIpc(): void {
     broadcastRemindersUpdated();
     return oldLength !== reminders.length;
   });
+  ipcMain.handle('quotes:get', (event) => { assertSender(event, ['pet', 'dashboard']); return quotes; });
+  ipcMain.handle('quotes:save', async (event, input: unknown) => {
+    assertSender(event, ['dashboard']);
+    const next = parseQuotes(input);
+    quotes = next;
+    await atomicWriteJson(userFile('quotes.json'), quotes);
+    // 通知 pet 与 dashboard 刷新语录缓存（dashboard 为编辑方，自身即时更新）
+    for (const w of [petWindow, dashboardWindow]) w?.webContents.send('quotes:changed');
+    return undefined;
+  });
+  // 重置所有运行数据（语录/状态/提醒/设置）到最初默认值
+  ipcMain.handle('data:reset', async (event) => {
+    assertSender(event, ['dashboard']);
+    // 语录 → 依据 pet-spec.json 重新生成种子
+    quotes = initialQuotes();
+    await atomicWriteJson(userFile('quotes.json'), quotes);
+    for (const w of [petWindow, dashboardWindow]) w?.webContents.send('quotes:changed');
+    // 状态（心情/好感度等） → 默认值
+    stats = { ...defaultStats };
+    await persistStats();
+    broadcastStats();
+    // 提醒 → 清空并清理所有定时器与待处理项
+    for (const r of reminders) clearReminderTimer(r.id);
+    reminders = [];
+    pendingReminderIds.clear();
+    await persistReminders();
+    broadcastRemindersUpdated();
+    // 设置 → 默认值
+    await saveSettings({ ...defaultSettings });
+    return undefined;
+  });
   ipcMain.handle('interactions:list', (event) => { assertSender(event, ['pet', 'dashboard']); return spec.experience.interactions; });
   ipcMain.handle('interactions:stats', (event) => { assertSender(event, ['pet', 'dashboard']); normalizeStatsDay(); return publicStats(); });
   ipcMain.handle('interactions:trigger', async (event, id: unknown) => {
@@ -808,6 +860,7 @@ async function initialize(): Promise<void> {
   logger = new JsonLogger(userFile('logs/app.jsonl'));
   settings = await readValidatedJson(userFile('settings.json'), defaultSettings, parseSettings);
   reminders = await readValidatedJson(userFile('reminders.json'), [] as Reminder[], parseReminders);
+  quotes = await readValidatedJson(userFile('quotes.json'), initialQuotes(), parseQuotes);
   stats = await readValidatedJson(userFile('pet-stats.json'), defaultStats, parsePersistedStats);
   normalizeStatsDay();
   sessionStartedAt = Date.now();

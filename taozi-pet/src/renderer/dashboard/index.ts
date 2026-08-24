@@ -1,6 +1,5 @@
 import spec from '../../../pet-spec.json';
-import type { PetSpec, PetStats, Settings, InteractionSpec, Reminder } from '../../shared/contracts';
-import { DEFAULT_QUOTE_GROUPS, loadAllQuotes, saveAllQuotes, ensureQuotesSeeded } from '../../shared/quotes';
+import type { PetSpec, PetStats, Settings, Reminder } from '../../shared/contracts';
 import './index.css';
 
 // 引入头像图片
@@ -40,7 +39,8 @@ const toggleAlwaysOnTop = document.getElementById('toggle-always-on-top') as HTM
 const toggleClickThrough = document.getElementById('toggle-click-through') as HTMLDivElement;
 const toggleAutoStart = document.getElementById('toggle-auto-start') as HTMLDivElement;
 const toggleRandomWalk = document.getElementById('toggle-random-walk') as HTMLDivElement;
-const sizeSelector = document.getElementById('size-selector') as HTMLDivElement;
+const scaleSlider = document.getElementById('scale-slider') as HTMLInputElement;
+const scaleValue = document.getElementById('scale-value') as HTMLSpanElement;
 
 // === 视图切换：状态 / 语录 / 提醒（由桌宠右键或托盘右键分别进入）===
 const viewTabs = document.querySelectorAll<HTMLButtonElement>('.view-tab');
@@ -65,32 +65,24 @@ window.petAPI?.events.onDashboardView((view) => switchView(view));
 
 let currentSettings: Settings | null = null;
 
-// === 语录管理（统一数据源：localStorage，见 src/shared/quotes.ts）===
+// === 语录管理（单一数据源：userData/quotes.json，与 pet-spec.json 中的文本同步）===
 const quotesContainer = document.getElementById('quotes-container') as HTMLDivElement;
 
-function loadCustomQuotes(): Record<string, string[]> {
-  return loadAllQuotes();
+// 语录数据内存缓存（init 时从主进程加载；编辑后保存并写回同一份文件）
+let quotesData: Record<string, string[]> | null = null;
+
+async function loadQuotes(): Promise<void> {
+  quotesData = (await window.petAPI?.quotes.get()) ?? {};
 }
 
-function saveCustomQuotes(quotes: Record<string, string[]>): void {
-  saveAllQuotes(quotes);
+function saveQuotes(quotes: Record<string, string[]>): void {
+  quotesData = quotes;
+  void window.petAPI?.quotes.save(quotes);
 }
 
-function getQuotesForInteraction(interaction: InteractionSpec): string[] {
-  const custom = loadCustomQuotes();
-  const c = custom[interaction.id];
-  if (c && c.length > 0) {
-    return c;
-  }
-  return [...(interaction.feedback || [])];
-}
-
-// 默认语录统一来自 src/shared/quotes.ts（DEFAULT_QUOTE_GROUPS），
-// pet 与 dashboard 共用 localStorage 作为统一数据源，不再各自维护镜像。
-
-function renderQuoteGroup(key: string, label: string, emoji: string, defaultQuotes: string[]): void {
-  const custom = loadCustomQuotes();
-  const quotes = custom[key] ?? [...defaultQuotes];
+// 渲染一组语录：展示的即当前运行时文本（quotes.json，与 pet-spec.json 定义一致）
+function renderQuoteGroup(key: string, label: string, emoji: string, fallback: string[]): void {
+  const quotes = quotesData?.[key] ?? [...fallback];
   const group = document.createElement('div');
   group.className = 'quote-group';
   const header = document.createElement('div');
@@ -107,21 +99,21 @@ function renderQuoteGroup(key: string, label: string, emoji: string, defaultQuot
     input.value = q;
     input.placeholder = '输入语录...';
     input.addEventListener('change', () => {
-      const c = loadCustomQuotes();
-      let arr = c[key];
-      if (!arr) { arr = [...defaultQuotes]; c[key] = arr; }
+      const next = { ...(quotesData ?? {}) };
+      const arr = [...(next[key] ?? [...fallback])];
       arr[idx] = input.value;
-      saveCustomQuotes(c);
+      next[key] = arr;
+      saveQuotes(next);
     });
     const del = document.createElement('button');
     del.className = 'quote-del-btn';
     del.textContent = '×';
     del.addEventListener('click', () => {
-      const c = loadCustomQuotes();
-      let arr = c[key];
-      if (!arr) { arr = [...defaultQuotes]; c[key] = arr; }
+      const next = { ...(quotesData ?? {}) };
+      const arr = [...(next[key] ?? [...fallback])];
       arr.splice(idx, 1);
-      saveCustomQuotes(c);
+      next[key] = arr;
+      saveQuotes(next);
       renderQuotes();
     });
     item.append(input, del);
@@ -131,11 +123,11 @@ function renderQuoteGroup(key: string, label: string, emoji: string, defaultQuot
   addBtn.className = 'quote-add-btn';
   addBtn.textContent = '+ 添加语录';
   addBtn.addEventListener('click', () => {
-    const c = loadCustomQuotes();
-    let arr = c[key];
-    if (!arr) { arr = [...defaultQuotes]; c[key] = arr; }
+    const next = { ...(quotesData ?? {}) };
+    const arr = [...(next[key] ?? [...fallback])];
     arr.push('新语录');
-    saveCustomQuotes(c);
+    next[key] = arr;
+    saveQuotes(next);
     renderQuotes();
   });
   body.appendChild(addBtn);
@@ -144,19 +136,13 @@ function renderQuoteGroup(key: string, label: string, emoji: string, defaultQuot
 }
 
 function renderQuotes(): void {
-  // 确保默认语录已落盘 localStorage（只补缺失键，不覆盖用户自定义）
-  ensureQuotesSeeded(petSpec.experience.interactions);
   quotesContainer.replaceChildren();
-  // 点击语录
-  const click = DEFAULT_QUOTE_GROUPS.__click__!;
-  renderQuoteGroup('__click__', click.label, click.emoji, click.quotes);
-  // 自动触发状态语录
-  const autoStates = ['blink', 'peek', 'walk', 'sleep', 'sad'];
-  for (const stateId of autoStates) {
-    const s = DEFAULT_QUOTE_GROUPS[stateId];
-    if (s) renderQuoteGroup(stateId, s.label, s.emoji, s.quotes);
+  // 状态语录（来自 pet-spec.json experience.quotes）
+  const statusQuotes = petSpec.experience.quotes ?? {};
+  for (const [key, group] of Object.entries(statusQuotes)) {
+    renderQuoteGroup(key, group.label, group.emoji, group.quotes);
   }
-  // 互动语录
+  // 互动语录（来自 pet-spec.json experience.interactions[].feedback）
   for (const interaction of petSpec.experience.interactions) {
     renderQuoteGroup(interaction.id, interaction.label, interaction.emoji, interaction.feedback || []);
   }
@@ -325,16 +311,9 @@ async function loadSettings(): Promise<void> {
       toggleRandomWalk.classList.remove('active');
     }
 
-    // 更新大小选择
-    const sizeBtns = sizeSelector.querySelectorAll('.size-btn');
-    sizeBtns.forEach((btn) => {
-      const scale = parseFloat((btn as HTMLElement).dataset.scale || '1');
-      if (Math.abs(scale - settings.petScale) < 0.01) {
-        btn.classList.add('active');
-      } else {
-        btn.classList.remove('active');
-      }
-    });
+    // 更新桌宠大小滑块
+    scaleSlider.value = String(settings.petScale);
+    scaleValue.textContent = `${Math.round(settings.petScale * 100)}%`;
   } catch (error) {
     console.error('Failed to load settings:', error);
   }
@@ -433,22 +412,38 @@ toggleRandomWalk.addEventListener('click', async () => {
   }
 });
 
-// 大小选择
-sizeSelector.addEventListener('click', async (e) => {
-  const target = e.target as HTMLElement;
-  if (!target.classList.contains('size-btn')) return;
+// 桌宠大小滑块：自由调整（实时生效）
+scaleSlider.addEventListener('input', async () => {
   if (!currentSettings) return;
-
-  const scale = parseFloat(target.dataset.scale || '1');
+  const scale = parseFloat(scaleSlider.value);
+  if (Number.isNaN(scale)) return;
+  currentSettings.petScale = scale;
+  scaleValue.textContent = `${Math.round(scale * 100)}%`;
   try {
     await window.petAPI?.settings.update({ petScale: scale });
-    currentSettings.petScale = scale;
-
-    const sizeBtns = sizeSelector.querySelectorAll('.size-btn');
-    sizeBtns.forEach((btn) => btn.classList.remove('active'));
-    target.classList.add('active');
   } catch (error) {
     console.error('Failed to update pet scale:', error);
+  }
+});
+
+// 重置所有数据 → 恢复到最初默认值
+const resetDataBtn = document.getElementById('reset-data-btn') as HTMLButtonElement;
+resetDataBtn.addEventListener('click', async () => {
+  if (!window.confirm('确定重置所有数据吗？语录、状态、提醒、设置将恢复到最初默认值，此操作不可撤销。')) return;
+  if (resetDataBtn.disabled) return;
+  resetDataBtn.disabled = true;
+  try {
+    await window.petAPI?.data.reset();
+    // 重置后重新拉取并渲染各页数据（语录/设置/状态/提醒），保证界面即时同步
+    await loadQuotes();
+    renderQuotes();
+    await loadSettings();
+    await loadStats();
+    await loadReminders();
+  } catch (error) {
+    console.error('Failed to reset data:', error);
+  } finally {
+    resetDataBtn.disabled = false;
   }
 });
 
@@ -468,6 +463,7 @@ async function init(): Promise<void> {
   switchView('status');
   await loadSettings();
   await loadStats();
+  await loadQuotes();
   renderQuotes();
   await loadReminders();
 }

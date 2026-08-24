@@ -9,6 +9,7 @@
 <body>
   <div id="dashboard">
     <div class="card" style="position: relative; flex: 1; display: flex; flex-direction: column;">
+      <div class="drag-bar" id="drag-bar"></div>
       <button class="close-btn" id="close-btn">×</button>
       <nav class="view-tabs">
         <button class="view-tab active" data-view="status">🏠 状态</button>
@@ -63,13 +64,11 @@
             <div class="setting-item">
               <div>
                 <div class="setting-label">桌宠大小</div>
-                <div class="setting-desc">调整桌宠显示大小</div>
+                <div class="setting-desc">自由调整桌宠显示大小（50% - 150%）</div>
               </div>
-              <div class="size-selector" id="size-selector">
-                <button class="size-btn" data-scale="0.65">小</button>
-                <button class="size-btn active" data-scale="0.8">标准</button>
-                <button class="size-btn" data-scale="1">大</button>
-                <button class="size-btn" data-scale="1.2">超大</button>
+              <div class="scale-control">
+                <input type="range" id="scale-slider" min="0.5" max="1.5" step="0.01" value="0.8">
+                <span class="scale-value" id="scale-value">80%</span>
               </div>
             </div>
             <div class="setting-item">
@@ -85,6 +84,16 @@
                 <div class="setting-desc">桌宠在屏幕上随机移动</div>
               </div>
               <div class="toggle" id="toggle-random-walk"></div>
+            </div>
+          </div>
+          <div class="settings-group">
+            <div class="section-title">🔄 数据管理</div>
+            <div class="setting-item">
+              <div>
+                <div class="setting-label">重置所有数据</div>
+                <div class="setting-desc">将语录、状态、提醒、设置恢复到最初默认值</div>
+              </div>
+              <button class="reset-btn" id="reset-data-btn">重置</button>
             </div>
           </div>
         </section>

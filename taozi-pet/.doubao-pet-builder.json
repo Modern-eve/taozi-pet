@@ -5,9 +5,10 @@
   "criticalFileHashes": {
     "forge.config.js": "72cc4bbd603d9a15a4951fe9d23a227f1a7b50735e47bfcf78bc41f3172162a1",
     "webpack.renderer.config.js": "f0cbfe9f4f805126d0dd854b4024df83b2d08c2d67145ecae6bc29e5268ddda1",
-    "src/main.ts": "df463749f2fe14ce0e2750f531b6bc5df0e5734df9ff208a80b8524b58d39c35",
-    "src/preload.ts": "41085029968670696d81ba24f33169386f16f9bf2c754e4e54f6edef3fcda8aa",
-    "src/main/data-validation.ts": "ac1415fed4e16f1a6b4ef6be36b9a027b70791a626851f1c6973df670e16cc9b",
+    "src/main.ts": "e7d794cd5e670b1ad9b2061de99c125c9335f6dde5937e6e025e3bf3c7da8707",
+    "src/preload.ts": "5ec42c74e391f4ef500c0c291254c3f51c2477116329c2cf55f1c6c30a304928",
+    "src/shared/contracts.ts": "cecd4b169ed9781c630f7375daf2c542843a4be0eb8cab7006fcca3c1f9c1d66",
+    "src/main/data-validation.ts": "e9c47925e818537757cd401d1d81c5bda5b4dfef6ce6c98fbdc8562a7045b91d",
     "src/renderer/pet/state-machine.ts": "e9af4b80010bb649294cb3c92013f29353d73131c3969ca6299da4007d1f2928",
     "tools/collect-release.mjs": "50d78bbd41b5a8d2435fc3bdf77359ee10a908379b5918ccb4b83dc27d0c78d7",
     "tools/process-assets.mjs": "7ec07c7c81a9f1ea79de0b895d80a30405771aa06f6a5d55ab0dc34e7cc68460",
