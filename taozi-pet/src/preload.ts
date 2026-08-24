@@ -18,6 +18,13 @@ const api: PetAPI = {
     remove: (id) => ipcRenderer.invoke('reminders:remove', id) as Promise<boolean>,
     ack: () => ipcRenderer.invoke('reminders:ack') as Promise<boolean>,
   },
+  quotes: {
+    get: () => ipcRenderer.invoke('quotes:get') as Promise<Record<string, string[]>>,
+    save: (quotes) => ipcRenderer.invoke('quotes:save', quotes) as Promise<void>,
+  },
+  data: {
+    reset: () => ipcRenderer.invoke('data:reset') as Promise<void>,
+  },
   interactions: {
     list: () => ipcRenderer.invoke('interactions:list') as Promise<InteractionSpec[]>,
     trigger: (id) => ipcRenderer.invoke('interactions:trigger', id) as Promise<InteractionResult>,
@@ -44,6 +51,7 @@ const api: PetAPI = {
   events: {
     onStateActivity: (listener) => subscribe<StateActivity>('state:activity', listener),
     onRemindersUpdated: (listener) => subscribe<void>('reminders:updated', listener),
+    onQuotesChanged: (listener) => subscribe<void>('quotes:changed', listener),
     onDashboardView: (listener) => subscribe<DashboardView>('dashboard:view', listener),
     onStats: (listener) => subscribe<PetStats>('pet:stats', listener),
     onTypingStatus: (listener) => subscribe<TypingStatus>('typing:status', listener),

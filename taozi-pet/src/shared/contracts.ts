@@ -42,6 +42,7 @@ export interface PetSpec {
       baseWindowPx: number;
       defaultScale: number;
     };
+    quotes: Record<string, QuoteGroupSpec>;
     interactions: InteractionSpec[];
   };
   motion: {
@@ -73,6 +74,12 @@ export interface PetSpec {
     timeoutMinutes: number;
     unsigned: boolean;
   };
+}
+
+export interface QuoteGroupSpec {
+  label: string;
+  emoji: string;
+  quotes: string[];
 }
 
 export interface InteractionSpec {
@@ -177,6 +184,13 @@ export interface PetAPI {
     remove: (id: string) => Promise<boolean>;
     ack: () => Promise<boolean>;
   };
+  quotes: {
+    get: () => Promise<Record<string, string[]>>;
+    save: (quotes: Record<string, string[]>) => Promise<void>;
+  };
+  data: {
+    reset: () => Promise<void>;
+  };
   interactions: {
     list: () => Promise<InteractionSpec[]>;
     trigger: (id: string) => Promise<InteractionResult>;
@@ -203,6 +217,7 @@ export interface PetAPI {
   events: {
     onStateActivity: (listener: (activity: StateActivity) => void) => () => void;
     onRemindersUpdated: (listener: () => void) => () => void;
+    onQuotesChanged: (listener: () => void) => () => void;
     onDashboardView: (listener: (view: DashboardView) => void) => () => void;
     onStats: (listener: (stats: PetStats) => void) => () => void;
     onTypingStatus: (listener: (status: TypingStatus) => void) => () => void;
@@ -246,7 +261,7 @@ export function assertSettingsPatch(value: unknown): asserts value is Partial<Se
   for (const [key, item] of Object.entries(obj)) {
     if (!allowedKeys.has(key)) throw new TypeError(`Unknown settings field: ${key}`);
     if (booleanKeys.has(key) && typeof item !== 'boolean') throw new TypeError(`Invalid settings field: ${key}`);
-    if (key === 'petScale' && (typeof item !== 'number' || !Number.isFinite(item) || ![0.65, 0.8, 1, 1.2].includes(item))) {
+    if (key === 'petScale' && (typeof item !== 'number' || !Number.isFinite(item) || item < 0.5 || item > 1.5)) {
       throw new TypeError('Invalid settings field: petScale');
     }
   }
