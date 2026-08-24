@@ -2,7 +2,6 @@ import spec from '../../../pet-spec.json';
 import type { PetSpec, StateActivity } from '../../shared/contracts';
 import { exceedsDragThreshold } from '../../main/drag';
 import { PetStateMachine } from './state-machine';
-import { DEFAULT_QUOTE_GROUPS, loadAllQuotes, ensureQuotesSeeded } from '../../shared/quotes';
 import './index.css';
 
 const petSpec = spec as PetSpec;
@@ -10,6 +9,10 @@ const petSpec = spec as PetSpec;
 const sprite = document.getElementById('pet-sprite') as HTMLImageElement;
 const container = document.getElementById('pet-container') as HTMLDivElement;
 const feedbackBubble = document.getElementById('feedback-bubble') as HTMLDivElement;
+
+// 与主进程保持一致：顶部气泡区高度(px)。精灵贴底为正方形，高度 = 100vh - 气泡区高（见 CSS），
+// 气泡固定在该区内浮动；精灵尺寸由 CSS 100vh 自动随窗口同步，缩小/放大均稳定生效，且不影响气泡尺寸。
+const PET_BUBBLE_ZONE = 110;
 
 // Chromium 会默认把 img 当作可拖拽内容；桌宠只允许窗口拖拽。
 container.addEventListener('dragstart', (event) => event.preventDefault());
@@ -57,7 +60,7 @@ let feedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
 // 气泡定位：短文本贴近桌宠（气泡区底部、精灵上方），长文本固定在气泡区顶部换行/滚动，始终不遮动画
 function positionBubble(): void {
-  const zoneHeight = window.innerHeight - window.innerWidth; // 顶部气泡区高度(px)，等于窗口高-精灵边长
+  const zoneHeight = PET_BUBBLE_ZONE; // 顶部气泡区高度(px)，固定不变
   const margin = 10;
   const contentHeight = feedbackBubble.scrollHeight; // 内容自然高度（不受 max-height 截断影响）
   const available = zoneHeight - margin * 2;
@@ -136,19 +139,12 @@ function scheduleIdleEvents(): void {
 }
 
 // 点击语录
-// 默认语录已统一迁移到 src/shared/quotes.ts（DEFAULT_QUOTE_GROUPS），
-// pet 与 dashboard 共用 localStorage 作为统一数据源，不再各自维护镜像。
-
-// 自定义语录缓存（避免每次取语录都 JSON.parse localStorage）
+// 全部语录文本统一定义在 pet-spec.json，运行时持久化到 userData/quotes.json；
+// 本窗口通过 IPC 拉取并缓存（init 时加载，dashboard 修改后经 quotes:changed 事件刷新）。
 let customQuotesCache: Record<string, string[]> | null = null;
 function loadCustomQuotes(): Record<string, string[]> {
   if (customQuotesCache) return customQuotesCache;
-  customQuotesCache = loadAllQuotes();
-  return customQuotesCache ?? {};
-}
-
-function invalidateQuotesCache(): void {
-  customQuotesCache = null;
+  return {};
 }
 
 function getQuote(stateId: string): string {
@@ -160,7 +156,7 @@ function getQuote(stateId: string): string {
       if (pick) return pick;
     }
   } catch { /* ignore */ }
-  const defaults = DEFAULT_QUOTE_GROUPS[stateId]?.quotes;
+  const defaults = petSpec.experience.quotes?.[stateId]?.quotes;
   if (defaults && defaults.length > 0) {
     return defaults[Math.floor(Math.random() * defaults.length)] || '';
   }
@@ -168,10 +164,10 @@ function getQuote(stateId: string): string {
 }
 
 // 点击事件
-// 顶部气泡区（0 ~ 100vh-100vw）是留给气泡的透明留白：真实用户点那里不触发桌宠互动
+// 顶部气泡区（0 ~ PET_BUBBLE_ZONE）是留给气泡的透明留白：真实用户点那里不触发桌宠互动
 // （程序化 click 事件 isTrusted=false，不在此限制内，e2e 测试仍可正常点击）
 function inBubbleZone(event: MouseEvent | PointerEvent): boolean {
-  return event.isTrusted && event.clientY < window.innerHeight - window.innerWidth;
+  return event.isTrusted && event.clientY < PET_BUBBLE_ZONE;
 }
 
 container.addEventListener('click', (event) => {
@@ -250,20 +246,8 @@ container.addEventListener('contextmenu', (e) => {
 window.petAPI?.events.onStateActivity((activity: StateActivity) => {
   if (activity.stateId) {
     const mirror = activity.mirror === true;
-    let feedback = activity.feedback;
-    // 互动语录：优先使用自定义
-    if (activity.kind === 'interaction' && activity.stateId) {
-      const interaction = petSpec.experience.interactions.find((i) => i.stateId === activity.stateId);
-      if (interaction) {
-        try {
-          const custom = loadCustomQuotes();
-          const quotes = custom[interaction.id];
-          if (quotes && quotes.length > 0) {
-            feedback = quotes[Math.floor(Math.random() * quotes.length)];
-          }
-        } catch { /* ignore */ }
-      }
-    }
+    // 互动语录由主进程从运行时语录（quotes.json）选词后随 activity.feedback 下发
+    const feedback = activity.feedback;
     setState(activity.stateId, activity.durationMs, mirror);
     scheduleIdleEvents();
     // 提醒到点：notify 动作 + 气泡持续显示，直到用户点击其他动作
@@ -283,9 +267,12 @@ window.petAPI?.events.onStateActivity((activity: StateActivity) => {
 // 初始化
 async function init(): Promise<void> {
   try {
-    // 首次运行：将默认语录（状态 + 互动）写入 localStorage，统一作为语录数据源
-    ensureQuotesSeeded(petSpec.experience.interactions);
-    invalidateQuotesCache();
+    // 从主进程加载语录数据（单一数据源 userData/quotes.json）
+    customQuotesCache = (await window.petAPI?.quotes.get()) ?? {};
+    // dashboard 修改语录后刷新本窗口缓存
+    window.petAPI?.events.onQuotesChanged(() => {
+      void window.petAPI?.quotes.get().then((q) => { customQuotesCache = q; });
+    });
 
     // 先设置 idle 状态
     setState('idle');

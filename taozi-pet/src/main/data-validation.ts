@@ -11,7 +11,9 @@ export interface PersistedStats {
 }
 
 export const MAX_TIMER_DELAY_MS = 2_147_000_000;
-export const PET_SCALES = [0.65, 0.8, 1, 1.2] as const;
+// 桌宠大小自由调整，允许 50%-150% 范围内的任意缩放值
+export const PET_SCALE_MIN = 0.5;
+export const PET_SCALE_MAX = 1.5;
 
 function record(value: unknown, label: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError(`Invalid ${label}`);
@@ -32,7 +34,7 @@ export function parseSettings(value: unknown): Settings {
   for (const key of ['edgeSnap', 'alwaysOnTop', 'typingReaction', 'clickThrough', 'autoStart', 'randomWalk'] as const) {
     if (typeof obj[key] !== 'boolean') throw new TypeError(`Invalid settings field: ${key}`);
   }
-  if (typeof obj.petScale !== 'number' || !Number.isFinite(obj.petScale) || !PET_SCALES.includes(obj.petScale as typeof PET_SCALES[number])) {
+  if (typeof obj.petScale !== 'number' || !Number.isFinite(obj.petScale) || obj.petScale < PET_SCALE_MIN || obj.petScale > PET_SCALE_MAX) {
     throw new TypeError('Invalid settings field: petScale');
   }
   return {
@@ -84,6 +86,20 @@ export function parseReminders(value: unknown): Reminder[] {
     if (typeof obj.createdAt !== 'string' || !Number.isFinite(Date.parse(obj.createdAt))) throw new TypeError('Invalid reminder createdAt');
     return { id: obj.id, text: obj.text, dueAt: obj.dueAt, createdAt: obj.createdAt };
   });
+}
+
+export function parseQuotes(value: unknown): Record<string, string[]> {
+  const obj = record(value, 'quotes');
+  const out: Record<string, string[]> = {};
+  for (const [key, item] of Object.entries(obj)) {
+    if (key.length < 1 || key.length > 50) throw new TypeError('Invalid quotes key');
+    if (!Array.isArray(item) || item.length > 200) throw new TypeError('Invalid quotes list');
+    for (const q of item) {
+      if (typeof q !== 'string' || q.length > 200) throw new TypeError('Invalid quote text');
+    }
+    out[key] = item as string[];
+  }
+  return out;
 }
 
 export function nextReminderDelay(dueAt: string, now = Date.now()): number {

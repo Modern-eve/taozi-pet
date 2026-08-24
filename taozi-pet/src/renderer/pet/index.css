@@ -11,6 +11,11 @@ html, body {
   background: transparent !important;
 }
 
+:root {
+  /* 顶部气泡区高度(px)，与主进程 PET_BUBBLE_ZONE 保持一致 */
+  --pet-bubble-zone: 110px;
+}
+
 #pet-container {
   width: 100%;
   height: 100%;
@@ -24,9 +29,10 @@ html, body {
 }
 
 #pet-sprite {
-  width: 100%;
-  /* 窗口 = 精灵正方形 + 顶部气泡区；精灵贴底，气泡区留白给气泡，换行也不会遮住动画 */
-  height: calc(100% - (100vh - 100vw));
+  width: auto;
+  height: calc(100vh - var(--pet-bubble-zone));
+  aspect-ratio: 1 / 1; /* 正方形；高度随 100vh 自动变化，无需 JS，缩小/放大都稳定生效 */
+  /* 精灵贴底为正方形，与固定宽度/高度的气泡区解耦，桌宠大小变化不影响气泡 */
   object-fit: contain;
   pointer-events: none;
   -webkit-user-drag: none;
@@ -72,9 +78,9 @@ html, body {
   /* 只过渡透明度：transform 参与会带来翻转/位移动画，导致文字左右跳变 */
   transition: opacity 0.3s ease;
   pointer-events: none;
-  max-width: min(240px, 70vw);
-  /* 顶部气泡区高度 = 100vh - 100vw；气泡最高不超过该区，永远在精灵上方 */
-  max-height: calc(100vh - 100vw - 20px);
+  max-width: 220px; /* 固定最大宽度，不随桌宠大小变化 */
+  /* 顶部气泡区高度固定（--pet-bubble-zone），气泡最高不超过该区，永远在精灵上方 */
+  max-height: calc(var(--pet-bubble-zone) - 20px);
   overflow-y: auto;
   white-space: normal;
   word-break: break-word;
