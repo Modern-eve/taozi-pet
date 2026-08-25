@@ -1,64 +1,32 @@
 import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { makeCheck, runChecks, PROJECT_ROOT } from './qa-common.mjs';
 
-const specText = await readFile(new URL('../pet-spec.json', import.meta.url), 'utf8');
-const packageText = await readFile(new URL('../package.json', import.meta.url), 'utf8');
+const specText = await readFile(path.join(PROJECT_ROOT, 'pet-spec.json'), 'utf8');
+const packageText = await readFile(path.join(PROJECT_ROOT, 'package.json'), 'utf8');
 const spec = JSON.parse(specText);
 const packageJson = JSON.parse(packageText);
-const errors = [];
+
 const knownTriggers = new Set([
   'app:start', 'ambient:idle', 'ambient:blink', 'ambient:random', 'pointer:tap', 'window:drag', 'window:edge-snap',
   'reminder:due', 'typing:activity', 'file:drop', 'file:drop-success', 'file:drop-fail', 'movement:left', 'movement:right',
 ]);
-if (spec.schemaVersion !== 4) errors.push('schemaVersion must equal 4');
-const mojibakePattern = /\ufffd|锛|鈥|灏忛噾|妗屽疇|鍠傚皬|鎽告懜/u;
-if (mojibakePattern.test(specText) || mojibakePattern.test(packageText)) errors.push('probable UTF-8/GBK mojibake; restore the UTF-8 source files');
-if (!/^[A-Za-z][A-Za-z0-9]*(\.[A-Za-z0-9-]+)+$/.test(spec.app?.appId ?? '')) errors.push('app.appId must be a reverse-domain identifier');
-if (packageJson.productName !== spec.app?.name) errors.push('package.productName must match app.name');
-if (packageJson.version !== spec.app?.version) errors.push('package.version must match app.version');
-if (spec.assetPipeline?.backgroundMode !== 'adaptive-flood') errors.push('assetPipeline.backgroundMode must be adaptive-flood');
-if (!['transparent-grid', 'solid-chroma'].includes(spec.assetPipeline?.generationBackground)) errors.push('assetPipeline.generationBackground must be transparent-grid or solid-chroma');
-if (!Number.isInteger(spec.assetPipeline?.backgroundTolerance) || spec.assetPipeline.backgroundTolerance < 12 || spec.assetPipeline.backgroundTolerance > 48) errors.push('assetPipeline.backgroundTolerance must be 12-48');
-if (!Number.isInteger(spec.assetPipeline?.edgeFeather) || spec.assetPipeline.edgeFeather < 4 || spec.assetPipeline.edgeFeather > 24) errors.push('assetPipeline.edgeFeather must be 4-24');
-if (!Number.isInteger(spec.assetPipeline?.safeMargin) || spec.assetPipeline.safeMargin < 16 || spec.assetPipeline.safeMargin > 64) errors.push('assetPipeline.safeMargin must be 16-64');
-if (typeof spec.assetPipeline?.targetOccupancy !== 'number' || spec.assetPipeline.targetOccupancy < 0.65 || spec.assetPipeline.targetOccupancy > 0.82) errors.push('assetPipeline.targetOccupancy must be 0.65-0.82');
-if (!Number.isInteger(spec.assetPipeline?.sourceCanvas) || spec.assetPipeline.sourceCanvas < 256 || spec.assetPipeline.sourceCanvas > 4096) errors.push('assetPipeline.sourceCanvas must be 256-4096');
-if (!Number.isInteger(spec.assetPipeline?.sourceMargin) || spec.assetPipeline.sourceMargin < 0 || spec.assetPipeline.sourceMargin > 256) errors.push('assetPipeline.sourceMargin must be 0-256');
-if (typeof spec.assetPipeline?.sourceOccupancy !== 'number' || spec.assetPipeline.sourceOccupancy < 0.3 || spec.assetPipeline.sourceOccupancy > 0.8) errors.push('assetPipeline.sourceOccupancy must be 0.3-0.8');
-if (!Number.isInteger(spec.assetPipeline?.sourcePad) || spec.assetPipeline.sourcePad < 0 || spec.assetPipeline.sourcePad > 32) errors.push('assetPipeline.sourcePad must be 0-32');
-if (!Number.isInteger(spec.experience?.petSizing?.baseWindowPx) || spec.experience.petSizing.baseWindowPx < 180 || spec.experience.petSizing.baseWindowPx > 260) errors.push('experience.petSizing.baseWindowPx must be 180-260');
-if (![0.65, 0.8, 1, 1.2].includes(spec.experience?.petSizing?.defaultScale)) errors.push('experience.petSizing.defaultScale must be one of 0.65, 0.8, 1, 1.2');
-if (spec.features?.transparentWindow !== true) errors.push('transparentWindow must be true');
-if (spec.build?.unsigned !== true) errors.push('build.unsigned must explicitly be true');
-if (spec.build?.windows?.arch !== 'x64') errors.push('Windows architecture must be x64');
-if (!Number.isInteger(spec.build?.timeoutMinutes) || spec.build.timeoutMinutes < 5 || spec.build.timeoutMinutes > 60) errors.push('build timeout must be 5-60 minutes');
-if (spec.storage?.userData !== 'app-user-data' || spec.storage?.filePocket !== 'documents-app-name') errors.push('storage paths must use cross-platform policies');
 
-const interactions = new Map((spec.experience?.interactions ?? []).map((interaction) => [interaction.id, interaction]));
-const states = new Map();
-const triggers = new Map();
+// 顶层构建一次共享映射，供 states/interactions 两个 check 闭包复用
+const states = new Map((spec.states ?? []).map((state) => [state.id, state]));
 const frameOwners = new Map();
-for (const state of spec.states ?? []) {
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(state.id ?? '')) errors.push(`invalid state id: ${state.id}`);
-  if (states.has(state.id)) errors.push(`duplicate state id: ${state.id}`);
-  states.set(state.id, state);
-  if (!Array.isArray(state.frames) || state.frames.length < 1) errors.push(`state has no frames: ${state.id}`);
-  for (const frame of state.frames ?? []) {
-    if (typeof frame !== 'string' || /^[A-Za-z]:|^[/\\]|(?:^|[/\\])\.\.(?:[/\\]|$)/.test(frame)) errors.push(`unsafe frame path: ${frame}`);
-    // 同一状态内重复引用（双播：frames 里同一帧引用两次，如 blink-01 出现两次=眨两次眼）
-    // 是合法动画设计；只有跨状态共享同一帧才是冲突。
-    const prevOwner = frameOwners.get(frame);
-    if (prevOwner !== undefined && prevOwner !== state.id) errors.push(`frame ${frame} belongs to both ${prevOwner} and ${state.id}`);
-    else frameOwners.set(frame, state.id);
-  }
-  if (!Array.isArray(state.triggers) || !state.triggers.length) errors.push(`state has no runtime trigger: ${state.id}`);
-  for (const trigger of state.triggers ?? []) {
-    if (!knownTriggers.has(trigger) && !(trigger.startsWith('interaction:') && interactions.has(trigger.slice(12))) && !trigger.startsWith('state:')) errors.push(`unknown trigger ${trigger} on ${state.id}`);
-    if (triggers.has(trigger)) errors.push(`trigger ${trigger} maps to both ${triggers.get(trigger)} and ${state.id}`);
-    triggers.set(trigger, state.id);
-  }
+const sharedFrames = new Set();
+for (const state of spec.states ?? []) for (const frame of state.frames ?? []) {
+  const previous = frameOwners.get(frame);
+  if (previous !== undefined && previous !== state.id) sharedFrames.add(frame);
+  else frameOwners.set(frame, state.id);
 }
-if (!states.has('idle')) errors.push('state machine requires an idle state');
-for (const trigger of ['app:start', 'ambient:idle', 'ambient:blink', 'pointer:tap']) if (!triggers.has(trigger)) errors.push(`missing base trigger: ${trigger}`);
+const triggers = new Map();
+for (const state of spec.states ?? []) for (const trigger of state.triggers ?? []) {
+  if (!triggers.has(trigger)) triggers.set(trigger, state.id);
+}
+const interactions = new Map((spec.experience?.interactions ?? []).map((interaction) => [interaction.id, interaction]));
+
 const conditional = {
   reminders: ['reminder:due'],
   edgeSnap: ['window:edge-snap'],
@@ -66,37 +34,123 @@ const conditional = {
   filePocket: ['file:drop', 'file:drop-success', 'file:drop-fail'],
   autonomousMovement: ['movement:left', 'movement:right'],
 };
-for (const [feature, required] of Object.entries(conditional)) {
-  for (const trigger of required) {
-    if (spec.features?.[feature] && !triggers.has(trigger)) errors.push(`${feature} is enabled but ${trigger} is not implemented`);
-    if (!spec.features?.[feature] && triggers.has(trigger)) errors.push(`${trigger} exists although ${feature} is disabled`);
-  }
-}
-if (spec.features?.interactions && interactions.size < 2) errors.push('enabled interactions require at least two character-specific actions');
-for (const [id, interaction] of interactions) {
-  if (typeof interaction.emoji !== 'string' || interaction.emoji.length < 1 || interaction.emoji.length > 8) errors.push(`interaction ${id} needs a short emoji`);
-  const state = states.get(interaction.stateId);
-  if (!state) errors.push(`interaction ${id} references missing state ${interaction.stateId}`);
-  if (!triggers.has(`interaction:${id}`)) errors.push(`interaction ${id} has no runtime trigger`);
-  if (state && (state.frames.length < 5 || state.frames.length > 24)) errors.push(`interaction state ${state.id} must have 5-24 frames`);
-  if (state && interaction.durationMs < state.frames.length * state.frameDurationMs) errors.push(`interaction ${id} duration must cover one full animation cycle`);
-}
-const blink = states.get(triggers.get('ambient:blink'));
-if (blink && (blink.frames.length < 5 || blink.frames.length > 24)) errors.push('blink must have 5-24 frames');
-const idle = states.get('idle');
-if (idle && (idle.frames.length < 4 || idle.frames.length > 24)) errors.push('idle must have 4-24 frames');
-for (const trigger of ['pointer:tap', 'reminder:due', 'window:edge-snap', 'ambient:random']) {
-  const state = states.get(triggers.get(trigger));
-  if (state && (state.frames.length < 5 || state.frames.length > 24)) errors.push(`${trigger} state ${state.id} must have 5-24 frames`);
-}
-for (const trigger of ['movement:left', 'movement:right']) {
-  const state = states.get(triggers.get(trigger));
-  if (state && (state.frames.length < 6 || state.frames.length > 24)) errors.push(`${trigger} state ${state.id} must have 6-24 frames`);
-}
-if (![...states.values()].some((state) => state.frames.includes(spec.character?.coreAsset))) errors.push('character.coreAsset must be used by a runtime state');
 
-if (errors.length) {
-  console.error(`Invalid pet-spec.json:\n${errors.map((error) => `- ${error}`).join('\n')}`);
-  process.exit(1);
-}
-console.log(`Valid pet-spec.json v4: ${states.size} states, ${triggers.size} triggers, ${interactions.size} interactions.`);
+const checks = [];
+
+// ---- 应用元信息契约 ----
+checks.push(makeCheck({
+  id: 'app-meta',
+  gate: 'spec-contract',
+  describe: 'schema/编码/appId 及 package.json 的 productName/version 与 spec 一致',
+  run: () => {
+    const problems = [];
+    if (spec.schemaVersion !== 4) problems.push('schemaVersion 必须等于 4');
+    const mojibake = /\ufffd|锛|鈥|灏忛噾|妗屽疇|鍠傚皬|鎽告懜/u;
+    if (mojibake.test(specText) || mojibake.test(packageText)) problems.push('疑似 UTF-8/GBK 乱码；请恢复 UTF-8 源文件');
+    if (!/^[A-Za-z][A-Za-z0-9]*(\.[A-Za-z0-9-]+)+$/.test(spec.app?.appId ?? '')) problems.push('app.appId 必须是反向域名标识');
+    if (packageJson.productName !== spec.app?.name) problems.push('package.productName 必须与 app.name 一致');
+    if (packageJson.version !== spec.app?.version) problems.push('package.version 必须与 app.version 一致');
+    return { passed: problems.length === 0, detail: problems.length ? problems.join('; ') : '元信息一致' };
+  },
+}));
+
+// ---- 素材管线 / 尺寸 / build 配置 ----
+checks.push(makeCheck({
+  id: 'config-pipeline',
+  gate: 'spec-contract',
+  describe: 'assetPipeline 阈值、petSizing、features/build/storage 配置合法',
+  run: () => {
+    const problems = [];
+    const pipeline = spec.assetPipeline ?? {};
+    if (pipeline.backgroundMode !== 'adaptive-flood') problems.push('assetPipeline.backgroundMode 必须为 adaptive-flood');
+    if (!['transparent-grid', 'solid-chroma'].includes(pipeline.generationBackground)) problems.push('assetPipeline.generationBackground 必须为 transparent-grid 或 solid-chroma');
+    if (!Number.isInteger(pipeline.backgroundTolerance) || pipeline.backgroundTolerance < 12 || pipeline.backgroundTolerance > 48) problems.push('assetPipeline.backgroundTolerance 必须为 12-48');
+    if (!Number.isInteger(pipeline.edgeFeather) || pipeline.edgeFeather < 4 || pipeline.edgeFeather > 24) problems.push('assetPipeline.edgeFeather 必须为 4-24');
+    if (!Number.isInteger(pipeline.safeMargin) || pipeline.safeMargin < 16 || pipeline.safeMargin > 64) problems.push('assetPipeline.safeMargin 必须为 16-64');
+    if (typeof pipeline.targetOccupancy !== 'number' || pipeline.targetOccupancy < 0.65 || pipeline.targetOccupancy > 0.82) problems.push('assetPipeline.targetOccupancy 必须为 0.65-0.82');
+    if (!Number.isInteger(pipeline.sourceCanvas) || pipeline.sourceCanvas < 256 || pipeline.sourceCanvas > 4096) problems.push('assetPipeline.sourceCanvas 必须为 256-4096');
+    if (!Number.isInteger(pipeline.sourceMargin) || pipeline.sourceMargin < 0 || pipeline.sourceMargin > 256) problems.push('assetPipeline.sourceMargin 必须为 0-256');
+    if (typeof pipeline.sourceOccupancy !== 'number' || pipeline.sourceOccupancy < 0.3 || pipeline.sourceOccupancy > 0.8) problems.push('assetPipeline.sourceOccupancy 必须为 0.3-0.8');
+    if (!Number.isInteger(pipeline.sourcePad) || pipeline.sourcePad < 0 || pipeline.sourcePad > 32) problems.push('assetPipeline.sourcePad 必须为 0-32');
+    const sizing = spec.experience?.petSizing ?? {};
+    if (!Number.isInteger(sizing.baseWindowPx) || sizing.baseWindowPx < 180 || sizing.baseWindowPx > 260) problems.push('experience.petSizing.baseWindowPx 必须为 180-260');
+    if (![0.65, 0.8, 1, 1.2].includes(sizing.defaultScale)) problems.push('experience.petSizing.defaultScale 必须是 0.65/0.8/1/1.2 之一');
+    if (spec.features?.transparentWindow !== true) problems.push('features.transparentWindow 必须为 true');
+    if (spec.build?.unsigned !== true) problems.push('build.unsigned 必须显式为 true');
+    if (spec.build?.windows?.arch !== 'x64') problems.push('Windows 架构必须为 x64');
+    if (!Number.isInteger(spec.build?.timeoutMinutes) || spec.build.timeoutMinutes < 5 || spec.build.timeoutMinutes > 60) problems.push('构建超时必须为 5-60 分钟');
+    if (spec.storage?.userData !== 'app-user-data' || spec.storage?.filePocket !== 'documents-app-name') problems.push('存储路径必须使用跨平台策略');
+    return { passed: problems.length === 0, detail: problems.length ? problems.join('; ') : '配置合法' };
+  },
+}));
+
+// ---- 状态机结构 ----
+checks.push(makeCheck({
+  id: 'states',
+  gate: 'spec-contract',
+  describe: '状态 id/帧归属/触发唯一性/base trigger/条件联动合法',
+  run: () => {
+    const problems = [];
+    for (const state of spec.states ?? []) {
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(state.id ?? '')) problems.push(`非法状态 id: ${state.id}`);
+      if (!Array.isArray(state.frames) || state.frames.length < 1) problems.push(`状态无帧: ${state.id}`);
+      for (const frame of state.frames ?? []) {
+        if (typeof frame !== 'string' || /^[A-Za-z]:|^[/\\]|(?:^|[/\\])\.\.(?:[/\\]|$)/.test(frame)) problems.push(`不安全的帧路径: ${frame}`);
+      }
+      if (!Array.isArray(state.triggers) || !state.triggers.length) problems.push(`状态无运行时触发: ${state.id}`);
+    }
+    for (const frame of sharedFrames) problems.push(`帧 ${frame} 归属多个状态（跨状态共享帧冲突）`);
+    const triggerToState = new Map();
+    for (const state of spec.states ?? []) for (const trigger of state.triggers ?? []) {
+      if (!knownTriggers.has(trigger) && !(trigger.startsWith('interaction:') && interactions.has(trigger.slice(12))) && !trigger.startsWith('state:')) problems.push(`未知触发 ${trigger}（位于 ${state.id}）`);
+      if (triggerToState.has(trigger)) problems.push(`触发 ${trigger} 同时归属 ${triggerToState.get(trigger)} 与 ${state.id}`);
+      else triggerToState.set(trigger, state.id);
+    }
+    if (!states.has('idle')) problems.push('状态机必须包含 idle 状态');
+    for (const trigger of ['app:start', 'ambient:idle', 'ambient:blink', 'pointer:tap']) if (!triggers.has(trigger)) problems.push(`缺少基础触发: ${trigger}`);
+    for (const [feature, required] of Object.entries(conditional)) {
+      for (const trigger of required) {
+        if (spec.features?.[feature] && !triggers.has(trigger)) problems.push(`${feature} 已启用但 ${trigger} 未实现`);
+        if (!spec.features?.[feature] && triggers.has(trigger)) problems.push(`${trigger} 存在但 ${feature} 已禁用`);
+      }
+    }
+    return { passed: problems.length === 0, detail: problems.length ? problems.join('; ') : `${states.size} states 结构合法` };
+  },
+}));
+
+// ---- 帧数产能约束 / 互动动作连通 ----
+checks.push(makeCheck({
+  id: 'interactions-and-framing',
+  gate: 'spec-contract',
+  describe: '互动动作 emoji/状态/触发/时长与帧数产能区间合法',
+  run: () => {
+    const problems = [];
+    if (spec.features?.interactions && interactions.size < 2) problems.push('启用的互动至少需要两个角色专属动作');
+    for (const [id, interaction] of interactions) {
+      if (typeof interaction.emoji !== 'string' || interaction.emoji.length < 1 || interaction.emoji.length > 8) problems.push(`互动 ${id} 需要简短 emoji`);
+      const state = states.get(interaction.stateId);
+      if (!state) { problems.push(`互动 ${id} 引用不存在的状态 ${interaction.stateId}`); continue; }
+      if (!triggers.has(`interaction:${id}`)) problems.push(`互动 ${id} 无运行时触发`);
+      if (state.frames.length < 5 || state.frames.length > 24) problems.push(`互动状态 ${state.id} 帧数必须为 5-24`);
+      if (interaction.durationMs < state.frames.length * state.frameDurationMs) problems.push(`互动 ${id} 时长须覆盖一个完整动画周期`);
+    }
+    const blink = states.get(triggers.get('ambient:blink'));
+    if (blink && (blink.frames.length < 5 || blink.frames.length > 24)) problems.push('blink 帧数必须为 5-24');
+    const idle = states.get('idle');
+    if (idle && (idle.frames.length < 4 || idle.frames.length > 24)) problems.push('idle 帧数必须为 4-24');
+    for (const trigger of ['pointer:tap', 'reminder:due', 'window:edge-snap', 'ambient:random']) {
+      const state = states.get(triggers.get(trigger));
+      if (state && (state.frames.length < 5 || state.frames.length > 24)) problems.push(`「${trigger}」状态 ${state.id} 帧数必须为 5-24`);
+    }
+    for (const trigger of ['movement:left', 'movement:right']) {
+      const state = states.get(triggers.get(trigger));
+      if (state && (state.frames.length < 6 || state.frames.length > 24)) problems.push(`「${trigger}」状态 ${state.id} 帧数必须为 6-24`);
+    }
+    if (![...states.values()].some((state) => state.frames.includes(spec.character?.coreAsset))) problems.push('character.coreAsset 必须被某个运行时状态使用');
+    return { passed: problems.length === 0, detail: problems.length ? problems.join('; ') : `${interactions.size} interactions 合法` };
+  },
+}));
+
+const ok = await runChecks({ name: 'Spec Validation', reportFile: 'spec-validation-report.json', checks });
+if (!ok) process.exit(1);
+console.log(`      (${states.size} states, ${triggers.size} triggers, ${interactions.size} interactions)`);
