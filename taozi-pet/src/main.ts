@@ -95,6 +95,8 @@ const defaultSettings: Settings = {
   clickThrough: false,
   petScale: spec.experience.petSizing.defaultScale,
   autoStart: true,
+  // 默认已初始化：新用户默认开机自启（首次启动即写入系统自启动项）
+  autoStartInit: true,
   randomWalk: false,
 };
 
@@ -249,6 +251,9 @@ function applyPetSettings(): void {
 }
 
 function applyAutoStart(): void {
+  // 仅当 autoStartInit 为 true 时写入/移除系统自启动项；
+  // autoStartInit=false（如旧数据损坏回退且未固化选择）时不动注册表，防止意外自启。
+  if (!settings.autoStartInit) return;
   app.setLoginItemSettings({
     openAtLogin: settings.autoStart,
     openAsHidden: true,
@@ -732,7 +737,10 @@ function registerIpc(): void {
   ipcMain.handle('settings:update', async (event, patch: unknown) => {
     assertSender(event, ['dashboard']);
     assertSettingsPatch(patch);
-    return saveSettings(parseSettings({ ...settings, ...patch }));
+    const next = { ...settings, ...patch };
+    // 一旦用户显式操作过开机自启，即固化该选择，之后启动都以此为准（含损坏回退不再复写）
+    if ('autoStart' in patch) next.autoStartInit = true;
+    return saveSettings(parseSettings(next));
   });
   ipcMain.handle('reminders:list', (event) => { assertSender(event, ['dashboard']); return reminders; });
   ipcMain.handle('reminders:save', async (event, input: unknown) => {
@@ -789,6 +797,8 @@ function registerIpc(): void {
     broadcastRemindersUpdated();
     // 设置 → 默认值
     await saveSettings({ ...defaultSettings });
+    // 重置为未配置状态后 applyAutoStart 不再管注册表，这里显式清除系统自启动项，避免残留仍自启
+    app.setLoginItemSettings({ openAtLogin: false, openAsHidden: true });
     return undefined;
   });
   ipcMain.handle('interactions:list', (event) => { assertSender(event, ['pet', 'dashboard']); return spec.experience.interactions; });
