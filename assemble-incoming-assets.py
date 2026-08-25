@@ -2,29 +2,27 @@
 assemble-incoming-assets.py — 组装 + 归一化 taozi-pet/incoming-assets
 
 合并自原 assemble-incoming-assets.py 与 normalize-incoming-occupancy.py：
-  把「已抠透明底的素材」整理为 process-assets 所需的 incoming-assets，
+  把「已抠透明底的素材」（GPU 默认全量写入 incoming-assets）整理为 process-assets 所需，
   并在同一遍内完成占用率归一化（居中 + 底部对齐到统一画布）。
 
-对每个状态、每帧：
-  - 若该状态在 --matted-states（incoming 中已由 preprocess 写入透明帧）
-      → 渲染：裁 bbox(+PAD) → 按目标占用率缩放 → 居中+底部对齐到 sourceCanvas 画布（原地写回 incoming）
-  - 否则 → 跳过（非 matted 状态已在 incoming 就绪，由 CPU 抠图 committed，不再处理）
+对每个状态、每帧（全部 12 状态都处理）：
+  - 通用动画状态 → 裁 bbox(+PAD) → 按目标占用率缩放 → 居中+底部对齐到 sourceCanvas 画布（原地写回 incoming）
+  - lockedBody 状态(idle/blink) → 额外做帧间尺寸对齐：以首帧按占用率得到的尺寸为参考，
+    强制每帧身体宽高=参考值（非等比缩放），消除 qa 的 SCALE_DRIFT（≤2.5% 宽高漂移）
 
-归一化统一采用「面积占用率」方式（原 normalize 逻辑）；原 assemble 的「参考角色高
-对齐」实现已丢弃，不再保留为校验——下游 process-assets.mjs 自带 NORMALIZATION_TOO_LARGE
-质量门禁，无需第二套对齐实现。
+归一化统一采用「面积占用率」方式（原 normalize 逻辑）；lockedBody 用首帧尺寸锁定的
+帧间对齐实现。下游 process-assets.mjs 自带 NORMALIZATION_TOO_LARGE 质量门禁。
 
 帧清单由各状态在 pet-spec.json 的 frames 推导（去重，因双播会重复引用同一文件）。
 阈值唯一权威来自 pet-spec.json assetPipeline（sourceCanvas/sourceMargin/sourceOccupancy/sourcePad），
 与 process-assets.mjs / qa-assets.mjs 共用，避免漂移。
 
-输入：taozi-pet/incoming-assets/(matted 状态的透明帧由 preprocess 写入；其余状态已就绪)
-输出：taozi-pet/incoming-assets/(整合后，原地归一化 matted 状态)
+输入：taozi-pet/incoming-assets/（preprocess 写入的透明帧，GPU 默认全量）
+输出：taozi-pet/incoming-assets/（整合后，原地归一化全部状态）
 
 用法：
   python assemble-incoming-assets.py
-  python assemble-incoming-assets.py --matted-states walk sleep sad peek
-  python assemble-incoming-assets.py --states idle            # 只处理 idle（idle 不在 matted 则纯复制）
+  python assemble-incoming-assets.py --states idle blink     # 只处理 lockedBody 两状态
 """
 import os
 import argparse
@@ -44,10 +42,10 @@ MARGIN = _pipeline.get("sourceMargin", 48)                          # 画布边�
 TARGET_OCC = _pipeline.get("sourceOccupancy", 0.62)                 # 目标占用率（面积占比）
 PAD = _pipeline.get("sourcePad", 4)                                 # bbox 外扩留白
 
-# 项目预设：需原地归一化的 matted 状态（即已上 GPU、由 preprocess 写入 incoming 透明帧的状态）。
-# 注意 idle/blink 为 lockedBody，其已提交的 CPU 帧天然满足 ≤2.5% 宽高一致性；
-# 一旦归一化反而会触发 SCALE_DRIFT，故此处故意不含 idle/blink。
-DEFAULT_MATTED = ["walk", "sleep", "sad", "peek"]
+# 所有状态都做原地归一化（GPU 默认全量 → incoming 已是透明帧）。
+# lockedBody 状态（idle/blink）需帧间尺寸对齐：强制每帧身体宽高=首帧参考值，
+# 消除 qa 的 SCALE_DRIFT（≤2.5% 宽高漂移）；其余状态按占用率缩放。
+LOCKED_BODY_STATES = ["idle", "blink"]
 
 
 def load_states():
@@ -68,9 +66,21 @@ def subject_bbox(arr):
     return ys.min(), ys.max(), xs.min(), xs.max()
 
 
-def render_matted(src_name):
-    """从 incoming-assets 读取 matted 透明帧（preprocess 已写入），裁 bbox(+PAD)，
-    按目标占用率缩放，居中+底部对齐到统一画布，原地写回。src_name 不含扩展名。"""
+def _target_size(w, h):
+    """按目标占用率（面积）计算缩放后尺寸，必要时 fit 防贴边。"""
+    factor = (TARGET_OCC * CANVAS * CANVAS / (w * h)) ** 0.5
+    nw = max(1, round(w * factor))
+    nh = max(1, round(h * factor))
+    fit = min((CANVAS - 2 * MARGIN) / max(nw, nh), 1.0)
+    return max(1, round(nw * fit)), max(1, round(nh * fit))
+
+
+def render_matted(src_name, lock_size=None):
+    """从 incoming-assets 读取透明帧，裁 bbox(+PAD)，缩放并居中+底部对齐到统一画布，原地写回。
+    - lock_size=None：按目标占用率缩放（通用动画状态）
+    - lock_size=(w,h)：强制缩放为参考宽高（非等比），用于 lockedBody 状态(idle/blink)
+      的帧间尺寸对齐，消除 qa 的 SCALE_DRIFT（≤2.5% 宽高漂移）
+    src_name 不含扩展名。"""
     arr = np.array(Image.open(os.path.join(INC, src_name + ".png")).convert("RGBA"))
     t, btm, l, r = subject_bbox(arr)
     t = max(0, t - PAD)
@@ -79,12 +89,10 @@ def render_matted(src_name):
     r = min(arr.shape[1] - 1, r + PAD)
     h = btm - t + 1
     w = r - l + 1
-    # 按目标面积（占用率）缩放
-    factor = (TARGET_OCC * CANVAS * CANVAS / (w * h)) ** 0.5
-    nw, nh = max(1, round(w * factor)), max(1, round(h * factor))
-    # 防贴边：fit 缩放（仅过大时生效）
-    fit = min((CANVAS - 2 * MARGIN) / max(nw, nh), 1.0)
-    nw2, nh2 = max(1, round(nw * fit)), max(1, round(nh * fit))
+    if lock_size is not None:
+        nw2, nh2 = lock_size          # 帧间尺寸对齐：强制参考宽高（非等比）
+    else:
+        nw2, nh2 = _target_size(w, h)  # 按占用率缩放
     sub = Image.fromarray(arr).crop((l, t, r + 1, btm + 1)).resize((nw2, nh2), Image.LANCZOS)
     cv = Image.new("RGBA", (CANVAS, CANVAS), (0, 0, 0, 0))
     px, py = (CANVAS - nw2) // 2, CANVAS - MARGIN - nh2
@@ -92,45 +100,47 @@ def render_matted(src_name):
     return cv
 
 
-def build_state(state, frames, matted):
-    """处理单个状态：matted 帧从 INC 读透明帧并原地归一化；非 matted 跳过（已在 INC 就绪）。"""
+def build_state(state, frames):
+    """处理单个状态：每帧从 incoming 读透明帧并原地归一化写回。
+    lockedBody 状态(idle/blink) 用首帧确定参考宽高做帧间对齐；其余按占用率缩放。"""
+    locked = state in LOCKED_BODY_STATES
+    lock_size = None
+    if locked and frames:
+        # 以首帧按占用率得到的尺寸作为参考，强制后续帧对齐到它
+        arr0 = np.array(Image.open(os.path.join(INC, frames[0][:-4] + ".png")).convert("RGBA"))
+        t0, b0, l0, r0 = subject_bbox(arr0)
+        t0 = max(0, t0 - PAD); b0 = min(arr0.shape[0] - 1, b0 + PAD)
+        l0 = max(0, l0 - PAD); r0 = min(arr0.shape[1] - 1, r0 + PAD)
+        lock_size = _target_size(r0 - l0 + 1, b0 - t0 + 1)
     done = 0
     for fr in frames:
         dst = os.path.join(INC, fr)
-        if matted:
-            if not os.path.exists(dst):
-                raise RuntimeError(f"matted 帧缺失：{dst}（请先运行 preprocess(-gpu) 把透明帧写入 incoming）")
-            render_matted(fr[:-4]).save(dst)
-            mode = "matted"
-        else:
-            if not os.path.exists(dst):
-                raise RuntimeError(f"非 matted 帧缺失：{dst}（需先放置 CPU 就绪帧）")
-            mode = "skip"
+        if not os.path.exists(dst):
+            raise RuntimeError(f"帧缺失：{dst}（请先运行 preprocess 把透明帧写入 incoming）")
+        render_matted(fr[:-4], lock_size=lock_size).save(dst)
         done += 1
-        if mode != "skip":
-            print(f"  {mode:7} {fr}")
+        print(f"  norm   {fr}")
     return done
 
 
 def main():
-    ap = argparse.ArgumentParser(description="组装+归一化 incoming-assets（通用、数据驱动）")
-    ap.add_argument("--matted-states", nargs="*", default=DEFAULT_MATTED,
-                    help=f"需原地归一化的 matted 状态（默认 {DEFAULT_MATTED}）；其余状态已在 incoming 就绪，跳过")
+    ap = argparse.ArgumentParser(description="组装+归一化 incoming-assets（通用、数据驱动，全部状态）")
     ap.add_argument("--states", nargs="*", default=None,
-                    help="只处理这些状态（默认全部）")
+                    help="只处理这些状态（默认全部 12 状态）")
     args = ap.parse_args()
 
     states = load_states()
     if args.states:
         wanted = set(args.states)
         states = {k: v for k, v in states.items() if k in wanted}
-    matted = set(args.matted_states)
 
     total = 0
     for state, frames in states.items():
-        print(f"=== {state} (matted={state in matted}, {len(frames)} 帧) ===")
-        total += build_state(state, frames, state in matted)
-    print(f"\nDONE: {total} 帧写入 {INC}（画布 {CANVAS}，占用率 {TARGET_OCC}，margin {MARGIN}，pad {PAD}）")
+        tag = "locked" if state in LOCKED_BODY_STATES else "occ"
+        print(f"=== {state} ({tag}, {len(frames)} 帧) ===")
+        total += build_state(state, frames)
+    print(f"\nDONE: {total} 帧写入 {INC}（画布 {CANVAS}，占用率 {TARGET_OCC}，margin {MARGIN}，pad {PAD}；"
+          f"lockedBody={LOCKED_BODY_STATES} 走帧间对齐）")
 
 
 if __name__ == "__main__":

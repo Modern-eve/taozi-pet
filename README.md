@@ -29,7 +29,7 @@ QA: PASS (142/142)
 | 脚本 | 作用 |
 |------|------|
 | `preprocess-v7 -gpu.py` | GPU 抠白底（BiRefNet + CUDA），`assets-raw/` → `taozi-pet/incoming-assets/`，**默认全量**（`--states` 不设=处理全部 142 帧）；`--states` 可限定只跑部分状态。CPU 版 `preprocess-v7-cpu.py` 仅作**应急还原（最后手段）**，非默认回退 |
-| `assemble-incoming-assets.py` | 组装 + 归一化 `incoming-assets`：`--matted-states`（默认 walk/peek/sleep/sad）从 `incoming-assets` 读取 preprocess 写入的透明帧，原地做占用率归一化（居中 + 底部对齐到 `sourceCanvas` 画布）写回；其余状态已在 `incoming-assets` 就绪，跳过。阈值唯一权威来自 `pet-spec.json` 的 `assetPipeline.source*`（`sourceCanvas`/`sourceMargin`/`sourceOccupancy`/`sourcePad`） |
+| `assemble-incoming-assets.py` | 组装 + 归一化 `incoming-assets`：**全部 12 状态**原地归一化（从 `incoming-assets` 读 preprocess 写入的透明帧，按 `sourceOccupancy` 缩放 + 居中 + 底部对齐到 `sourceCanvas` 写回）；`idle/blink` 为 lockedBody，额外做**帧间尺寸对齐**（首帧尺寸为参考）消除 `SCALE_DRIFT`。阈值唯一权威来自 `pet-spec.json` 的 `assetPipeline.source*`（`sourceCanvas`/`sourceMargin`/`sourceOccupancy`/`sourcePad`） |
 | `rename-assets.py` | 重命名工具：数字缺口顺移、x.5 过渡帧收拢为连续整数（默认 dry-run，`--apply` 执行） |
 | `repair-src-for-qa.py` | 按 `qa/assets-report.json` 自动修复失败帧（SCALE_DRIFT / OCCUPANCY_TOO_LARGE / GROUND_RESIDUE / SUBJECT_TOUCHES_BORDER），`--dry-run` 可预览 |
 | `tools/process-assets.mjs` | 把 `incoming-assets` 渲染为 `src/assets/pet/`（在 `taozi-pet/` 内运行） |
@@ -68,7 +68,7 @@ C:\PYTHON312\python.exe repair-src-for-qa.py --dry-run
 - **`pet-spec.json`（`taozi-pet/pet-spec.json`）是帧清单唯一权威**：新增帧时在 spec 的 frames 里加文件名即可。
 - **资产阈值唯一权威**：归一化/边距/占用率等参数统一收敛到 `pet-spec.json` 的 `assetPipeline`——`targetOccupancy`/`safeMargin`（`process-assets.mjs` 输出层），以及 `sourceCanvas`/`sourceMargin`/`sourceOccupancy`/`sourcePad`（py 上游预处理层）。所有脚本（py + mjs）读取同一份配置，改一处即全局生效，避免阈值漂移。
 - **GPU 抠图已设为默认全量**（`preprocess-v7 -gpu.py` 不加 `--states` 即处理全部 12 状态），GPU 是首选抠图引擎。若 GPU 图触发 QA 问题，应通过**下流调整**解决：把 `assemble-incoming-assets.py` 的归一化扩展到全部状态（解决 6 个状态的 `OCCUPANCY_TOO_LARGE`）、对 idle/blink 做帧间尺寸对齐或放宽 `qa` 阈值（解决 `SCALE_DRIFT`），**CPU 版 `preprocess-v7-cpu.py` 只是最后手段**，不应作为常规回退。
-- **`assemble` 的 `--matted-states` 默认绝不可含 idle/blink**：二者为 lockedBody，已提交的 CPU 帧天然满足 ≤2.5% 宽高一致，归一化反而会触发 `SCALE_DRIFT`。
+- **`assemble` 对全部状态做归一化**，不再跳过任何状态；`idle/blink` 为 lockedBody，改用「首帧尺寸帧间对齐」（非等比强制参考宽高）消除 `SCALE_DRIFT`（≤2.5% 宽高漂移），而非跳过——这是「GPU 图有问题由下流调整」的体现。
 
 ### 启动与打包
 

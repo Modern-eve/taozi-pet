@@ -192,7 +192,8 @@ def process_image(input_path, output_path):
     arr[:, :, 3] = alpha
     Image.fromarray(arr).save(output_path)
 
-# 项目预设：GPU 适配的 matted 状态（其余 8 状态原本必须 CPU 抠图，见 assemble DEFAULT_MATTED）。
+# 项目预设：GPU 为默认全量抠图引擎；下游 assemble-incoming-assets.py 对全部状态做归一化，
+# idle/blink 走帧间尺寸对齐（见 assemble LOCKED_BODY_STATES）消除 SCALE_DRIFT，CPU 仅作最后手段。
 # 按需求将 GPU 设为默认全量：--states 不设时处理 assets-raw 全部帧。
 MATTED_STATES = ["walk", "sleep", "sad", "peek"]
 
