@@ -121,6 +121,8 @@ export interface Settings {
   clickThrough: boolean;
   petScale: number;
   autoStart: boolean;
+  /** 是否用户已显式设置过开机自启；false 表示从未配置（首次/损坏回退），此时不写入系统自启动项 */
+  autoStartInit: boolean;
   randomWalk: boolean;
 }
 

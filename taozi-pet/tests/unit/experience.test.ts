@@ -20,7 +20,7 @@ test('local date keys use calendar fields instead of UTC serialization', () => {
 });
 
 test('settings accept only complete, finite values within pet scale range', () => {
-  const valid = { edgeSnap: true, alwaysOnTop: true, typingReaction: false, clickThrough: false, petScale: 0.8, autoStart: true, randomWalk: true };
+  const valid = { edgeSnap: true, alwaysOnTop: true, typingReaction: false, clickThrough: false, petScale: 0.8, autoStart: true, autoStartInit: true, randomWalk: true };
   assert.deepEqual(parseSettings(valid), valid);
   assert.deepEqual(parseSettings({ ...valid, petScale: 0.72 }), { ...valid, petScale: 0.72 }); // 自由缩放取值
   assert.throws(() => parseSettings({ ...valid, petScale: Number.NaN }), /petScale/);

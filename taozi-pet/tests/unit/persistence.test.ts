@@ -14,6 +14,7 @@ const defaults: Settings = {
   clickThrough: false,
   petScale: 1,
   autoStart: true,
+  autoStartInit: true,
   randomWalk: false,
 };
 
