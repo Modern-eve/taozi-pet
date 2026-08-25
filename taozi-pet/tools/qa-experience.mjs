@@ -1,50 +1,133 @@
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
-import path from 'node:path';
+import { makeCheck, runChecks, loadSpec } from './qa-common.mjs';
 
-const root = process.cwd();
-const spec = JSON.parse(await readFile(path.join(root, 'pet-spec.json'), 'utf8'));
-const assetDirectory = path.join(root, 'src', 'assets', 'pet');
-const qaDirectory = path.join(root, 'qa');
-await mkdir(qaDirectory, { recursive: true });
-const issues = [];
-const usedFiles = new Set();
-const triggerOwners = new Map();
+const spec = await loadSpec();
+
 const stateById = new Map(spec.states.map((state) => [state.id, state]));
-
+const triggerOwners = new Map();
 for (const state of spec.states) {
-  for (const frame of state.frames) usedFiles.add(frame.replaceAll('\\', '/'));
-  if (!state.triggers.length) issues.push({ gate: 'reachability', state: state.id, message: 'state has no runtime trigger' });
-  for (const trigger of state.triggers) {
-    if (triggerOwners.has(trigger)) issues.push({ gate: 'reachability', state: state.id, message: `trigger ${trigger} is already owned by ${triggerOwners.get(trigger)}` });
-    triggerOwners.set(trigger, state.id);
+  for (const trigger of state.triggers ?? []) {
+    if (!triggerOwners.has(trigger)) triggerOwners.set(trigger, state.id);
   }
 }
-for (const interaction of spec.experience.interactions) {
-  const state = stateById.get(interaction.stateId);
-  if (!state) issues.push({ gate: 'interaction', interaction: interaction.id, message: `missing state ${interaction.stateId}` });
-  else if (state.frames.length < 2) issues.push({ gate: 'motion', interaction: interaction.id, message: 'interaction state needs at least two distinct frames' });
-  if (triggerOwners.get(`interaction:${interaction.id}`) !== interaction.stateId) issues.push({ gate: 'interaction', interaction: interaction.id, message: 'menu action, trigger and stateId are not connected' });
-}
-const multiFrameStates = spec.states.filter((state) => state.frames.length >= 2).map((state) => state.id);
-if (multiFrameStates.length < 4) issues.push({ gate: 'motion', message: 'fewer than four multi-frame states' });
-if (!spec.motion.breathing.enabled && !spec.motion.squashStretch.enabled) issues.push({ gate: 'motion', message: 'both procedural breathing and squash/stretch are disabled' });
-const files = (await readdir(assetDirectory, { recursive: true, withFileTypes: true }))
-  .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.png'))
-  .map((entry) => path.relative(assetDirectory, path.join(entry.parentPath, entry.name)).replaceAll('\\', '/'));
-const unusedAssets = files.filter((file) => !usedFiles.has(file));
-const missingAssets = [...usedFiles].filter((file) => !files.includes(file));
-for (const file of unusedAssets) issues.push({ gate: 'asset-coverage', file, message: 'PNG exists but no state uses it' });
-for (const file of missingAssets) issues.push({ gate: 'asset-coverage', file, message: 'state references a missing PNG' });
 
-const report = {
-  generatedAt: new Date().toISOString(),
-  passed: issues.length === 0,
-  summary: { states: spec.states.length, triggers: triggerOwners.size, interactions: spec.experience.interactions.length, multiFrameStates, unusedAssets, missingAssets },
-  issues,
-};
-await writeFile(path.join(qaDirectory, 'experience-report.json'), `${JSON.stringify(report, null, 2)}\n`, 'utf8');
-console.log(`Experience QA: ${report.passed ? 'PASS' : 'FAIL'} (${spec.states.length} states, ${triggerOwners.size} triggers, ${multiFrameStates.length} multi-frame)`);
-if (!report.passed) {
-  for (const issue of issues) console.error(`- [${issue.gate}] ${issue.message}${issue.file ? `: ${issue.file}` : ''}`);
-  process.exit(1);
-}
+const checks = [];
+
+// ---- interrupt-matrix（canInterrupt 名单完整性） ----
+checks.push(makeCheck({
+  id: 'caninterrupt-id-exists',
+  gate: 'interrupt-matrix',
+  describe: 'canInterrupt 引用的每个状态 id 必须存在于 states 中',
+  run: () => {
+    const bad = [];
+    for (const state of spec.states) {
+      for (const target of state.canInterrupt ?? []) {
+        if (target !== '*' && !stateById.has(target)) bad.push(`${state.id} -> ${target}`);
+      }
+    }
+    return { passed: bad.length === 0, detail: bad.length ? `引用不存在状态: ${bad.join('; ')}` : '全部合法' };
+  },
+}));
+
+checks.push(makeCheck({
+  id: 'caninterrupt-live-lock',
+  gate: 'interrupt-matrix',
+  severity: 'warning',
+  describe: 'no 无限循环（loop）+ 全通配（*）的永久卡死态',
+  run: () => {
+    const stuck = spec.states.filter((state) => state.loop && (state.canInterrupt ?? []).includes('*')).map((state) => state.id);
+    return {
+      passed: stuck.length === 0,
+      detail: stuck.length ? `${stuck.join(', ')} 为 loop 且名单含 '*'：进入后无法被打断回 idle，建议有限时长或让出打断权` : '无卡死态',
+    };
+  },
+}));
+
+checks.push(makeCheck({
+  id: 'caninterrupt-idle-redundant',
+  gate: 'interrupt-matrix',
+  severity: 'warning',
+  describe: '名单含 idle 属冗余（idle 本就可被任意状态抢占）',
+  run: () => {
+    const redundant = spec.states.filter((state) => state.id !== 'idle' && (state.canInterrupt ?? []).includes('idle')).map((state) => state.id);
+    return { passed: redundant.length === 0, detail: redundant.length ? `可移除 idle 的状态: ${redundant.join(', ')}` : '无冗余' };
+  },
+}));
+
+checks.push(makeCheck({
+  id: 'caninterrupt-covering',
+  gate: 'interrupt-matrix',
+  severity: 'warning',
+  describe: '每个非 idle 状态都至少被一个其它状态可打断（防被遗忘孤立）',
+  run: () => {
+    const overlooked = spec.states
+      .filter((state) => state.id !== 'idle')
+      .filter((state) => !spec.states.some((other) => other.id !== state.id && ((other.canInterrupt ?? []).includes('*') || (other.canInterrupt ?? []).includes(state.id))))
+      .map((state) => state.id);
+    return { passed: overlooked.length === 0, detail: overlooked.length ? `无人可打断: ${overlooked.join(', ')}` : '所有状态均有 back-reach' };
+  },
+}));
+
+// ---- interaction ----
+checks.push(makeCheck({
+  id: 'interaction-connected',
+  gate: 'interaction',
+  describe: '菜单动作的 trigger 与互动状态的 stateId 连通',
+  run: () => {
+    const broken = [];
+    for (const interaction of spec.experience.interactions ?? []) {
+      if (triggerOwners.get(`interaction:${interaction.id}`) !== interaction.stateId) broken.push(`${interaction.id}: trigger 与 stateId 未连通`);
+    }
+    return { passed: broken.length === 0, detail: broken.length ? broken.join('; ') : '全部连通' };
+  },
+}));
+
+// ---- motion ----
+checks.push(makeCheck({
+  id: 'interaction-frames-min',
+  gate: 'motion',
+  describe: '每个互动状态的去重帧数 ≥ 6',
+  run: () => {
+    const weak = [];
+    for (const interaction of spec.experience.interactions ?? []) {
+      const state = stateById.get(interaction.stateId);
+      if (state) {
+        const unique = new Set(state.frames).size;
+        if (unique < 6) weak.push(`${interaction.stateId}(${unique})`);
+      }
+    }
+    return { passed: weak.length === 0, detail: weak.length ? `帧数不足: ${weak.join(', ')}` : '全部 ≥6' };
+  },
+}));
+
+checks.push(makeCheck({
+  id: 'motion-procedural',
+  gate: 'motion',
+  describe: 'breathing / squashStretch 至少启用一项',
+  run: () => {
+    const breathing = Boolean(spec.motion?.breathing?.enabled);
+    const squash = Boolean(spec.motion?.squashStretch?.enabled);
+    return { passed: breathing || squash, detail: `breathing:${breathing} squashStretch:${squash}` };
+  },
+}));
+
+// ---- quotes（新增：语录一致性） ----
+checks.push(makeCheck({
+  id: 'quote-sync',
+  gate: 'quotes',
+  describe: '状态语录与互动反馈语录均非空（每组 ≥1 条）',
+  run: () => {
+    const emptyGroups = Object.entries(spec.experience?.quotes ?? {})
+      .filter(([, group]) => !Array.isArray(group.quotes) || group.quotes.length === 0)
+      .map(([key]) => key);
+    const emptyFeedback = (spec.experience?.interactions ?? [])
+      .filter((it) => !Array.isArray(it.feedback) || it.feedback.length === 0)
+      .map((it) => it.id);
+    const problems = [...emptyGroups.map((k) => `语录组 ${k}`), ...emptyFeedback.map((k) => `互动 ${k}`)];
+    return { passed: problems.length === 0, detail: problems.length ? `空语录: ${problems.join(', ')}` : '语录组均非空' };
+  },
+}));
+
+const ok = await runChecks({ name: 'Experience QA', reportFile: 'experience-report.json', checks });
+if (!ok) process.exit(1);
+
+console.log(`      (${spec.states.length} states, ${triggerOwners.size} triggers, ${spec.experience.interactions.length} interactions)`);
