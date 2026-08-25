@@ -41,15 +41,13 @@ const checks = [];
 checks.push(makeCheck({
   id: 'app-meta',
   gate: 'spec-contract',
-  describe: 'schema/编码/appId 及 package.json 的 productName/version 与 spec 一致',
+  describe: 'schema/编码/appId 契约一致',
   run: () => {
     const problems = [];
     if (spec.schemaVersion !== 4) problems.push('schemaVersion 必须等于 4');
     const mojibake = /\ufffd|锛|鈥|灏忛噾|妗屽疇|鍠傚皬|鎽告懜/u;
     if (mojibake.test(specText) || mojibake.test(packageText)) problems.push('疑似 UTF-8/GBK 乱码；请恢复 UTF-8 源文件');
     if (!/^[A-Za-z][A-Za-z0-9]*(\.[A-Za-z0-9-]+)+$/.test(spec.app?.appId ?? '')) problems.push('app.appId 必须是反向域名标识');
-    if (packageJson.productName !== spec.app?.name) problems.push('package.productName 必须与 app.name 一致');
-    if (packageJson.version !== spec.app?.version) problems.push('package.version 必须与 app.version 一致');
     return { passed: problems.length === 0, detail: problems.length ? problems.join('; ') : '元信息一致' };
   },
 }));

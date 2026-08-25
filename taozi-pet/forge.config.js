@@ -1,5 +1,13 @@
 const path = require('node:path');
 const spec = require('./pet-spec.json');
+// 版本号单一真源：以 package.json 的 version 为准。
+// electron-forge 打包的 exe 文件/产品版本来自 package.json，而安装包文件名
+// (setupExe) 又取自 spec.app.version，两者若分别维护容易不一致。
+// 这里把 spec.app.version 统一覆盖成 package.json 的 version，
+// 以后改版本号只需改 package.json 一处即可。
+const pkg = require('./package.json');
+spec.app = spec.app || {};
+spec.app.version = pkg.version;
 const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 const buildMode = process.env.PET_BUILD_MODE || 'all';
 
