@@ -44,7 +44,11 @@
     "backgroundTolerance": 28,
     "edgeFeather": 12,
     "safeMargin": 24,
-    "targetOccupancy": 0.78
+    "targetOccupancy": 0.78,
+    "sourceCanvas": 1280,
+    "sourceMargin": 48,
+    "sourceOccupancy": 0.62,
+    "sourcePad": 4
   },
   "experience": {
     "theme": {

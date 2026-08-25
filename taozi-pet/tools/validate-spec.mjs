@@ -21,6 +21,10 @@ if (!Number.isInteger(spec.assetPipeline?.backgroundTolerance) || spec.assetPipe
 if (!Number.isInteger(spec.assetPipeline?.edgeFeather) || spec.assetPipeline.edgeFeather < 4 || spec.assetPipeline.edgeFeather > 24) errors.push('assetPipeline.edgeFeather must be 4-24');
 if (!Number.isInteger(spec.assetPipeline?.safeMargin) || spec.assetPipeline.safeMargin < 16 || spec.assetPipeline.safeMargin > 64) errors.push('assetPipeline.safeMargin must be 16-64');
 if (typeof spec.assetPipeline?.targetOccupancy !== 'number' || spec.assetPipeline.targetOccupancy < 0.65 || spec.assetPipeline.targetOccupancy > 0.82) errors.push('assetPipeline.targetOccupancy must be 0.65-0.82');
+if (!Number.isInteger(spec.assetPipeline?.sourceCanvas) || spec.assetPipeline.sourceCanvas < 256 || spec.assetPipeline.sourceCanvas > 4096) errors.push('assetPipeline.sourceCanvas must be 256-4096');
+if (!Number.isInteger(spec.assetPipeline?.sourceMargin) || spec.assetPipeline.sourceMargin < 0 || spec.assetPipeline.sourceMargin > 256) errors.push('assetPipeline.sourceMargin must be 0-256');
+if (typeof spec.assetPipeline?.sourceOccupancy !== 'number' || spec.assetPipeline.sourceOccupancy < 0.3 || spec.assetPipeline.sourceOccupancy > 0.8) errors.push('assetPipeline.sourceOccupancy must be 0.3-0.8');
+if (!Number.isInteger(spec.assetPipeline?.sourcePad) || spec.assetPipeline.sourcePad < 0 || spec.assetPipeline.sourcePad > 32) errors.push('assetPipeline.sourcePad must be 0-32');
 if (!Number.isInteger(spec.experience?.petSizing?.baseWindowPx) || spec.experience.petSizing.baseWindowPx < 180 || spec.experience.petSizing.baseWindowPx > 260) errors.push('experience.petSizing.baseWindowPx must be 180-260');
 if (![0.65, 0.8, 1, 1.2].includes(spec.experience?.petSizing?.defaultScale)) errors.push('experience.petSizing.defaultScale must be one of 0.65, 0.8, 1, 1.2');
 if (spec.features?.transparentWindow !== true) errors.push('transparentWindow must be true');
