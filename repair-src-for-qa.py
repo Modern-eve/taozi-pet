@@ -1,20 +1,16 @@
 """
-repair-src-for-qa.py — 依据 qa/assets-report.json 自动修复失败帧
+repair-src-for-qa.py — 按 qa/assets-report.json 自动修复失败帧
 
-单一职责（通用）：
-  读取 QA 报告，对每帧失败按 code 应用对应通用修复（不依赖任何硬编码帧名）：
-    - SCALE_DRIFT (lockedBody)  : 把该状态各帧缩放到本状态中位 bbox（宽/高一致）
-    - OCCUPANCY_TOO_LARGE       : 等比缩到 MAX_DIM
-    - GROUND_RESIDUE[_REVIEW]   : 清掉角色最底 GROUND_ROWS 行
-    - SUBJECT_TOUCHES_BORDER    : 带 MARGIN 重新居中
-  报告说什么坏就修什么；无失败则无任何改动。
-
-  相比旧版（硬编码 idle-05/06、template_replace 等），本版完全由报告驱动，
-  可处理任意状态、任意帧，且不再用模板替换破坏姿态各异的动画。
+读取 QA 报告，对每帧失败按 code 应用通用修复（不依赖硬编码帧名）：
+  - SCALE_DRIFT (lockedBody)  : 把该状态各帧缩放到本状态中位 bbox（宽/高一致）
+  - OCCUPANCY_TOO_LARGE       : 等比缩到 MAX_DIM
+  - GROUND_RESIDUE[_REVIEW]   : 清掉角色最底 GROUND_ROWS 行
+  - SUBJECT_TOUCHES_BORDER    : 带 MARGIN 重新居中
+报告说坏修什么；无失败则无改动。
 
 用法：
   python repair-src-for-qa.py
-  python repair-src-for-qa.py --dry-run          # 只打印将执行的修复，不写文件
+  python repair-src-for-qa.py --dry-run
   python repair-src-for-qa.py --report other.json --assets path/to/pet
 """
 import os

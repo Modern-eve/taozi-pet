@@ -16,7 +16,7 @@ assets-raw/  (纯白底 PNG)
    │  preprocess-v7 -gpu.py / -cpu.py  (GPU/CPU 抠白底 → 透明帧，直出 incoming-assets)
    ▼
 taozi-pet/incoming-assets/  (透明抠图)
-   │  assemble-incoming-assets.py  (对 matted 状态原地占用率归一化 + 居中；其余已就绪跳过)
+   │  assemble-incoming-assets.py  (全部 12 状态原地占用率归一化 + 居中；idle/blink 做帧间尺寸对齐)
    ▼
 taozi-pet/src/assets/pet/  (node tools/process-assets.mjs 渲染为最终桌宠素材)
    │  node tools/validate-spec.mjs + node tools/qa-assets.mjs  (校验)
@@ -67,8 +67,7 @@ C:\PYTHON312\python.exe repair-src-for-qa.py --dry-run
 - **素材只有 142 张 base 帧，无 `-r2`**。非循环状态的「播两遍」通过 `pet-spec.json` 的 frames 重复引用 base 文件名实现。
 - **`pet-spec.json`（`taozi-pet/pet-spec.json`）是帧清单唯一权威**：新增帧时在 spec 的 frames 里加文件名即可。
 - **资产阈值唯一权威**：归一化/边距/占用率等参数统一收敛到 `pet-spec.json` 的 `assetPipeline`——`targetOccupancy`/`safeMargin`（`process-assets.mjs` 输出层），以及 `sourceCanvas`/`sourceMargin`/`sourceOccupancy`/`sourcePad`（py 上游预处理层）。所有脚本（py + mjs）读取同一份配置，改一处即全局生效，避免阈值漂移。
-- **GPU 抠图已设为默认全量**（`preprocess-v7 -gpu.py` 不加 `--states` 即处理全部 12 状态），GPU 是首选抠图引擎。若 GPU 图触发 QA 问题，应通过**下流调整**解决：把 `assemble-incoming-assets.py` 的归一化扩展到全部状态（解决 6 个状态的 `OCCUPANCY_TOO_LARGE`）、对 idle/blink 做帧间尺寸对齐或放宽 `qa` 阈值（解决 `SCALE_DRIFT`），**CPU 版 `preprocess-v7-cpu.py` 只是最后手段**，不应作为常规回退。
-- **`assemble` 对全部状态做归一化**，不再跳过任何状态；`idle/blink` 为 lockedBody，改用「首帧尺寸帧间对齐」（非等比强制参考宽高）消除 `SCALE_DRIFT`（≤2.5% 宽高漂移），而非跳过——这是「GPU 图有问题由下流调整」的体现。
+- **GPU 抠图为默认全量**（`preprocess-v7 -gpu.py` 不加 `--states` 即处理全部 12 状态）。GPU 图若触发 QA 问题优先由下流解决：扩展 `assemble` 归一化覆盖范围、对 idle/blink 做帧间尺寸对齐（消除 `SCALE_DRIFT`），而非退回 `CPU` 版——CPU 版仅作最后手段。
 
 ### 启动与打包
 
