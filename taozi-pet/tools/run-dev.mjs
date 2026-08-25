@@ -141,7 +141,7 @@ try {
   await status('preflight');
   await run(forgeNode, [preflight]);
   await status('check');
-  await run(process.execPath, [npmCli, 'run', 'check']);
+  await run(process.execPath, [npmCli, 'run', 'check:quick']);
   await status('launch-source-dev');
 
   const forgeArgs = [forgeCli, 'start'];

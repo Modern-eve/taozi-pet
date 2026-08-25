@@ -4,30 +4,36 @@
 
 ## 一、一句话总览
 
-一条命令跑完所有静态检查与素材质量检测：
+QA 分两档：
+
+- **快速 QA**（`npm run check:quick`）：轻量必查，随开发启动自动跑。依次执行 `tsc --noEmit` + 4 个契约/结构校验 + qa-ui + qa-experience，**亚秒级**。
+- **全量 QA**（`npm run check`）：在快速 QA 之上追加 `qa-assets` 逐帧像素级质检（142 张素材，较重）。**素材变更或需出完整报告时主动运行。**
 
 ```bash
-npm run check
+npm run check:quick   # 平时/开发启动
+npm run check          # 素材变更 / 出完整 QA 报告
 ```
 
-等价于依次执行 `tsc --noEmit` + 4 个契约/结构校验 + 3 个 QA。**全部通过才返回退出码 0。**
+全量 = 快速 + `qa-assets`。二者皆**全部通过才返回退出码 0**。
+
+> 当前触发方式：`npm run dev`/`start` 启动时只跑 `check:quick`；`check` 需手动触发。
 
 ## 二、检查项全景
 
-| 脚本 | 命令 | 关卡 | 检查什么 |
-|---|---|---|---|
-| validate-dev-contract.mjs | 随 `check` | contract | 开发契约：核心文件存在、dev 脚本受控、webpack devtool/端口受控、渲染 CSP 严格、渲染就绪门控 |
-| validate-spec.mjs | 随 `check` | spec-contract | pet-spec 结构契约：元信息一致、素材管线/尺寸/build 配置合法、状态机结构、帧数产能区间、互动动作连通 |
-| validate-asset-links.mjs | 随 `check` | asset-links | spec 引用 ↔ 磁盘文件完全对应（缺失/孤儿/大小写冲突），渲染进程递归导入素材 |
-| qa-ui.mjs | `npm run qa:ui` | 见下 | 渲染 / 部署层检查 |
-| qa-experience.mjs | `npm run qa:experience` | 见下 | 行为 / 体验语义检查 |
-| qa-assets.mjs | `npm run qa:assets` | 像素级 | 素材 PNG 逐帧像素质检 |
+| 脚本 | 快速 | 全量 | 关卡 | 检查什么 |
+|---|---|---|---|---|
+| validate-dev-contract.mjs | ✅ | ✅ | contract | 开发契约：核心文件存在、dev 脚本受控、webpack devtool/端口受控、渲染 CSP 严格、渲染就绪门控 |
+| validate-spec.mjs | ✅ | ✅ | spec-contract | pet-spec 结构契约：元信息一致、素材管线/尺寸/build 配置合法、状态机结构、帧数产能区间、互动动作连通 |
+| validate-asset-links.mjs | ✅ | ✅ | asset-links | spec 引用 ↔ 磁盘文件完全对应（缺失/孤儿/大小写冲突），渲染进程递归导入素材 |
+| qa-ui.mjs | ✅ | ✅ | 见下 | 渲染 / 部署层检查 |
+| qa-experience.mjs | ✅ | ✅ | 见下 | 行为 / 体验语义检查 |
+| qa-assets.mjs | — | ✅ | 像素级 | 素材 PNG 逐帧像素质检（仅全量） |
 
-> 各脚本可单独运行；`check` 只是把它们串起来。
+> 各脚本可单独 `npm run qa:*` 运行；`check:quick` 与 `check` 只是把它们串起来。
 
 ## 三、三个 QA 详解
 
-### qa-ui.mjs（13 项）
+### qa-ui.mjs（18 项）
 
 | 关卡 | 检查 | 说明 |
 |---|---|---|
@@ -43,8 +49,15 @@ npm run check
 | src | png-tray-runtime | 托盘加载打包 PNG、拒绝空图 |
 | asset | tray-icon-file | 托盘图标 32×32、可见率 ≥8% |
 | src | menu-emoji | 系统与互动菜单使用语义 emoji |
+| spec+src | pet-size-default-alignment ⚠ | 默认缩放落在滑块中段 0.6–1.1 |
+| window | bubble-contrast-hint ⚠ | 气泡前景与背景亮度差 ≥40（近似 YIQ） |
+| window | drag-bar-height ⚠ | 拖拽条高度 ≥32px，便于抓取拖动 |
+| window | font-size-floor ⚠ | 正文最小学号 ≥12px，避免过小难读 |
+| spec | theme-accent-contrast ⚠ | 主题主色(primary)与表面(surface)亮度差 ≥50，保证强调层级 |
 
-### qa-experience.mjs（8 项，纯体验语义）
+⚠ = warning，仅提示不阻断。
+
+### qa-experience.mjs（15 项，纯体验语义）
 
 > 结构类（trigger 唯一、每状态有 trigger、素材未用/缺失等）**不在此重复维护**，已收敛到 validate-spec / validate-asset-links。本文件只负责运行时体验正确性，避免同规则多处漂移。
 
@@ -58,6 +71,13 @@ npm run check
 | motion | interaction-frames-min | 互动状态去重帧数 ≥6 |
 | motion | motion-procedural | breathing / squashStretch 至少启用一项 |
 | quotes | quote-sync | 状态语录与互动反馈语录均非空 |
+| quotes | quote-group-thin ⚠ | 语录组条数 ≥3，避免反馈单调 |
+| quotes | quotes-duplicate-in-group ⚠ | 同一语录组/互动反馈内无重复文本 |
+| motion | interaction-duration-excess ⚠ | 互动时长不超过 3 个完整动画周期 |
+| motion | frame-duration-flicker ⚠ | 帧时长(frameDurationMs) ≥80ms，避免闪烁 |
+| motion | loop-cycle-brisk ⚠ | loop 状态单轮周期 ≥1500ms，避免循环显急促 |
+| interrupt-matrix | caninterrupt-star-broadcast ⚠ | 非互动状态持全通配(*) 的不超过 1 个 |
+| interrupt-matrix | caninterrupt-self ⚠ | canInterrupt 名单不含自身 id（防自引用成环） |
 
 ⚠ = warning，仅提示不阻断。
 

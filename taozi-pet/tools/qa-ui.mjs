@@ -170,5 +170,93 @@ checks.push(makeCheck({
   },
 }));
 
+// ---- 更多防御性 warning（⍺：仅提示不阻断，审美/一致性偏离时提醒） ----
+
+// 默认宠体尺寸是否偏离滑块中段：太偏可能在常见窗口下显得过小/过大
+checks.push(makeCheck({
+  id: 'pet-size-default-alignment',
+  gate: 'spec+src',
+  severity: 'warning',
+  describe: '默认缩放(defaultScale)落在滑块中段 0.6-1.1',
+  run: () => {
+    const scale = spec.experience?.petSizing?.defaultScale;
+    const ok = typeof scale === 'number' && scale >= 0.6 && scale <= 1.1;
+    return { passed: ok, detail: ok ? `defaultScale=${scale} 居中` : `defaultScale=${scale} 偏离中段，确认是否刻意` };
+  },
+}));
+
+// 气泡前景文字与主题背景的对比度（近似 YIQ），过低时文字可读性差
+checks.push(makeCheck({
+  id: 'bubble-contrast-hint',
+  gate: 'window',
+  severity: 'warning',
+  describe: '气泡前景(reversed proposal)与背景对比度足够',
+  run: () => {
+    const theme = spec.experience?.theme ?? {};
+    const luminance = (hex) => {
+      const value = String(hex).replace('#', '');
+      if (value.length < 6) return 0;
+      const [r, g, b] = [0, 2, 4].map((i) => Number.parseInt(value.slice(i, i + 2), 16));
+      return (r * 299 + g * 587 + b * 114) / 1000;
+    };
+    const text = luminance(theme.text);
+    const background = luminance(theme.background ?? theme.surface);
+    const contrast = Math.abs(text - background);
+    const ok = contrast >= 40;
+    return { passed: ok, detail: ok ? `前景/背景亮度差 ${contrast.toFixed(0)}` : `前景/背景对比不足（差 ${contrast.toFixed(0)} < 40）` };
+  },
+}));
+
+// 拖拽条高度过小：<32px 在窄条上难以抓住拖动
+checks.push(makeCheck({
+  id: 'drag-bar-height',
+  gate: 'window',
+  severity: 'warning',
+  describe: '拖拽条高度 ≥32px，便于抓取拖动',
+  run: () => {
+    const decl = blockDecl(files.dashboardCss, '.drag-bar');
+    const match = decl.match(/height:\s*(\d+)px/);
+    const height = match ? Number(match[1]) : 0;
+    const ok = height >= 32;
+    return { passed: ok, detail: ok ? `拖拽条高度 ${height}px` : `拖拽条仅 ${height}px，过窄难拖（建议 ≥32px）` };
+  },
+}));
+
+// 渲染最小学号：过低会降低可读性，尤其设置在弱光/缩放下
+checks.push(makeCheck({
+  id: 'font-size-floor',
+  gate: 'window',
+  severity: 'warning',
+  describe: '正文最小学号 ≥12px，避免过小难读',
+  run: () => {
+    const sizes = [...files.dashboardCss.matchAll(/font-size:\s*(\d+)px/g)].map((m) => Number(m[1]));
+    const min = sizes.length ? Math.min(...sizes) : 0;
+    const ok = min >= 12;
+    return { passed: ok, detail: ok ? `最小正文字号 ${min}px` : `存在过小字号 ${min}px（建议 ≥12px），多用于弱可读性辅助文案请确认` };
+  },
+}));
+
+// 主题主色与表面色亮度差过小：可点/强调元素可能与背景粘连、层级弱
+checks.push(makeCheck({
+  id: 'theme-accent-contrast',
+  gate: 'spec',
+  severity: 'warning',
+  describe: '主题主色(primary)与表面(surface)亮度差 ≥50，保证强调层级',
+  run: () => {
+    const theme = spec.experience?.theme ?? {};
+    const luminance = (hex) => {
+      const value = String(hex).replace('#', '');
+      if (value.length < 6) return 0;
+      const [r, g, b] = [0, 2, 4].map((i) => Number.parseInt(value.slice(i, i + 2), 16));
+      return (r * 299 + g * 587 + b * 114) / 1000;
+    };
+    const primary = luminance(theme.primary);
+    const surface = luminance(theme.surface ?? theme.background);
+    const diff = Math.abs(primary - surface);
+    const ok = diff >= 50;
+    return { passed: ok, detail: ok ? `primary/surface 亮度差 ${diff.toFixed(0)}` : `primary 与表面色接近（差 ${diff.toFixed(0)} < 50），强调层级可能不足` };
+  },
+}));
+
 const ok = await runChecks({ name: 'UI QA', reportFile: 'ui-report.json', checks });
 if (!ok) process.exit(1);

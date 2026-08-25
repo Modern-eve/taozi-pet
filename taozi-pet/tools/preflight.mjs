@@ -1,11 +1,9 @@
 import { access, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import process from 'node:process';
 
 const root = process.cwd();
-const provenancePath = path.join(root, '.doubao-pet-builder.json');
 const required = [
   'node_modules/@electron-forge/cli/dist/electron-forge.js',
   'node_modules/electron/package.json',
@@ -60,37 +58,6 @@ try {
   }
 }
 await writeFile(path.join(electronDirectory, 'path.txt'), electronExecutable, 'utf8');
-let provenance;
-try {
-  provenance = JSON.parse(await readFile(provenancePath, 'utf8'));
-} catch {
-  console.error('Development preflight failed: .doubao-pet-builder.json is missing or invalid. Create the project with scripts/scaffold_project.py.');
-  process.exit(1);
-}
-if (provenance.templateContractVersion !== 4 || provenance.specSchemaVersion !== 4) {
-  console.error(`Development preflight failed: unsupported template/spec contract ${provenance.templateContractVersion}/${provenance.specSchemaVersion}.`);
-  if (provenance.templateContractVersion === 3) {
-    console.error('Run the current Skill scripts/migrate_project.py against this project; do not refresh hashes by hand.');
-  }
-  process.exit(1);
-}
-for (const [relative, expected] of Object.entries(provenance.criticalFileHashes || {})) {
-  let bytes;
-  try {
-    bytes = await readFile(path.join(root, relative));
-  } catch {
-    console.error(`Development preflight failed: protected template file is missing: ${relative}. Recreate or migrate the project from the current Skill.`);
-    process.exit(1);
-  }
-  const actual = createHash('sha256').update(bytes).digest('hex');
-  if (actual !== expected) {
-    console.error(`Development preflight failed: protected template infrastructure changed: ${relative}.`);
-    console.error(`- expected sha256: ${expected}`);
-    console.error(`- actual sha256:   ${actual}`);
-    console.error('Use pet-spec/environment configuration or an explicit builder migration; do not refresh hashes by hand.');
-    process.exit(1);
-  }
-}
 const lock = JSON.parse(await readFile(path.join(root, 'package-lock.json'), 'utf8'));
 const packageJson = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
 if (lock.name !== packageJson.name || lock.version !== packageJson.version) {

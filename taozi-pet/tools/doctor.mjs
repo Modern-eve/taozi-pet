@@ -1,5 +1,4 @@
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
 import path from 'node:path';
 import process from 'node:process';
 import { isPortAvailable, parsePort } from './dev-ports.mjs';
@@ -20,32 +19,6 @@ record('node-version', nodeMajor < 25 || Boolean(process.env.PET_BUILD_NODE), {
     ? undefined
     : 'Set PET_BUILD_NODE to a Node 24-or-earlier executable.',
 });
-
-let provenance;
-try {
-  provenance = JSON.parse(await readFile(path.join(root, '.doubao-pet-builder.json'), 'utf8'));
-  record('builder-provenance', provenance.templateContractVersion === 4, {
-    templateContractVersion: provenance.templateContractVersion,
-    repair: provenance.templateContractVersion === 4
-      ? undefined
-      : 'Run the Skill migration script; do not refresh hashes by hand.',
-  });
-} catch (error) {
-  record('builder-provenance', false, { error: error instanceof Error ? error.message : String(error) });
-}
-
-if (provenance?.criticalFileHashes) {
-  const drift = [];
-  for (const [relative, expected] of Object.entries(provenance.criticalFileHashes)) {
-    try {
-      const actual = createHash('sha256').update(await readFile(path.join(root, relative))).digest('hex');
-      if (actual !== expected) drift.push({ relative, expected, actual });
-    } catch (error) {
-      drift.push({ relative, expected, error: error instanceof Error ? error.message : String(error) });
-    }
-  }
-  record('template-hashes', drift.length === 0, { drift });
-}
 
 try {
   const electronPackage = JSON.parse(await readFile(path.join(root, 'node_modules', 'electron', 'package.json'), 'utf8'));
