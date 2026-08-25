@@ -1,11 +1,10 @@
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
-import process from 'node:process';
+import { makeCheck, runChecks, loadSpec, assetSetsFromSpec, PROJECT_ROOT } from './qa-common.mjs';
 
-const root = process.cwd();
-const assetRoot = path.join(root, 'src', 'assets', 'pet');
-const spec = JSON.parse(await readFile(path.join(root, 'pet-spec.json'), 'utf8'));
-const errors = [];
+const spec = await loadSpec();
+const { referenced } = assetSetsFromSpec(spec);
+const assetRoot = path.join(PROJECT_ROOT, 'src', 'assets', 'pet');
 
 async function walk(directory, prefix = '') {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -18,31 +17,46 @@ async function walk(directory, prefix = '') {
   return files;
 }
 
-const expected = new Set([spec.character.coreAsset, ...spec.states.flatMap((state) => state.frames)]);
-for (const name of expected) {
-  if (name.includes('\\')) errors.push(`asset paths must use forward slashes: ${name}`);
-}
-const actual = await walk(assetRoot);
-const actualSet = new Set(actual);
-for (const name of expected) if (!actualSet.has(name)) errors.push(`missing or case-mismatched runtime asset: ${name}`);
-for (const name of actual) if (!expected.has(name)) errors.push(`orphan runtime PNG is not referenced by pet-spec.json: ${name}`);
+const checks = [];
 
-const folded = new Map();
-for (const name of actual) {
-  const key = name.toLocaleLowerCase('en-US');
-  const previous = folded.get(key);
-  if (previous && previous !== name) errors.push(`case-insensitive asset collision: ${previous} <> ${name}`);
-  folded.set(key, name);
-}
+checks.push(makeCheck({
+  id: 'asset-links-integral',
+  gate: 'asset-links',
+  describe: 'spec 引用的素材与磁盘完全对应（无缺失/无孤儿/无大小写冲突）',
+  run: async () => {
+    const problems = [];
+    for (const name of referenced) {
+      if (name.includes('\\')) problems.push(`asset paths must use forward slashes: ${name}`);
+    }
+    const actual = await walk(assetRoot);
+    const actualSet = new Set(actual);
+    for (const name of referenced) if (!actualSet.has(name)) problems.push(`missing or case-mismatched runtime asset: ${name}`);
+    for (const name of actual) if (!referenced.has(name)) problems.push(`orphan runtime PNG is not referenced by pet-spec.json: ${name}`);
+    const folded = new Map();
+    for (const name of actual) {
+      const key = name.toLocaleLowerCase('en-US');
+      const previous = folded.get(key);
+      if (previous && previous !== name) problems.push(`case-insensitive asset collision: ${previous} <> ${name}`);
+      folded.set(key, name);
+    }
+    return { passed: problems.length === 0, detail: problems.length ? problems.join('; ') : `${referenced.size} referenced PNGs, no orphans` };
+  },
+}));
 
-for (const relative of ['src/renderer/pet/index.ts', 'src/renderer/dashboard/index.ts']) {
-  const source = await readFile(path.join(root, relative), 'utf8');
-  const recursiveContext = /require\.context\(\s*['"]\.\.\/\.\.\/assets\/pet['"]\s*,\s*true\s*,/u;
-  if (!recursiveContext.test(source)) errors.push(`${relative} must recursively import nested runtime assets`);
-}
+checks.push(makeCheck({
+  id: 'renderer-recursive-context',
+  gate: 'asset-links',
+  describe: 'pet/dashboard 渲染进程递归导入运行时素材目录',
+  run: async () => {
+    const problems = [];
+    const recursiveContext = /require\.context\(\s*['"]\.\.\/\.\.\/assets\/pet['"]\s*,\s*true\s*,/u;
+    for (const relative of ['src/renderer/pet/index.ts', 'src/renderer/dashboard/index.ts']) {
+      const source = await readFile(path.join(PROJECT_ROOT, relative), 'utf8');
+      if (!recursiveContext.test(source)) problems.push(`${relative} must recursively import nested runtime assets`);
+    }
+    return { passed: problems.length === 0, detail: problems.length ? problems.join('; ') : '两处渲染上下文均已递归导入' };
+  },
+}));
 
-if (errors.length) {
-  console.error(`Runtime asset links: FAIL\n${errors.map((error) => `- ${error}`).join('\n')}`);
-  process.exit(1);
-}
-console.log(`Runtime asset links: PASS (${expected.size} referenced PNGs, no orphans).`);
+const ok = await runChecks({ name: 'Asset Links', reportFile: 'asset-links-report.json', checks });
+if (!ok) process.exit(1);

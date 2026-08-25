@@ -2,16 +2,15 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import sharp from 'sharp';
+import { loadSpec, parseArgv, PROJECT_ROOT } from './qa-common.mjs';
 
-const root = process.cwd();
-const argumentsMap = {};
-for (let index = 2; index < process.argv.length; index += 2) argumentsMap[process.argv[index].replace(/^--/, '')] = process.argv[index + 1];
-const spec = JSON.parse(await readFile(path.join(root, 'pet-spec.json'), 'utf8'));
-const assetDir = path.resolve(root, argumentsMap.assets ?? path.join('src', 'assets', 'pet'));
-const qaDir = path.resolve(root, argumentsMap.qa ?? 'qa');
+const argumentsMap = parseArgv();
+const spec = await loadSpec();
+const assetDir = path.resolve(PROJECT_ROOT, argumentsMap.assets ?? path.join('src', 'assets', 'pet'));
+const qaDir = path.resolve(PROJECT_ROOT, argumentsMap.qa ?? 'qa');
 await mkdir(qaDir, { recursive: true });
 const records = [];
-const regressionFixture = await readFile(path.join(root, 'REGRESSION_FIXTURE_ONLY.txt'), 'utf8').then(() => true, () => false);
+const regressionFixture = await readFile(path.join(PROJECT_ROOT, 'REGRESSION_FIXTURE_ONLY.txt'), 'utf8').then(() => true, () => false);
 const targetOccupancy = Number(spec.assetPipeline?.targetOccupancy ?? 0.78);
 const selectedStateId = argumentsMap.state;
 const states = selectedStateId ? spec.states.filter((state) => state.id === selectedStateId) : spec.states;
@@ -35,31 +34,6 @@ function addDiagnostic(errors, diagnostics, code, message, confidence = 'high', 
   const repair = REPAIRS[code] || 'Inspect and repair only the affected state.';
   if (blocking) errors.push(`[${code}] ${message}`);
   diagnostics.push({ code, message, repair, confidence, blocking });
-}
-
-function componentsOf(data, width, height) {
-  const count = width * height;
-  const visited = new Uint8Array(count);
-  const queue = new Int32Array(count);
-  const components = [];
-  for (let start = 0; start < count; start += 1) {
-    if (visited[start] || data[start * 4 + 3] < 32) continue;
-    let head = 0; let tail = 0; let pixels = 0;
-    let minX = width; let minY = height; let maxX = -1; let maxY = -1;
-    queue[tail++] = start; visited[start] = 1;
-    while (head < tail) {
-      const index = queue[head++];
-      const x = index % width; const y = Math.floor(index / width);
-      pixels += 1; minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
-      // 内联 4 邻域，避免每次分配 neighbors 数组（272 帧 × 数十万像素的 GC 压力）
-      if (x > 0) { const next = index - 1; if (!visited[next] && data[next * 4 + 3] >= 32) { visited[next] = 1; queue[tail++] = next; } }
-      if (x + 1 < width) { const next = index + 1; if (!visited[next] && data[next * 4 + 3] >= 32) { visited[next] = 1; queue[tail++] = next; } }
-      if (y > 0) { const next = index - width; if (!visited[next] && data[next * 4 + 3] >= 32) { visited[next] = 1; queue[tail++] = next; } }
-      if (y + 1 < height) { const next = index + width; if (!visited[next] && data[next * 4 + 3] >= 32) { visited[next] = 1; queue[tail++] = next; } }
-    }
-    components.push({ pixels, bounds: [minX, minY, maxX, maxY] });
-  }
-  return components.sort((left, right) => right.pixels - left.pixels);
 }
 
 function flatGroundEvidence(data, width, bounds) {
@@ -145,6 +119,11 @@ for (const state of states) {
     try {
       const { data, info } = await sharp(file).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
       if (info.width !== 512 || info.height !== 512 || info.channels !== 4) addDiagnostic(errors, diagnostics, 'INVALID_DIMENSIONS', 'must be 512x512 RGBA');
+      // 单遍全图扫描：透明/不透明统计与连通域 BFS 合并，每像素只访问一次。
+      // 连通阈值 32 与 opaque 阈值 16 不同——16..31 的像素计入 opaque 但不属于任何组件。
+      const visited = new Uint8Array(info.width * info.height);
+      const queue = new Int32Array(info.width * info.height);
+      const components = [];
       let transparent = 0;
       let opaque = 0;
       let minX = info.width;
@@ -152,14 +131,44 @@ for (const state of states) {
       let maxX = -1;
       let maxY = -1;
       let borderPixels = 0;
-      for (let y = 0; y < info.height; y += 1) for (let x = 0; x < info.width; x += 1) {
-        const alpha = data[(y * info.width + x) * 4 + 3];
-        if (alpha === 0) transparent += 1;
-        if (alpha >= 16) {
-          opaque += 1; minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
-          if (x === 0 || y === 0 || x === info.width - 1 || y === info.height - 1) borderPixels += 1;
+      for (let y = 0; y < info.height; y += 1) {
+        const rowBase = y * info.width;
+        for (let x = 0; x < info.width; x += 1) {
+          const index = rowBase + x;
+          const alpha = data[index * 4 + 3];
+          if (alpha === 0) { transparent += 1; continue; }
+          if (alpha >= 16) {
+            opaque += 1;
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+            if (x === 0 || y === 0 || x === info.width - 1 || y === info.height - 1) borderPixels += 1;
+          }
+          // 连通域 BFS 就地启动（BFS 只做可达性标记，不重复统计；visited 共享数组防二次遍历）
+          if (alpha >= 32 && !visited[index]) {
+            let head = 0; let tail = 0; let pixels = 0;
+            let compMinX = info.width; let compMinY = info.height; let compMaxX = -1; let compMaxY = -1;
+            queue[tail++] = index; visited[index] = 1;
+            while (head < tail) {
+              const current = queue[head++];
+              const currentX = current % info.width; const currentY = Math.floor(current / info.width);
+              pixels += 1;
+              if (currentX < compMinX) compMinX = currentX;
+              if (currentX > compMaxX) compMaxX = currentX;
+              if (currentY < compMinY) compMinY = currentY;
+              if (currentY > compMaxY) compMaxY = currentY;
+              // 内联 4 邻域，避免每次分配 neighbors 数组（272 帧 × 数十万像素的 GC 压力）
+              if (currentX > 0) { const next = current - 1; if (!visited[next] && data[next * 4 + 3] >= 32) { visited[next] = 1; queue[tail++] = next; } }
+              if (currentX + 1 < info.width) { const next = current + 1; if (!visited[next] && data[next * 4 + 3] >= 32) { visited[next] = 1; queue[tail++] = next; } }
+              if (currentY > 0) { const next = current - info.width; if (!visited[next] && data[next * 4 + 3] >= 32) { visited[next] = 1; queue[tail++] = next; } }
+              if (currentY + 1 < info.height) { const next = current + info.width; if (!visited[next] && data[next * 4 + 3] >= 32) { visited[next] = 1; queue[tail++] = next; } }
+            }
+            components.push({ pixels, bounds: [compMinX, compMinY, compMaxX, compMaxY] });
+          }
         }
       }
+      components.sort((left, right) => right.pixels - left.pixels);
       if (transparent === 0) addDiagnostic(errors, diagnostics, 'NO_TRANSPARENCY', 'no transparent pixels');
       if (opaque === 0) addDiagnostic(errors, diagnostics, 'EMPTY_FOREGROUND', 'no visible foreground');
       if (borderPixels > 0) addDiagnostic(errors, diagnostics, 'SUBJECT_TOUCHES_BORDER', `foreground touches canvas border (${borderPixels} pixels)`);
@@ -172,7 +181,6 @@ for (const state of states) {
         if (occupancy > targetOccupancy + 0.025) addDiagnostic(errors, diagnostics, 'OCCUPANCY_TOO_LARGE', `visible subject exceeds target occupancy: ${occupancy.toFixed(3)}`);
       }
       const bounds = opaque ? [minX, minY, maxX, maxY] : null;
-      const components = componentsOf(data, info.width, info.height);
       const main = components[0];
       const detachedGround = main && components.slice(1).find((component) => {
         const width = component.bounds[2] - component.bounds[0] + 1;
@@ -208,6 +216,12 @@ for (const state of states) {
         errors: [`[ASSET_READ_FAILED] ${message}`],
         diagnostics: [{ code: 'ASSET_READ_FAILED', message, repair: REPAIRS.ASSET_READ_FAILED, confidence: 'high', blocking: true }],
         warnings: [],
+        sha256: '', // 读取失败无哈希：既避免污染基线，也不参与 DUPLICATE_FRAME 去重
+        bounds: null,
+        transparentRatio: 0,
+        componentCount: 0,
+        flatGround: undefined,
+        coloredGround: undefined,
       });
     }
   }
@@ -255,6 +269,7 @@ for (const state of states) {
   const seen = new Map();
   for (let index = 0; index < checkRecords.length; index += 1) {
     const record = checkRecords[index];
+    if (!record.sha256) continue; // 读取失败/无哈希的记录不参与重复帧判定，避免多张失败帧互判重复
     const previous = seen.get(record.sha256);
     const allowedBlinkClosure = state.id === 'blink' && previous === 0 && index === checkRecords.length - 1 && checkRecords.length >= 3;
     if (previous !== undefined && !allowedBlinkClosure) {
