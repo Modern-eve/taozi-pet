@@ -6,9 +6,6 @@ import './index.css';
 const avatarContext = require.context('./assets', false, /avatar\.png$/i);
 const avatarUrl = avatarContext('./avatar.png');
 
-// 用于 asset link 检查的占位符（实际不需要导入所有图片）
-// require.context('../../assets/pet', true, /\.png$/);
-
 const petSpec = spec as PetSpec;
 document.title = `${petSpec.character.displayName}的小屋`;
 

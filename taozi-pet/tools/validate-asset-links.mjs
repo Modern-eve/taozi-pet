@@ -46,15 +46,13 @@ checks.push(makeCheck({
 checks.push(makeCheck({
   id: 'renderer-recursive-context',
   gate: 'asset-links',
-  describe: 'pet/dashboard 渲染进程递归导入运行时素材目录',
+  describe: 'pet 渲染进程递归导入运行时素材目录（pet 是唯一实际展示宠物帧的窗口）',
   run: async () => {
     const problems = [];
     const recursiveContext = /require\.context\(\s*['"]\.\.\/\.\.\/assets\/pet['"]\s*,\s*true\s*,/u;
-    for (const relative of ['src/renderer/pet/index.ts', 'src/renderer/dashboard/index.ts']) {
-      const source = await readFile(path.join(PROJECT_ROOT, relative), 'utf8');
-      if (!recursiveContext.test(source)) problems.push(`${relative} must recursively import nested runtime assets`);
-    }
-    return { passed: problems.length === 0, detail: problems.length ? problems.join('; ') : '两处渲染上下文均已递归导入' };
+    const petSource = await readFile(path.join(PROJECT_ROOT, 'src/renderer/pet/index.ts'), 'utf8');
+    if (!recursiveContext.test(petSource)) problems.push('src/renderer/pet/index.ts must recursively import nested runtime assets');
+    return { passed: problems.length === 0, detail: problems.length ? problems.join('; ') : 'pet 渲染上下文已递归导入宠物素材' };
   },
 }));
 
