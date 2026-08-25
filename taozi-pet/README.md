@@ -109,6 +109,69 @@ QA 与校验脚本统一在 `tools/`（详见 **tools/README.md**）：
 - **全量 QA** `check`：快速 QA + `qa-assets` 逐帧像素质检（尺寸/透明/贴边/锚点/占用率/地面残留/跨帧稳定/重复帧/回归基线）。
 - 责任边界：结构契约归 validate-spec，素材引用归 validate-asset-links，像素质检归 qa-assets，运行时体验语义（打断矩阵、动画、语录、连通性）归 qa-experience。**每条规则只在一个文件维护**，防止漂移。
 
+## 状态机行为（帧数 / 帧率 / 打断优先级）
+
+12 个状态每帧 `frameDurationMs: 250ms`（即 **4 FPS**）；非循环动作通常把 12 张独立帧按序**播两遍**（播放帧=24）构成完整单次动画，素材只有 142 张 base 帧、无 `-r2` 副本。
+
+| 状态 | 动作 | 独立帧 | 播放帧 | 类型 | 单周期 | 触发器 | 冷却 |
+|---|---|---|---|---|---|---|---|
+| idle | 待机 | 12 | 12 | 循环 | 3.0s | app:start / ambient:idle | — |
+| blink | 眨眼 | 12 | 24 | 单次 | 6.0s | ambient:blink | 2.5s |
+| happy | 开心 | 12 | 24 | 单次 | 6.0s | pointer:tap（单击） | 0.3s |
+| notify | 提醒 | 12 | 24 | 循环 | 6.0s | reminder:due | 0.8s |
+| peek | 贴边窥视 | 12 | 24 | 单次 | 6.0s | window:edge-snap（吸附） | 1.8s |
+| pet-head | 摸头 | 12 | 24 | 单次 | 6.0s（展示 12s） | interaction:pet-head | 0.25s |
+| pumpkin-bag | 掏南瓜包 | 12 | 24 | 单次 | 6.0s（展示 12s） | interaction:pumpkin-bag | 0.3s |
+| petal-spin | 花瓣转圈 | 12 | 24 | 单次 | 6.0s（展示 12s） | interaction:petal-spin | 0.3s |
+| starfish-wave | 海星招手 | 12 | 24 | 单次 | 6.0s（展示 12s） | interaction:starfish-wave | 0.3s |
+| walk | 走路 | 12 | 12 | 循环 | 3.0s | state:walk | 0.5s |
+| sleep | 睡觉 | 10 | 10 | 循环 | 2.5s | state:sleep | 1.0s |
+| sad | 沮丧 | 12 | 12 | 循环 | 3.0s | state:sad（心情↓25） | 1.0s |
+
+> 每个状态还带 `anchor`（锚点）、`mirrorSafe`、`interrupt`（resume/restart）等配置，全部收敛在 `pet-spec.json`。周期 = 播放帧数 × 250ms。
+
+### 打断优先级（canInterrupt 名单）
+
+优先级通过 `canInterrupt`（"可打断名单"）实现：状态机 `start()` 时，只要**当前状态是 idle**，或**新状态可打断名单包含当前状态 id** 就允许切换。名单越宽越"霸道"，层次从高到低：
+
+| 层级 | 状态 | 可打断（canInterrupt） | 会被谁打断 |
+|---|---|---|---|
+| **1（最高）** | 摸头 / 掏南瓜包 / 转圈 / 海星招手 | `['*']` 可打断一切 | 任何状态下都**不被打断**，彼此互不打断 |
+| 2 | happy 开心 | idle、blink、walk、sleep、notify、peek | sad、notify、4 个互动 |
+| 3 | notify 提醒 | `['*']`（循环） | happy、4 个互动 |
+| 4 | peek 贴边窥视 | idle、blink、walk | happy、sleep、sad、notify、4 个互动 |
+| 5 | sleep 睡觉 | idle、blink、walk、peek、sad | happy、notify、4 个互动 |
+| 6 | sad 沮丧 | idle、blink、walk、peek、happy | sleep、notify、4 个互动 |
+| 7 | walk 走路 | idle、blink | happy、peek、sleep、sad、notify、4 个互动 |
+| 8 | blink 眨眼 | idle | happy、peek、walk、sleep、sad、notify、4 个互动 |
+| **9（最低）** | idle 待机 | 无（待机被任意状态接管） | 一切 |
+
+> 经验：`canInterrupt` 含自身 id 属冗余；`notify` 为 loop 且名单含 `*` 时存在"进入后无法回 idle"的 live-lock 隐患，QA 以 warning 提示。
+
+## 数值规则
+
+| 数值 | 范围 | 默认 | 规则 |
+|---|---|---|---|
+| 好感度 affection | 0–100 | 0 | 摸头 +2、掏南瓜包 +3、花瓣转圈 +2、海星招手 +1；**每个互动每天仅首次**加好感（同日重复只加心情与今日互动，防刷）。封顶 100 |
+| 心情 mood | 0–100 | 80 | **每 2 分钟 -1**（每分钟检测一次）；**<25 进入「沮丧 sad」**，≥25 回到「待机 idle」。每次互动心情 **+ceil(affectionGain/2)（至少 +1）**，封顶 100 |
+| 今日互动 todayInteractions | ≥0 | 0 | 每次互动 +1；跨到新的一天（日期变化）时从 0 起重新累计 |
+| 陪伴时长 companionMinutes | ≥0 | 0 | 按实际运行毫秒实时折算为分钟累计 |
+| 提醒 reminders | — | 空 | 到点进入 notify 并气泡播报该条文本；**用户触发任意互动即视为完成**（消费当前待处理提醒），每条只提醒一次后自动移除 |
+
+> 数据以 JSON 原子写入 `userData`，损坏自动回退默认值；4 个互动动作 `durationMs=12000ms`，触发互动会顺带消费挂起的提醒。
+
+## 使用说明
+
+- **拖动**：按住桌宠任意拖动，松手自动吸附屏幕边缘（可到面板关闭"随机行走/贴边吸附"）。
+- **单击**：桌宠播放「开心」并随机讲一句点击语录。
+- **右键桌宠**：弹出菜单——4 个互动动作（💗 摸头 / 🎃 掏南瓜包 / 🌸 花瓣转圈 / 👋 海星招手）、打开状态 / 语录 / 提醒面板、开关鼠标穿透、隐藏桌宠。
+- **托盘图标**：显示桌宠、打开状态 / 语录 / 提醒、鼠标穿透开关、设置 / 退出。
+- **小屋面板**：
+  - **状态页**：查看好感度 / 心情 / 今日互动 / 陪伴时长；开关置顶显示、鼠标穿透、开机自启、随机行走；**滑块自由调整桌宠大小（50%–150%）**；底部**一键重置**（语录 / 状态 / 提醒 / 设置恢复默认）。
+  - **语录页**：状态语录与互动语录均可在线编辑，编辑即生效、重启保留（唯一数据源 `userData/quotes.json`）。
+  - **提醒页**：新增 / 删除定时提醒，到点由桌宠气泡提醒。
+- **数据位置**：运行时数据在 Electron `userData`（`quotes.json` / `settings.json` / `pet-stats.json` / `reminders.json` / `logs/app.jsonl`）。
+
 ## 目录约定
 
 - `incoming-assets/`、`assets-processed/`、`qa/` 不纳入 Git 追踪，勿提交。
