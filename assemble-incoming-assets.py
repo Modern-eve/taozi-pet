@@ -1,28 +1,16 @@
 """
 assemble-incoming-assets.py — 组装 + 归一化 taozi-pet/incoming-assets
 
-合并自原 assemble-incoming-assets.py 与 normalize-incoming-occupancy.py：
-  把「已抠透明底的素材」（GPU 默认全量写入 incoming-assets）整理为 process-assets 所需，
-  并在同一遍内完成占用率归一化（居中 + 底部对齐到统一画布）。
+读取 preprocess 写入的透明帧，按 pet-spec.json 的 frames 逐状态原地归一化
+（按 sourceOccupancy 缩放 + 居中 + 底部对齐到 sourceCanvas）。
+全部 12 状态都处理；其中 idle/blink 为 lockedBody，额外做帧间尺寸对齐
+（首帧尺寸为参考，非等比），消除 qa 的 SCALE_DRIFT（≤2.5% 宽高漂移）。
 
-对每个状态、每帧（全部 12 状态都处理）：
-  - 通用动画状态 → 裁 bbox(+PAD) → 按目标占用率缩放 → 居中+底部对齐到 sourceCanvas 画布（原地写回 incoming）
-  - lockedBody 状态(idle/blink) → 额外做帧间尺寸对齐：以首帧按占用率得到的尺寸为参考，
-    强制每帧身体宽高=参考值（非等比缩放），消除 qa 的 SCALE_DRIFT（≤2.5% 宽高漂移）
-
-归一化统一采用「面积占用率」方式（原 normalize 逻辑）；lockedBody 用首帧尺寸锁定的
-帧间对齐实现。下游 process-assets.mjs 自带 NORMALIZATION_TOO_LARGE 质量门禁。
-
-帧清单由各状态在 pet-spec.json 的 frames 推导（去重，因双播会重复引用同一文件）。
-阈值唯一权威来自 pet-spec.json assetPipeline（sourceCanvas/sourceMargin/sourceOccupancy/sourcePad），
-与 process-assets.mjs / qa-assets.mjs 共用，避免漂移。
-
-输入：taozi-pet/incoming-assets/（preprocess 写入的透明帧，GPU 默认全量）
-输出：taozi-pet/incoming-assets/（整合后，原地归一化全部状态）
+阈值唯一权威来自 pet-spec.json 的 assetPipeline.source*，与 process-assets.mjs / qa-assets.mjs 共用。
 
 用法：
   python assemble-incoming-assets.py
-  python assemble-incoming-assets.py --states idle blink     # 只处理 lockedBody 两状态
+  python assemble-incoming-assets.py --states idle blink
 """
 import os
 import argparse
@@ -32,7 +20,7 @@ import numpy as np
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-INC = os.path.join(ROOT, "taozi-pet", "incoming-assets")            # 整合目标（matted 透明帧源 + 归一化输出，原地）
+INC = os.path.join(ROOT, "taozi-pet", "incoming-assets")            # 透明帧源 + 归一化输出（原地）
 SPEC = os.path.join(ROOT, "taozi-pet", "pet-spec.json")             # 帧清单权威来源
 
 # 阈值唯一权威来自 pet-spec.json assetPipeline（与 process-assets.mjs / qa-assets.mjs 共用）
@@ -42,9 +30,7 @@ MARGIN = _pipeline.get("sourceMargin", 48)                          # 画布边�
 TARGET_OCC = _pipeline.get("sourceOccupancy", 0.62)                 # 目标占用率（面积占比）
 PAD = _pipeline.get("sourcePad", 4)                                 # bbox 外扩留白
 
-# 所有状态都做原地归一化（GPU 默认全量 → incoming 已是透明帧）。
-# lockedBody 状态（idle/blink）需帧间尺寸对齐：强制每帧身体宽高=首帧参考值，
-# 消除 qa 的 SCALE_DRIFT（≤2.5% 宽高漂移）；其余状态按占用率缩放。
+# 全部状态原地归一化；lockedBody 状态(idle/blink) 额外做帧间尺寸对齐消除 SCALE_DRIFT。
 LOCKED_BODY_STATES = ["idle", "blink"]
 
 
@@ -76,11 +62,8 @@ def _target_size(w, h):
 
 
 def render_matted(src_name, lock_size=None):
-    """从 incoming-assets 读取透明帧，裁 bbox(+PAD)，缩放并居中+底部对齐到统一画布，原地写回。
-    - lock_size=None：按目标占用率缩放（通用动画状态）
-    - lock_size=(w,h)：强制缩放为参考宽高（非等比），用于 lockedBody 状态(idle/blink)
-      的帧间尺寸对齐，消除 qa 的 SCALE_DRIFT（≤2.5% 宽高漂移）
-    src_name 不含扩展名。"""
+    """从 incoming 读透明帧，裁 bbox(+PAD)，缩放并居中+底部对齐到统一画布，原地写回。
+    lock_size 为 None 时按占用率缩放；为 (w,h) 时强制该宽高（非等比），用于 lockedBody 帧间对齐。"""
     arr = np.array(Image.open(os.path.join(INC, src_name + ".png")).convert("RGBA"))
     t, btm, l, r = subject_bbox(arr)
     t = max(0, t - PAD)
@@ -101,8 +84,7 @@ def render_matted(src_name, lock_size=None):
 
 
 def build_state(state, frames):
-    """处理单个状态：每帧从 incoming 读透明帧并原地归一化写回。
-    lockedBody 状态(idle/blink) 用首帧确定参考宽高做帧间对齐；其余按占用率缩放。"""
+    """处理单个状态：每帧从 incoming 读透明帧并原地归一化写回。lockedBody 用首帧尺寸做帧间对齐。"""
     locked = state in LOCKED_BODY_STATES
     lock_size = None
     if locked and frames:
