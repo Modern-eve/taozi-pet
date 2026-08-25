@@ -1,22 +1,11 @@
 """
-rename-assets.py — 按套子桌宠重命名规则批量重命名帧
+rename-assets.py — 按命名规则批量重命名帧
 
-单一职责（通用）：
-  把 assets-raw / taozi-pet/incoming-assets / src/assets/pet 任一目录中的
-  帧文件按既定规则统一重命名，保证帧名连续、无数字缺口、无 `.5` 过渡后缀（或反向合并）。
-
-规则（源自 walk/sleep/sad 的最终指令）：
-  - 数字缺口顺移：帧号出现缺口时，比缺口大的命名整体 -1 直至无缺口（保持顺序、不留空洞）。
-  - 小数点过渡帧：有 x.5 → 保留 +0.5（作为独立过渡帧），其后顺势 +1，使全部帧连成连续整数序列。
-  - 目标：目录内某前缀的帧名收拢为连续整数（walk-01..12、sleep-01..10、sad-01..12）。
-
-默认**只预览**（--dry-run）；确认无误后去掉 --dry-run 才真正改名。
-注意：只处理单个目录内的同名文件，不做跨目录同步；若需同步到其他目录，请对每个目录分别跑。
+把指定目录下某前缀的帧文件重命名为连续整数（如 walk-01..12），
+收拢数字缺口、并把 x.5 过渡帧并入连续序列。默认只预览(--dry-run)，加 --apply 执行。
 
 用法：
   python rename-assets.py --dir taozi-pet/incoming-assets --prefix walk
-  python rename-assets.py --dir assets-raw --prefix sad
-  python rename-assets.py --dir taozi-pet/incoming-assets --prefix sleep --apply   # 真正执行
   python rename-assets.py --dir taozi-pet/incoming-assets --prefix walk --apply
 """
 import os
@@ -28,20 +17,20 @@ FRAME_RE = re.compile(r'^(.+)-(\d+(?:\.\d+)?)\.png$')
 
 
 def collect(prefix, names):
-    """返回 {帧号: 文件名}，只保留匹配 <prefix>-<num>.png 的帧；忽略 -r2 等其他后缀。"""
+    """返回 {帧号: 文件名}，只保留匹配 <prefix>-<num>.png 的帧。"""
     items = {}
     for n in names:
         m = FRAME_RE.match(n)
         if not m or m.group(1) != prefix:
             continue
         num = float(m.group(2))
-        # 忽略整数（不带小数）？不：整数是主体，要参与排序
+        # 整数帧参与排序
         items[num] = n
     return items
 
 
 def plan_rename(items):
-    """对 {帧号: 文件名} 计算重命名计划：把帧号排序，逐个重映射为连续整数（先取整）。
+    """对 {帧号: 文件名} 计算重命名计划：帧号排序后逐个重映射为连续整数。
     返回 [(旧名, 新名)]，新名 = <prefix>-<连续整数>.png。"""
     nums = sorted(items.keys())
     if not nums:

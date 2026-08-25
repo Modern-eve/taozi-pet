@@ -1,22 +1,17 @@
 """
-抠图算法 v8 (GPU)
-==================================================
-背景移除改用 RMBG-2.0 (BRIA) 在 CUDA 上推理，生成基础透明 alpha；
-随后叠加 v7 的「保护色 / 清底线 / 最大连通块」后处理，保证流水线 QA 兼容。
+GPU 抠白底：assets-raw/ → taozi-pet/incoming-assets/（透明 PNG，默认全量）
 
-与 v7 完全一致的契约：
-  - 输入 assets-raw/（纯白底 PNG）
-  - 输出 taozi-pet/incoming-assets/（同名同尺寸透明 PNG，仅 --states 指定的 matted 状态）
-  - 保留 assemble-incoming-assets.py 所需的「白底已抠、保护色不丢、脚底线已清、
-    最大连通块」行为；assemble 随后对 incoming 里的 matted 帧做占用率归一化
+用 BiRefNet 在 CUDA 上推理生成基础 alpha，再叠加 v7 后处理
+（保护色 / 清底线 / 最大连通块）保证 QA 兼容。无 GPU 时自动退 CPU。
 
 用法:
-  python preprocess-v7.py              # 处理全部
-  python preprocess-v7.py walk-01.png  # 只处理指定文件
-  python preprocess-v7.py --cpu       # 强制 CPU（无 GPU 时兜底）
+  python "preprocess-v7 -gpu.py"              # 处理 assets-raw 全部帧
+  python "preprocess-v7 -gpu.py" walk-01.png  # 只处理指定文件
+  python "preprocess-v7 -gpu.py" --states walk sleep   # 只处理指定状态
+  python "preprocess-v7 -gpu.py" --cpu        # 强制 CPU 推理
 
-环境: conda activate my_project  (torch 2.5.1+cu121, CUDA)
-模型: ZhengPeng7/BiRefNet（首次运行自动从 HF 镜像下载，约 350MB；RMBG-2.0 在 HF 上 gated 需授权，改用同架构开源版）
+环境: conda activate my_project（torch + CUDA）
+模型: ZhengPeng7/BiRefNet（首次从 HF 镜像下载，约 350MB）
 """
 import os
 # 国内环境：让 HF 下载走镜像，避免 huggingface.co 直连超时
@@ -30,14 +25,14 @@ INPUT_DIR = r'D:\Documents\Doubao\chats\2026-08-12\new-chat\assets-raw'
 OUTPUT_DIR = r'D:\Documents\Doubao\chats\2026-08-12\new-chat\taozi-pet\incoming-assets'
 
 BG_THRESHOLD = 28
-# RMBG 模型在 1024 边长上训练；大图等比缩放到此尺寸推理，再还原
-RMBG_SIZE = 1024
+# BiRefNet 在 1024 边长上训练；大图等比缩放到此尺寸推理，再还原
+MODEL_SIZE = 1024
 
 # ---------- GPU 模型（懒加载，单例，进程内只加载一次） ----------
 _MODEL = None
 
 def get_model():
-    """加载 RMBG-2.0 到 CUDA（无 GPU 自动退 CPU）。"""
+    """加载 BiRefNet 到 CUDA（无 GPU 自动退 CPU）。"""
     global _MODEL
     if _MODEL is not None:
         return _MODEL
@@ -66,8 +61,8 @@ def rmbg_alpha(rgba_pil):
     img = rgba_pil.convert('RGB')
     w, h = img.size
     # 等比缩放到模型输入（最长边 1024）
-    if max(w, h) > RMBG_SIZE:
-        scale = RMBG_SIZE / max(w, h)
+    if max(w, h) > MODEL_SIZE:
+        scale = MODEL_SIZE / max(w, h)
         tw, th = int(round(w * scale)), int(round(h * scale))
     else:
         tw, th = w, h
@@ -192,10 +187,8 @@ def process_image(input_path, output_path):
     arr[:, :, 3] = alpha
     Image.fromarray(arr).save(output_path)
 
-# 项目预设：GPU 为默认全量抠图引擎；下游 assemble-incoming-assets.py 对全部状态做归一化，
-# idle/blink 走帧间尺寸对齐（见 assemble LOCKED_BODY_STATES）消除 SCALE_DRIFT，CPU 仅作最后手段。
-# 按需求将 GPU 设为默认全量：--states 不设时处理 assets-raw 全部帧。
-MATTED_STATES = ["walk", "sleep", "sad", "peek"]
+# 默认 --states 为 None → 处理 assets-raw 全部帧（GPU 全量扣图）。
+# idle/blink 的 SCALE_DRIFT 由下游 assemble 的帧间尺寸对齐处理，CPU 版仅作最后手段。
 
 def _state_of(fname):
     """从 'walk-01.png' / 'pet-head-03.png' 取状态前缀。"""

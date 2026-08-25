@@ -1,15 +1,13 @@
 """
-抠图算法 v7
-- 支持指定文件处理
-- 仅从左、右、上边缘发起洪水填充，下方不发起（保护脚底）
-- 保护色（肤色、南瓜色）作为洪水填充障碍物
-- 洪水填充后：去除与主体连通的底部横线（贴近画布底部的横向宽条）
-- 保留中心最大连通块
+CPU 抠白底（v7 洪水填充算法）：assets-raw/ → taozi-pet/incoming-assets/（透明 PNG）
+
+仅从左/右/上边缘发起洪水填充（下方不发起，保护脚底），叠加保护色障碍物、
+底部横线清除、最大连通块保留。仅作最后手段（GPU 版为默认）。
+
 用法:
-  python preprocess-v7.py              # 处理默认 8 个非 matted 状态
-  python preprocess-v7.py walk-01.png  # 只处理指定文件
-  python preprocess-v7.py --states idle blink   # 只处理指定状态
-输出: taozi-pet/incoming-assets/（透明帧，仅 --states 指定状态；matted 4 状态交给 GPU 版）
+  python preprocess-v7-cpu.py                    # 处理非 matted 的 8 个状态
+  python preprocess-v7-cpu.py walk-01.png       # 只处理指定文件
+  python preprocess-v7-cpu.py --states idle blink
 """
 import os
 import sys
@@ -25,8 +23,7 @@ def get_protected_mask(arr, alpha):
     r = arr[:, :, 0].astype(int)
     g = arr[:, :, 1].astype(int)
     b = arr[:, :, 2].astype(int)
-    # 肤色：r-b > 3 即可保护，避免高光像素（r-b≈6-11、距白色<28）被误判为背景。
-    # 纯白背景 r-b=0 仍不满足；南瓜色保持不变。
+    # 肤色保护：r-b>3，避免高光像素被误判为背景；南瓜色不变。
     skin = (r > 150) & (g > 110) & (b > 70) & (r >= g) & (g >= b) & ((r - b) > 3)
     pumpkin = (r > 170) & (g > 110) & (b < 140) & ((r - b) > 70)
     return (skin | pumpkin) & (alpha > 16)
@@ -58,10 +55,9 @@ def flood_fill_from_edges(arr, alpha, protected=None):
     return np.isin(labeled, list(edge_labels))
 
 def remove_connected_white_bg(arr, alpha, protected=None):
-    """洪水填充后清除与主体连通的底部横线（贴近画布底部的横向宽条）。
-    注意：不做"双腿间白色"清除——角色白色花瓣/浅色头发与背景白色 RGB 相同，
-    无法区分，强行删除会误伤角色主体（见 sleep-07 误删 11 万像素教训）。
-    双腿间白色若存在，应在 src 阶段（process-assets 之后）处理。
+    """清除与主体连通的底部横线（贴近画布底部的横向宽条）。
+    不做"双腿间白色"清除——角色白色花瓣/浅色头发与背景白 RGB 相同，无法区分，
+    强行删除会误伤主体；若存在应在 src 阶段处理。
     """
     from scipy import ndimage
     h, w = alpha.shape
@@ -166,7 +162,7 @@ def process_image(input_path, output_path):
     arr[:, :, 3] = alpha
     Image.fromarray(arr).save(output_path)
 
-# 项目预设：CPU 适配的 8 个非 matted 状态（matted 4 状态交给 GPU 版）
+# 默认处理非 matted 的 8 个状态（matted 4 状态由 GPU 版负责）
 DEFAULT_STATES = ["idle", "blink", "happy", "notify", "pet-head", "pumpkin-bag", "petal-spin", "starfish-wave"]
 
 def _state_of(fname):
