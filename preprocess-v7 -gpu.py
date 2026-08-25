@@ -192,8 +192,9 @@ def process_image(input_path, output_path):
     arr[:, :, 3] = alpha
     Image.fromarray(arr).save(output_path)
 
-# 项目预设：GPU 适配的 matted 状态（其余 8 状态必须 CPU 抠图，见 assemble DEFAULT_MATTED）
-DEFAULT_MATTED = ["walk", "sleep", "sad", "peek"]
+# 项目预设：GPU 适配的 matted 状态（其余 8 状态原本必须 CPU 抠图，见 assemble DEFAULT_MATTED）。
+# 按需求将 GPU 设为默认全量：--states 不设时处理 assets-raw 全部帧。
+MATTED_STATES = ["walk", "sleep", "sad", "peek"]
 
 def _state_of(fname):
     """从 'walk-01.png' / 'pet-head-03.png' 取状态前缀。"""
@@ -201,23 +202,24 @@ def _state_of(fname):
 
 def main():
     import argparse
-    ap = argparse.ArgumentParser(description="GPU 抠图：assets-raw → taozi-pet/incoming-assets（仅 matted 状态）")
+    ap = argparse.ArgumentParser(description="GPU 抠图：assets-raw → taozi-pet/incoming-assets（默认全量）")
     ap.add_argument('files', nargs='*', help='指定文件（默认处理 --states 全部）')
-    ap.add_argument('--states', nargs='*', default=DEFAULT_MATTED,
-                    help=f'只处理这些状态（默认 {DEFAULT_MATTED}）')
+    ap.add_argument('--states', nargs='*', default=None,
+                    help='只处理这些状态（默认 None=全部状态，全量处理）')
     ap.add_argument('--cpu', action='store_true', help='强制 CPU 推理（无 GPU 兜底）')
     args = ap.parse_args()
     if args.cpu:
         os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    states = set(args.states)
+    states = set(args.states) if args.states else None
     if args.files:
         files = [f for f in args.files if f.lower().endswith('.png')]
         print(f'Selected files: {len(files)} files')
     else:
         files = sorted([f for f in os.listdir(INPUT_DIR)
-                        if f.lower().endswith('.png') and _state_of(f) in states])
-        print(f'Processing matted states {sorted(states)}: {len(files)} files')
+                        if f.lower().endswith('.png') and (states is None or _state_of(f) in states)])
+        label = sorted(states) if states else 'ALL'
+        print(f'Processing states {label}: {len(files)} files')
     success = 0
     for i, fname in enumerate(files):
         in_path = os.path.join(INPUT_DIR, fname)

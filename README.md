@@ -28,7 +28,7 @@ QA: PASS (142/142)
 
 | 脚本 | 作用 |
 |------|------|
-| `preprocess-v7 -gpu.py` | GPU 抠白底（BiRefNet + CUDA），`assets-raw/` → `taozi-pet/incoming-assets/`（仅 `--states` 默认的 4 个 matted 状态）。CPU 回退版：`preprocess-v7-cpu.py`（输出 `incoming-assets` 的其余 8 个状态） |
+| `preprocess-v7 -gpu.py` | GPU 抠白底（BiRefNet + CUDA），`assets-raw/` → `taozi-pet/incoming-assets/`，**默认全量**（`--states` 不设=处理全部 142 帧）；`--states` 可限定只跑部分状态。CPU 回退版：`preprocess-v7-cpu.py`（默认输出其余 8 个状态，用于把 GPU 覆盖的帧还原为 CPU 版） |
 | `assemble-incoming-assets.py` | 组装 + 归一化 `incoming-assets`：`--matted-states`（默认 walk/peek/sleep/sad）从 `incoming-assets` 读取 preprocess 写入的透明帧，原地做占用率归一化（居中 + 底部对齐到 `sourceCanvas` 画布）写回；其余状态已在 `incoming-assets` 就绪，跳过。阈值唯一权威来自 `pet-spec.json` 的 `assetPipeline.source*`（`sourceCanvas`/`sourceMargin`/`sourceOccupancy`/`sourcePad`） |
 | `rename-assets.py` | 重命名工具：数字缺口顺移、x.5 过渡帧收拢为连续整数（默认 dry-run，`--apply` 执行） |
 | `repair-src-for-qa.py` | 按 `qa/assets-report.json` 自动修复失败帧（SCALE_DRIFT / OCCUPANCY_TOO_LARGE / GROUND_RESIDUE / SUBJECT_TOUCHES_BORDER），`--dry-run` 可预览 |
@@ -67,7 +67,7 @@ C:\PYTHON312\python.exe repair-src-for-qa.py --dry-run
 - **素材只有 142 张 base 帧，无 `-r2`**。非循环状态的「播两遍」通过 `pet-spec.json` 的 frames 重复引用 base 文件名实现。
 - **`pet-spec.json`（`taozi-pet/pet-spec.json`）是帧清单唯一权威**：新增帧时在 spec 的 frames 里加文件名即可。
 - **资产阈值唯一权威**：归一化/边距/占用率等参数统一收敛到 `pet-spec.json` 的 `assetPipeline`——`targetOccupancy`/`safeMargin`（`process-assets.mjs` 输出层），以及 `sourceCanvas`/`sourceMargin`/`sourceOccupancy`/`sourcePad`（py 上游预处理层）。所有脚本（py + mjs）读取同一份配置，改一处即全局生效，避免阈值漂移。
-- **GPU 抠图只适配 4 个状态**（walk/peek/sleep/sad）；idle/blink/happy/notify/pet-head/pumpkin-bag/petal-spin/starfish-wave 这 8 个状态必须用 CPU(v7) 输出到 incoming-assets，否则破 QA 契约（idle/blink 的 lockedBody 一致性、其余 6 个的占用率上限）。
+- **GPU 抠图已设为默认全量**（`preprocess-v7 -gpu.py` 不加 `--states` 即处理全部 12 状态）。注意：idle/blink/happy/notify/pet-head/pumpkin-bag/petal-spin/starfish-wave 这 8 个状态用 GPU 抠图会与 QA 契约冲突（idle/blink 的 lockedBody 一致性、其余 6 个的占用率上限），`qa-assets` 会 FAIL；如需让这 8 个也走 GPU，需先做帧间尺寸归一化/裁切对齐或放宽 qa 阈值。`preprocess-v7-cpu.py` 仍作为回退，可把被 GPU 覆盖的 8 个状态还原为 CPU 版。
 - **`assemble` 的 `--matted-states` 默认绝不可含 idle/blink**：二者为 lockedBody，已提交的 CPU 帧天然满足 ≤2.5% 宽高一致，归一化反而会触发 `SCALE_DRIFT`。
 
 ### 启动与打包
