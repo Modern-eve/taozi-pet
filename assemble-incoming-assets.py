@@ -85,15 +85,20 @@ def render_matted(src_name, lock_size=None):
 
 def build_state(state, frames):
     """处理单个状态：每帧从 incoming 读透明帧并原地归一化写回。lockedBody 用首帧尺寸做帧间对齐。"""
-    locked = state in LOCKED_BODY_STATES
+    # 全状态帧间尺寸对齐（下流吸收 GPU 抠图各帧尺寸抖动，不动 QA 阈值/不回退 CPU）：
+    # 以状态内“中位数帧”缩放后尺寸为参考，强制每帧对齐到该 (宽,高)（非等比）。
+    # 用中位数而非首帧，可把最大拉伸/压缩幅度降到最低。
     lock_size = None
-    if locked and frames:
-        # 以首帧按占用率得到的尺寸作为参考，强制后续帧对齐到它
-        arr0 = np.array(Image.open(os.path.join(INC, frames[0][:-4] + ".png")).convert("RGBA"))
-        t0, b0, l0, r0 = subject_bbox(arr0)
-        t0 = max(0, t0 - PAD); b0 = min(arr0.shape[0] - 1, b0 + PAD)
-        l0 = max(0, l0 - PAD); r0 = min(arr0.shape[1] - 1, r0 + PAD)
-        lock_size = _target_size(r0 - l0 + 1, b0 - t0 + 1)
+    if frames:
+        sizes = []
+        for fr in frames:
+            arr0 = np.array(Image.open(os.path.join(INC, fr[:-4] + ".png")).convert("RGBA"))
+            t0, b0, l0, r0 = subject_bbox(arr0)
+            t0 = max(0, t0 - PAD); b0 = min(arr0.shape[0] - 1, b0 + PAD)
+            l0 = max(0, l0 - PAD); r0 = min(arr0.shape[1] - 1, r0 + PAD)
+            sizes.append(_target_size(r0 - l0 + 1, b0 - t0 + 1))
+        sizes.sort(key=lambda s: s[0] * s[1])
+        lock_size = sizes[len(sizes) // 2]
     done = 0
     for fr in frames:
         dst = os.path.join(INC, fr)
