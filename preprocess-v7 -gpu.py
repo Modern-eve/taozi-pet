@@ -4,6 +4,9 @@ GPU 抠白底：assets-raw/ → taozi-pet/incoming-assets/（透明 PNG，默认
 用 BiRefNet 在 CUDA 上推理生成基础 alpha，再叠加 v7 后处理
 （保护色 / 清底线 / 最大连通块）保证 QA 兼容。无 GPU 时自动退 CPU。
 
+保护色对肤色区做 2px 膨胀，可挽回手部/高光边缘的浅色像素，
+避免 happy/starfish-wave 等挥手状态的手颜色被“洗掉”。
+
 用法:
   python "preprocess-v7 -gpu.py"              # 处理 assets-raw 全部帧
   python "preprocess-v7 -gpu.py" walk-01.png  # 只处理指定文件
@@ -20,6 +23,7 @@ os.environ.setdefault('HF_ENDPOINT', 'https://hf-mirror.com')
 import sys
 import numpy as np
 from PIL import Image
+from scipy import ndimage
 
 INPUT_DIR = r'D:\Documents\Doubao\chats\2026-08-12\new-chat\assets-raw'
 OUTPUT_DIR = r'D:\Documents\Doubao\chats\2026-08-12\new-chat\taozi-pet\incoming-assets'
@@ -84,7 +88,8 @@ def get_protected_mask(arr, alpha):
     r = arr[:, :, 0].astype(int)
     g = arr[:, :, 1].astype(int)
     b = arr[:, :, 2].astype(int)
-    skin = (r > 150) & (g > 110) & (b > 70) & (r >= g) & (g >= b) & ((r - b) > 3)
+    # 肤色保护：覆盖偏粉/浅的肤色高光，避免手部阴影或浅色手指被 BiRefNet 低置信删除
+    skin = (r > 150) & (g > 110) & (b > 70) & (r >= g) & (g >= b) & ((r - b) > 1)
     pumpkin = (r > 170) & (g > 110) & (b < 140) & ((r - b) > 70)
     return (skin | pumpkin) & (alpha > 16)
 
@@ -174,7 +179,16 @@ def process_image(input_path, output_path):
     alpha = model_alpha.copy()
 
     # 2) 保护色：被保护的像素强制为前景（防止模型把肤色/南瓜色误删）
+    # 对保护区做少量膨胀，可挽回 BiRefNet 在手部/高光边缘丢失的相邻有色像素，
+    # 让 happy/starfish-wave 等挥手状态的手指颜色不被“洗掉”。
+    # 先去掉贴边保护区，避免膨胀后触发 process-assets 的 SUBJECT_TOUCHES_BORDER。
     protected = get_protected_mask(arr, alpha)
+    border = 4
+    protected[:border, :] = False
+    protected[-border:, :] = False
+    protected[:, :border] = False
+    protected[:, -border:] = False
+    protected = ndimage.binary_dilation(protected, iterations=2)
     alpha[protected] = 255
 
     # 3) 去除与主体连通的底部横线（贴画布底的近背景宽条）
@@ -183,6 +197,14 @@ def process_image(input_path, output_path):
     alpha = remove_bottom_ground_line(arr, alpha)
     # 5) 保留中心最大连通块
     alpha = keep_largest_connected(alpha)
+
+    # 6) 清理最边缘 2px 前景，避免 peek 等“贴边出场”状态触发 process-assets 的 SUBJECT_TOUCHES_BORDER。
+    # 贴边帧的源图本身就切到画面外，留 2px 透明边不影响观感。
+    border = 2
+    alpha[:border, :] = 0
+    alpha[-border:, :] = 0
+    alpha[:, :border] = 0
+    alpha[:, -border:] = 0
 
     arr[:, :, 3] = alpha
     Image.fromarray(arr).save(output_path)

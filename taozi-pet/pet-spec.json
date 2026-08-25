@@ -248,7 +248,7 @@
       ],
       "frameDurationMs": 250,
       "loop": true,
-      "priority": 10,
+      "canInterrupt": [],
       "interrupt": "resume",
       "cooldownMs": 0,
       "direction": "neutral",
@@ -291,7 +291,9 @@
       ],
       "frameDurationMs": 250,
       "loop": false,
-      "priority": 30,
+      "canInterrupt": [
+        "idle"
+      ],
       "interrupt": "restart",
       "cooldownMs": 2500,
       "direction": "neutral",
@@ -334,7 +336,14 @@
       ],
       "frameDurationMs": 250,
       "loop": false,
-      "priority": 70,
+      "canInterrupt": [
+        "idle",
+        "blink",
+        "walk",
+        "sleep",
+        "notify",
+        "peek"
+      ],
       "interrupt": "restart",
       "cooldownMs": 300,
       "direction": "neutral",
@@ -377,7 +386,9 @@
       ],
       "frameDurationMs": 250,
       "loop": true,
-      "priority": 60,
+      "canInterrupt": [
+        "*"
+      ],
       "interrupt": "restart",
       "cooldownMs": 800,
       "direction": "neutral",
@@ -420,7 +431,11 @@
       ],
       "frameDurationMs": 250,
       "loop": false,
-      "priority": 55,
+      "canInterrupt": [
+        "idle",
+        "blink",
+        "walk"
+      ],
       "interrupt": "resume",
       "cooldownMs": 1800,
       "direction": "neutral",
@@ -463,7 +478,9 @@
       ],
       "frameDurationMs": 250,
       "loop": false,
-      "priority": 85,
+      "canInterrupt": [
+        "*"
+      ],
       "interrupt": "restart",
       "cooldownMs": 250,
       "direction": "neutral",
@@ -506,7 +523,9 @@
       ],
       "frameDurationMs": 250,
       "loop": false,
-      "priority": 85,
+      "canInterrupt": [
+        "*"
+      ],
       "interrupt": "restart",
       "cooldownMs": 300,
       "direction": "neutral",
@@ -549,7 +568,9 @@
       ],
       "frameDurationMs": 250,
       "loop": false,
-      "priority": 85,
+      "canInterrupt": [
+        "*"
+      ],
       "interrupt": "restart",
       "cooldownMs": 300,
       "direction": "neutral",
@@ -592,7 +613,9 @@
       ],
       "frameDurationMs": 250,
       "loop": false,
-      "priority": 85,
+      "canInterrupt": [
+        "*"
+      ],
       "interrupt": "restart",
       "cooldownMs": 300,
       "direction": "neutral",
@@ -623,7 +646,10 @@
       ],
       "frameDurationMs": 250,
       "loop": true,
-      "priority": 45,
+      "canInterrupt": [
+        "idle",
+        "blink"
+      ],
       "interrupt": "resume",
       "cooldownMs": 500,
       "direction": "left",
@@ -652,7 +678,13 @@
       ],
       "frameDurationMs": 250,
       "loop": true,
-      "priority": 40,
+      "canInterrupt": [
+        "idle",
+        "blink",
+        "walk",
+        "peek",
+        "sad"
+      ],
       "interrupt": "resume",
       "cooldownMs": 1000,
       "direction": "neutral",
@@ -683,7 +715,13 @@
       ],
       "frameDurationMs": 250,
       "loop": true,
-      "priority": 42,
+      "canInterrupt": [
+        "idle",
+        "blink",
+        "walk",
+        "peek",
+        "happy"
+      ],
       "interrupt": "resume",
       "cooldownMs": 1000,
       "direction": "neutral",

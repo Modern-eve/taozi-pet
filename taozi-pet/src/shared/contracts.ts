@@ -98,7 +98,8 @@ export interface PetState {
   frames: string[];
   frameDurationMs: number;
   loop: boolean;
-  priority: number;
+  /** 本状态可打断（压过）的状态 id 名单；'*' 表示可打断一切；待机(idle)默认可被任意状态打断，无需列入 */
+  canInterrupt: string[];
   interrupt: string;
   cooldownMs: number;
   direction: string;
