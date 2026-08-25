@@ -49,12 +49,22 @@ export class PetStateMachine {
   start(stateId: string, now: number, durationMs?: number): boolean {
     const next = this.states.get(stateId);
     if (!next) return false;
-    if (this.active.state.priority > next.priority) return false;
-    if (this.active.state.id === next.id && next.interrupt === 'resume') return false;
+    const activeId = this.active.state.id;
+    // 同状态重入由 interrupt 类型决定：resume 拒绝，restart 允许（名单只约束「其它状态」的抢占）
+    if (activeId === next.id && next.interrupt === 'resume') return false;
+    // 待机是兜底状态：任一新状态可抢占它；切回待机也总是允许
+    const pairWithIdle = activeId === this.idleState.id || next.id === this.idleState.id;
+    if (!pairWithIdle && activeId !== next.id && !this.canInterrupt(next, activeId)) return false;
     const lastCompleted = this.completedAt.get(next.id);
     if (lastCompleted !== undefined && now - lastCompleted < next.cooldownMs) return false;
     this.active = this.makeActive(next, now, durationMs);
     return true;
+  }
+
+  /** 目标状态能否压过当前状态：看目标的在案名单是否包含当前状态 */
+  private canInterrupt(next: PetState, activeId: string): boolean {
+    const allowed = next.canInterrupt;
+    return allowed.includes('*') || allowed.includes(activeId);
   }
 
   tick(now: number): StateFrame {
