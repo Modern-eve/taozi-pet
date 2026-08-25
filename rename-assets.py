@@ -2,7 +2,7 @@
 rename-assets.py — 按套子桌宠重命名规则批量重命名帧
 
 单一职责（通用）：
-  把 assets-raw / assets-processed / incoming-assets / src/assets/pet 任一目录中的
+  把 assets-raw / taozi-pet/incoming-assets / src/assets/pet 任一目录中的
   帧文件按既定规则统一重命名，保证帧名连续、无数字缺口、无 `.5` 过渡后缀（或反向合并）。
 
 规则（源自 walk/sleep/sad 的最终指令）：
@@ -16,7 +16,7 @@ rename-assets.py — 按套子桌宠重命名规则批量重命名帧
 用法：
   python rename-assets.py --dir taozi-pet/incoming-assets --prefix walk
   python rename-assets.py --dir assets-raw --prefix sad
-  python rename-assets.py --dir assets-processed --prefix sleep --apply   # 真正执行
+  python rename-assets.py --dir taozi-pet/incoming-assets --prefix sleep --apply   # 真正执行
   python rename-assets.py --dir taozi-pet/incoming-assets --prefix walk --apply
 """
 import os
@@ -60,7 +60,7 @@ def plan_rename(items):
 
 def main():
     ap = argparse.ArgumentParser(description="按套子桌宠重命名规则批量重命名帧（通用）")
-    ap.add_argument("--dir", required=True, help="目标目录（assets-raw / assets-processed / incoming-assets / src/assets/pet 等）")
+    ap.add_argument("--dir", required=True, help="目标目录（assets-raw / taozi-pet/incoming-assets / src/assets/pet 等）")
     ap.add_argument("--prefix", required=True, help="状态前缀，如 walk / sleep / sad")
     ap.add_argument("--apply", action="store_true", help="真正执行改名；缺省只打印计划（dry-run）")
     args = ap.parse_args()

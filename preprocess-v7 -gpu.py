@@ -6,9 +6,9 @@
 
 与 v7 完全一致的契约：
   - 输入 assets-raw/（纯白底 PNG）
-  - 输出 assets-processed/（同名同尺寸透明 PNG）
+  - 输出 taozi-pet/incoming-assets/（同名同尺寸透明 PNG，仅 --states 指定的 matted 状态）
   - 保留 assemble-incoming-assets.py 所需的「白底已抠、保护色不丢、脚底线已清、
-    最大连通块」行为
+    最大连通块」行为；assemble 随后对 incoming 里的 matted 帧做占用率归一化
 
 用法:
   python preprocess-v7.py              # 处理全部
@@ -27,7 +27,7 @@ import numpy as np
 from PIL import Image
 
 INPUT_DIR = r'D:\Documents\Doubao\chats\2026-08-12\new-chat\assets-raw'
-OUTPUT_DIR = r'D:\Documents\Doubao\chats\2026-08-12\new-chat\assets-processed'
+OUTPUT_DIR = r'D:\Documents\Doubao\chats\2026-08-12\new-chat\taozi-pet\incoming-assets'
 
 BG_THRESHOLD = 28
 # RMBG 模型在 1024 边长上训练；大图等比缩放到此尺寸推理，再还原
@@ -192,18 +192,32 @@ def process_image(input_path, output_path):
     arr[:, :, 3] = alpha
     Image.fromarray(arr).save(output_path)
 
+# 项目预设：GPU 适配的 matted 状态（其余 8 状态必须 CPU 抠图，见 assemble DEFAULT_MATTED）
+DEFAULT_MATTED = ["walk", "sleep", "sad", "peek"]
+
+def _state_of(fname):
+    """从 'walk-01.png' / 'pet-head-03.png' 取状态前缀。"""
+    return fname.rsplit('-', 1)[0]
+
 def main():
-    force_cpu = '--cpu' in sys.argv
-    if force_cpu:
+    import argparse
+    ap = argparse.ArgumentParser(description="GPU 抠图：assets-raw → taozi-pet/incoming-assets（仅 matted 状态）")
+    ap.add_argument('files', nargs='*', help='指定文件（默认处理 --states 全部）')
+    ap.add_argument('--states', nargs='*', default=DEFAULT_MATTED,
+                    help=f'只处理这些状态（默认 {DEFAULT_MATTED}）')
+    ap.add_argument('--cpu', action='store_true', help='强制 CPU 推理（无 GPU 兜底）')
+    args = ap.parse_args()
+    if args.cpu:
         os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    args = [a for a in sys.argv[1:] if not a.startswith('--')]
-    if args:
-        files = [f for f in args if f.lower().endswith('.png')]
-        print(f'Selected processing: {len(files)} files')
+    states = set(args.states)
+    if args.files:
+        files = [f for f in args.files if f.lower().endswith('.png')]
+        print(f'Selected files: {len(files)} files')
     else:
-        files = sorted([f for f in os.listdir(INPUT_DIR) if f.lower().endswith('.png')])
-        print(f'Processing all: {len(files)} files')
+        files = sorted([f for f in os.listdir(INPUT_DIR)
+                        if f.lower().endswith('.png') and _state_of(f) in states])
+        print(f'Processing matted states {sorted(states)}: {len(files)} files')
     success = 0
     for i, fname in enumerate(files):
         in_path = os.path.join(INPUT_DIR, fname)

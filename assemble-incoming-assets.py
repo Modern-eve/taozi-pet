@@ -6,9 +6,9 @@ assemble-incoming-assets.py — 组装 + 归一化 taozi-pet/incoming-assets
   并在同一遍内完成占用率归一化（居中 + 底部对齐到统一画布）。
 
 对每个状态、每帧：
-  - 若该状态在 --matted-states 且 assets-processed 有对应帧
-      → 渲染：裁 bbox(+PAD) → 按目标占用率缩放 → 居中+底部对齐到 sourceCanvas 画布
-  - 否则 → 从 incoming-assets 原样复制（保留既有结果，例如仍用 CPU 抠图的 8 个状态）
+  - 若该状态在 --matted-states（incoming 中已由 preprocess 写入透明帧）
+      → 渲染：裁 bbox(+PAD) → 按目标占用率缩放 → 居中+底部对齐到 sourceCanvas 画布（原地写回 incoming）
+  - 否则 → 跳过（非 matted 状态已在 incoming 就绪，由 CPU 抠图 committed，不再处理）
 
 归一化统一采用「面积占用率」方式（原 normalize 逻辑）；原 assemble 的「参考角色高
 对齐」实现已丢弃，不再保留为校验——下游 process-assets.mjs 自带 NORMALIZATION_TOO_LARGE
@@ -18,8 +18,8 @@ assemble-incoming-assets.py — 组装 + 归一化 taozi-pet/incoming-assets
 阈值唯一权威来自 pet-spec.json assetPipeline（sourceCanvas/sourceMargin/sourceOccupancy/sourcePad），
 与 process-assets.mjs / qa-assets.mjs 共用，避免漂移。
 
-输入：assets-processed/(透明抠图) + taozi-pet/incoming-assets/(既有)
-输出：taozi-pet/incoming-assets/(整合后)
+输入：taozi-pet/incoming-assets/(matted 状态的透明帧由 preprocess 写入；其余状态已就绪)
+输出：taozi-pet/incoming-assets/(整合后，原地归一化 matted 状态)
 
 用法：
   python assemble-incoming-assets.py
@@ -34,8 +34,7 @@ import numpy as np
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-PROC = os.path.join(ROOT, "assets-processed")                       # 透明抠图（matted 源）
-INC = os.path.join(ROOT, "taozi-pet", "incoming-assets")            # 整合目标 / 复制源
+INC = os.path.join(ROOT, "taozi-pet", "incoming-assets")            # 整合目标（matted 透明帧源 + 归一化输出，原地）
 SPEC = os.path.join(ROOT, "taozi-pet", "pet-spec.json")             # 帧清单权威来源
 
 # 阈值唯一权威来自 pet-spec.json assetPipeline（与 process-assets.mjs / qa-assets.mjs 共用）
@@ -45,7 +44,7 @@ MARGIN = _pipeline.get("sourceMargin", 48)                          # 画布边�
 TARGET_OCC = _pipeline.get("sourceOccupancy", 0.62)                 # 目标占用率（面积占比）
 PAD = _pipeline.get("sourcePad", 4)                                 # bbox 外扩留白
 
-# 项目预设：需从 assets-processed 渲染 + 占用率归一化的状态（即已上 GPU 的状态）。
+# 项目预设：需原地归一化的 matted 状态（即已上 GPU、由 preprocess 写入 incoming 透明帧的状态）。
 # 注意 idle/blink 为 lockedBody，其已提交的 CPU 帧天然满足 ≤2.5% 宽高一致性；
 # 一旦归一化反而会触发 SCALE_DRIFT，故此处故意不含 idle/blink。
 DEFAULT_MATTED = ["walk", "sleep", "sad", "peek"]
@@ -70,9 +69,9 @@ def subject_bbox(arr):
 
 
 def render_matted(src_name):
-    """从 assets-processed 读取透明帧，裁 bbox(+PAD)，按目标占用率缩放，
-    居中+底部对齐到统一画布，返回 RGBA 图像。src_name 不含扩展名。"""
-    arr = np.array(Image.open(os.path.join(PROC, src_name + ".png")).convert("RGBA"))
+    """从 incoming-assets 读取 matted 透明帧（preprocess 已写入），裁 bbox(+PAD)，
+    按目标占用率缩放，居中+底部对齐到统一画布，原地写回。src_name 不含扩展名。"""
+    arr = np.array(Image.open(os.path.join(INC, src_name + ".png")).convert("RGBA"))
     t, btm, l, r = subject_bbox(arr)
     t = max(0, t - PAD)
     btm = min(arr.shape[0] - 1, btm + PAD)
@@ -94,29 +93,29 @@ def render_matted(src_name):
 
 
 def build_state(state, frames, matted):
-    """处理单个状态：matted 帧从 PROC 渲染并归一化，其余从 INC 复制。返回处理的帧数。"""
+    """处理单个状态：matted 帧从 INC 读透明帧并原地归一化；非 matted 跳过（已在 INC 就绪）。"""
     done = 0
     for fr in frames:
         dst = os.path.join(INC, fr)
-        if matted and os.path.exists(os.path.join(PROC, fr)):
+        if matted:
+            if not os.path.exists(dst):
+                raise RuntimeError(f"matted 帧缺失：{dst}（请先运行 preprocess(-gpu) 把透明帧写入 incoming）")
             render_matted(fr[:-4]).save(dst)
             mode = "matted"
         else:
-            srcp = os.path.join(INC, fr)
-            if not os.path.exists(srcp):
-                raise RuntimeError(f"缺失复制源 {srcp}")
-            if os.path.abspath(srcp) != os.path.abspath(dst):
-                shutil.copy(srcp, dst)
-            mode = "copy"
+            if not os.path.exists(dst):
+                raise RuntimeError(f"非 matted 帧缺失：{dst}（需先放置 CPU 就绪帧）")
+            mode = "skip"
         done += 1
-        print(f"  {mode:7} {fr}")
+        if mode != "skip":
+            print(f"  {mode:7} {fr}")
     return done
 
 
 def main():
     ap = argparse.ArgumentParser(description="组装+归一化 incoming-assets（通用、数据驱动）")
     ap.add_argument("--matted-states", nargs="*", default=DEFAULT_MATTED,
-                    help=f"从 assets-processed 渲染并归一化的状态（默认 {DEFAULT_MATTED}）；其余状态从 incoming 复制")
+                    help=f"需原地归一化的 matted 状态（默认 {DEFAULT_MATTED}）；其余状态已在 incoming 就绪，跳过")
     ap.add_argument("--states", nargs="*", default=None,
                     help="只处理这些状态（默认全部）")
     args = ap.parse_args()

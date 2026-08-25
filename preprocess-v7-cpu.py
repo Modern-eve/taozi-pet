@@ -6,8 +6,10 @@
 - 洪水填充后：去除与主体连通的底部横线（贴近画布底部的横向宽条）
 - 保留中心最大连通块
 用法:
-  python preprocess-v7.py              # 处理全部
+  python preprocess-v7.py              # 处理默认 8 个非 matted 状态
   python preprocess-v7.py walk-01.png  # 只处理指定文件
+  python preprocess-v7.py --states idle blink   # 只处理指定状态
+输出: taozi-pet/incoming-assets/（透明帧，仅 --states 指定状态；matted 4 状态交给 GPU 版）
 """
 import os
 import sys
@@ -15,7 +17,7 @@ import numpy as np
 from PIL import Image
 
 INPUT_DIR = r'D:\Documents\Doubao\chats\2026-08-12\new-chat\assets-raw'
-OUTPUT_DIR = r'D:\Documents\Doubao\chats\2026-08-12\new-chat\assets-processed'
+OUTPUT_DIR = r'D:\Documents\Doubao\chats\2026-08-12\new-chat\taozi-pet\incoming-assets'
 
 BG_THRESHOLD = 28
 
@@ -164,14 +166,29 @@ def process_image(input_path, output_path):
     arr[:, :, 3] = alpha
     Image.fromarray(arr).save(output_path)
 
+# 项目预设：CPU 适配的 8 个非 matted 状态（matted 4 状态交给 GPU 版）
+DEFAULT_STATES = ["idle", "blink", "happy", "notify", "pet-head", "pumpkin-bag", "petal-spin", "starfish-wave"]
+
+def _state_of(fname):
+    """从 'walk-01.png' / 'pet-head-03.png' 取状态前缀。"""
+    return fname.rsplit('-', 1)[0]
+
 def main():
+    import argparse
+    ap = argparse.ArgumentParser(description="CPU 抠图：assets-raw → taozi-pet/incoming-assets（仅非 matted 状态）")
+    ap.add_argument('files', nargs='*', help='指定文件（默认处理 --states 全部）')
+    ap.add_argument('--states', nargs='*', default=DEFAULT_STATES,
+                    help=f'只处理这些状态（默认 {DEFAULT_STATES}）')
+    args = ap.parse_args()
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    if len(sys.argv) > 1:
-        files = [f for f in sys.argv[1:] if f.lower().endswith('.png')]
-        print(f'Selected processing: {len(files)} files')
+    states = set(args.states)
+    if args.files:
+        files = [f for f in args.files if f.lower().endswith('.png')]
+        print(f'Selected files: {len(files)} files')
     else:
-        files = sorted([f for f in os.listdir(INPUT_DIR) if f.lower().endswith('.png')])
-        print(f'Processing all: {len(files)} files')
+        files = sorted([f for f in os.listdir(INPUT_DIR)
+                        if f.lower().endswith('.png') and _state_of(f) in states])
+        print(f'Processing states {sorted(states)}: {len(files)} files')
     success = 0
     for i, fname in enumerate(files):
         in_path = os.path.join(INPUT_DIR, fname)
