@@ -102,7 +102,7 @@ const defaultSettings: Settings = {
 
 const defaultStats: PersistedStats = {
   affection: 0,
-  mood: 80,
+  mood: 20,
   todayInteractions: 0,
   totalCompanionMs: 0,
   lastInteractionDate: localDateKey(),

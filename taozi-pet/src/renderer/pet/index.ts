@@ -54,6 +54,15 @@ function playSquash(): void {
   sprite.classList.add('squash');
 }
 
+// 精灵尺寸锚定：显式用窗口高度派生精灵高度（正方形），避免仅依赖 CSS 100vh 在窗口缩小时未能联动重排
+// （问题：调小桌宠时尺寸不变，需重启才生效）。resize 触发即为窗口实际的最终尺寸，缩小/放大均即时生效。
+function applySpriteSize(): void {
+  const height = Math.max(0, window.innerHeight - PET_BUBBLE_ZONE);
+  sprite.style.height = `${height}px`;
+}
+window.addEventListener('resize', applySpriteSize);
+applySpriteSize();
+
 // 显示反馈气泡
 // persist=true 时气泡不自动消失（用于提醒通知，直到用户点击桌宠或其他动作后才被替换/隐藏）
 let feedbackTimer: ReturnType<typeof setTimeout> | null = null;

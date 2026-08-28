@@ -19,7 +19,7 @@ html, body {
   top: 0;
   left: 0;
   right: 64px; /* 让出右上角关闭按钮 */
-  height: 44px;
+  height: 64px;
   z-index: 1; /* 低于关闭按钮与标签栏，保证它们可点击 */
 }
 
@@ -258,9 +258,9 @@ html, body {
 
 .close-btn {
   position: absolute;
-  top: 16px;
+  top: 40px; /* 垂直对齐标签条中部 */
   right: 16px;
-  z-index: 2; /* 位于拖拽条之上，保证可点击 */
+  z-index: 3; /* 高于拖拽条与标签栏，始终可点 */
   width: 32px;
   height: 32px;
   border: none;
@@ -303,6 +303,7 @@ html, body {
 .view-tabs {
   display: flex;
   gap: 6px;
+  margin-top: 14px; /* 腾出顶部拖拽带，增大可拖动区域 */
   padding: 4px 48px 4px 4px; /* 右侧留出关闭按钮位置 */
   background: #fdeedd;
   border-radius: 16px;
