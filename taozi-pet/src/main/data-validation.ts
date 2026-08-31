@@ -31,13 +31,22 @@ export function parseSettings(value: unknown): Settings {
   const obj = record(value, 'settings');
   const expected = new Set(['edgeSnap', 'alwaysOnTop', 'typingReaction', 'clickThrough', 'petScale', 'autoStart', 'autoStartInit', 'randomWalk']);
   for (const key of Object.keys(obj)) if (!expected.has(key)) throw new TypeError(`Unknown settings field: ${key}`);
-  for (const key of ['edgeSnap', 'alwaysOnTop', 'typingReaction', 'clickThrough', 'autoStart', 'randomWalk'] as const) {
+  for (const key of ['edgeSnap', 'alwaysOnTop', 'typingReaction', 'clickThrough', 'autoStart'] as const) {
     if (typeof obj[key] !== 'boolean') throw new TypeError(`Invalid settings field: ${key}`);
   }
   // autoStartInit 兼容旧数据：缺失视为已配置（保持旧行为，不改变既有自启状态）
   if (obj.autoStartInit !== undefined && typeof obj.autoStartInit !== 'boolean') throw new TypeError('Invalid settings field: autoStartInit');
   if (typeof obj.petScale !== 'number' || !Number.isFinite(obj.petScale) || obj.petScale < PET_SCALE_MIN || obj.petScale > PET_SCALE_MAX) {
     throw new TypeError('Invalid settings field: petScale');
+  }
+  // randomWalk 兼容旧 boolean（true→2 正常 / false→0 木头人），新值须为 0–4 整数挡位
+  let randomWalk: number;
+  if (typeof obj.randomWalk === 'boolean') {
+    randomWalk = obj.randomWalk ? 2 : 0;
+  } else if (Number.isInteger(obj.randomWalk) && (obj.randomWalk as number) >= 0 && (obj.randomWalk as number) <= 4) {
+    randomWalk = obj.randomWalk as number;
+  } else {
+    throw new TypeError('Invalid settings field: randomWalk');
   }
   return {
     edgeSnap: obj.edgeSnap as boolean,
@@ -47,7 +56,7 @@ export function parseSettings(value: unknown): Settings {
     petScale: obj.petScale,
     autoStart: obj.autoStart as boolean,
     autoStartInit: obj.autoStartInit === undefined ? true : (obj.autoStartInit as boolean),
-    randomWalk: obj.randomWalk as boolean,
+    randomWalk,
   };
 }
 

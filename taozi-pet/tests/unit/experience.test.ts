@@ -20,7 +20,8 @@ test('local date keys use calendar fields instead of UTC serialization', () => {
 });
 
 test('settings accept only complete, finite values within pet scale range', () => {
-  const valid = { edgeSnap: true, alwaysOnTop: true, typingReaction: false, clickThrough: false, petScale: 0.8, autoStart: true, autoStartInit: true, randomWalk: true };
+  const valid = { edgeSnap: true, alwaysOnTop: true, typingReaction: false, clickThrough: false, petScale: 0.8, autoStart: true, autoStartInit: true, randomWalk: 2 };
+
   assert.deepEqual(parseSettings(valid), valid);
   assert.deepEqual(parseSettings({ ...valid, petScale: 0.72 }), { ...valid, petScale: 0.72 }); // 自由缩放取值
   assert.throws(() => parseSettings({ ...valid, petScale: Number.NaN }), /petScale/);
@@ -30,6 +31,9 @@ test('settings accept only complete, finite values within pet scale range', () =
   assert.throws(() => assertSettingsPatch({ edgeSnap: 1 }), /edgeSnap/);
   assert.throws(() => assertSettingsPatch({ constructor: true }), /Unknown/);
   assert.throws(() => assertSettingsPatch({ petScale: 2 }), /petScale/);
+  assert.throws(() => assertSettingsPatch({ randomWalk: 7 }), /randomWalk/); // 越界挡位
+  assert.deepEqual(parseSettings({ ...valid, randomWalk: false }).randomWalk, 0); // 旧 boolean false → 木头人
+  assert.deepEqual(parseSettings({ ...valid, randomWalk: true }).randomWalk, 2);  // 旧 boolean true → 正常
 });
 
 test('persisted stats and reminders reject malformed values', () => {

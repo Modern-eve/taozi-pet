@@ -142,6 +142,9 @@ function scheduleIdleEvents(): void {
   blinkTimer = setTimeout(() => {
     if (stateMachine.currentStateId() === 'idle') {
       setState('blink');
+      // 眨眼也走气泡：随机讲一句「眨眼」语录（原来的死配置现在启用）
+      const quote = getQuote('blink');
+      if (quote) showFeedback(quote);
     }
     scheduleIdleEvents();
   }, blinkDelay);

@@ -35,7 +35,7 @@ const companionMinutesEl = document.getElementById('companion-minutes') as HTMLD
 const toggleAlwaysOnTop = document.getElementById('toggle-always-on-top') as HTMLDivElement;
 const toggleClickThrough = document.getElementById('toggle-click-through') as HTMLDivElement;
 const toggleAutoStart = document.getElementById('toggle-auto-start') as HTMLDivElement;
-const toggleRandomWalk = document.getElementById('toggle-random-walk') as HTMLDivElement;
+const randomWalkButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('#random-walk-level button[data-level]'));
 const scaleSlider = document.getElementById('scale-slider') as HTMLInputElement;
 const scaleValue = document.getElementById('scale-value') as HTMLSpanElement;
 
@@ -302,10 +302,8 @@ async function loadSettings(): Promise<void> {
       toggleAutoStart.classList.remove('active');
     }
 
-    if (settings.randomWalk) {
-      toggleRandomWalk.classList.add('active');
-    } else {
-      toggleRandomWalk.classList.remove('active');
+    for (const btn of randomWalkButtons) {
+      btn.classList.toggle('active', Number(btn.dataset.level) === settings.randomWalk);
     }
 
     // 更新桌宠大小滑块
@@ -392,22 +390,20 @@ toggleAutoStart.addEventListener('click', async () => {
   }
 });
 
-// 随机行走开关
-toggleRandomWalk.addEventListener('click', async () => {
-  if (!currentSettings) return;
-  const newVal = !currentSettings.randomWalk;
-  try {
-    await window.petAPI?.settings.update({ randomWalk: newVal });
-    currentSettings.randomWalk = newVal;
-    if (newVal) {
-      toggleRandomWalk.classList.add('active');
-    } else {
-      toggleRandomWalk.classList.remove('active');
+// 随机行走挡位：0 木头人 / 1 散步 / 2 正常 / 3 活泼 / 4 多动症
+for (const btn of randomWalkButtons) {
+  btn.addEventListener('click', async () => {
+    if (!currentSettings) return;
+    const level = Number(btn.dataset.level);
+    try {
+      await window.petAPI?.settings.update({ randomWalk: level });
+      currentSettings.randomWalk = level;
+      for (const b of randomWalkButtons) b.classList.toggle('active', Number(b.dataset.level) === level);
+    } catch (error) {
+      console.error('Failed to update setting:', error);
     }
-  } catch (error) {
-    console.error('Failed to update setting:', error);
-  }
-});
+  });
+}
 
 // 桌宠大小滑块：自由调整（实时生效）
 scaleSlider.addEventListener('input', async () => {

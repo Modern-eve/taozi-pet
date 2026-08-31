@@ -15,7 +15,7 @@ const defaults: Settings = {
   petScale: 1,
   autoStart: true,
   autoStartInit: true,
-  randomWalk: false,
+  randomWalk: 2,
 };
 
 test('atomic JSON persistence round-trips without temporary files', async () => {

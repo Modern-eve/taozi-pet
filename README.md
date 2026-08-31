@@ -79,6 +79,8 @@ npm run doctor         # 环境诊断
 npm run package:win / make:win / portable:win   # 打包 / 安装包 / 绿色版
 ```
 
+> 打包产物自带瘦身：`package` 后自动清理 Electron 冗余运行时文件（除 `en-US.pak` 外的语言包、SwiftShader 软件渲染、Chromium LICENSE），绿色版体积约 138MB（未瘦身约 153MB）。
+
 ## 配置（pet-spec.json）
 
 项目几乎所有行为都由 `pet-spec.json` 驱动，改配置通常不需要改代码：
@@ -120,16 +122,16 @@ QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）�
 | 状态 | 动作 | 独立帧 | 播放帧 | 类型 | 单周期 | 触发器 | 冷却 |
 |---|---|---|---|---|---|---|---|
 | idle | 待机 | 12 | 12 | 循环 | 3.0s | app:start / ambient:idle | — |
-| blink | 眨眼 | 12 | 24 | 单次 | 6.0s | ambient:blink | 2.5s |
+| blink | 眨眼 | 12 | 24 | 单次 | 6.0s | ambient:blink（随机 5–15s） | 2.5s |
 | happy | 开心 | 12 | 24 | 单次 | 6.0s | pointer:tap（单击） | 0.3s |
-| notify | 提醒 | 12 | 24 | 循环 | 6.0s | reminder:due | 0.8s |
-| peek | 贴边窥视 | 12 | 24 | 单次 | 6.0s | window:edge-snap（吸附） | 1.8s |
-| pet-head | 摸头 | 12 | 24 | 单次 | 6.0s（展示 12s） | interaction:pet-head | 0.25s |
-| pumpkin-bag | 掏南瓜包 | 12 | 24 | 单次 | 6.0s（展示 12s） | interaction:pumpkin-bag | 0.3s |
-| petal-spin | 花瓣转圈 | 12 | 24 | 单次 | 6.0s（展示 12s） | interaction:petal-spin | 0.3s |
-| starfish-wave | 海星招手 | 12 | 24 | 单次 | 6.0s（展示 12s） | interaction:starfish-wave | 0.3s |
+| notify | 提醒 | 12 | 12 | 循环 | 3.0s | reminder:due | 0.8s |
+| peek | 贴边窥视 | 12 | 12 | 单次 | 3.0s | window:edge-snap（吸附） | 1.8s |
+| pet-head | 摸头 | 12 | 24 | 单次 | 6.0s | interaction:pet-head | 0.25s |
+| pumpkin-bag | 掏南瓜包 | 12 | 24 | 单次 | 6.0s | interaction:pumpkin-bag | 0.3s |
+| petal-spin | 花瓣转圈 | 12 | 24 | 单次 | 6.0s | interaction:petal-spin | 0.3s |
+| starfish-wave | 海星招手 | 12 | 24 | 单次 | 6.0s | interaction:starfish-wave | 0.3s |
 | walk | 走路 | 12 | 12 | 循环 | 3.0s | state:walk | 0.5s |
-| sleep | 睡觉 | 10 | 10 | 循环 | 2.5s | state:sleep | 1.0s |
+| sleep | 睡觉 | 10 | 10 | 循环 | 2.5s | state:sleep（3 分钟无互动） | 1.0s |
 | sad | 沮丧 | 12 | 12 | 循环 | 3.0s | state:sad（心情↓25） | 1.0s |
 
 > 每个状态还带 `anchor`（锚点）、`mirrorSafe`、`interrupt`（resume/restart）等配置，全部收敛在 `pet-spec.json`。周期 = 播放帧数 × 250ms。
@@ -141,13 +143,13 @@ QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）�
 | 层级 | 状态 | 可打断（canInterrupt） | 会被谁打断 |
 |---|---|---|---|
 | **1（最高）** | 摸头 / 掏南瓜包 / 转圈 / 海星招手 | `['*']` 可打断一切 | 任何状态下都**不被打断**，彼此互不打断 |
-| 2 | happy 开心 | idle、blink、walk、sleep、notify、peek | sad、notify、4 个互动 |
+| 2 | happy 开心 | blink、walk、sleep、notify、peek | sad、notify、4 个互动 |
 | 3 | notify 提醒 | `['*']`（循环） | happy、4 个互动 |
-| 4 | peek 贴边窥视 | idle、blink、walk | happy、sleep、sad、notify、4 个互动 |
-| 5 | sleep 睡觉 | idle、blink、walk、peek、sad | happy、notify、4 个互动 |
-| 6 | sad 沮丧 | idle、blink、walk、peek、happy | sleep、notify、4 个互动 |
-| 7 | walk 走路 | idle、blink | happy、peek、sleep、sad、notify、4 个互动 |
-| 8 | blink 眨眼 | idle | happy、peek、walk、sleep、sad、notify、4 个互动 |
+| 4 | peek 贴边窥视 | blink、walk | happy、sleep、sad、notify、4 个互动 |
+| 5 | sleep 睡觉 | blink、walk、peek、sad | happy、notify、4 个互动 |
+| 6 | sad 沮丧 | blink、walk、peek、happy | sleep、notify、4 个互动 |
+| 7 | walk 走路 | blink | happy、peek、sleep、sad、notify、4 个互动 |
+| 8 | blink 眨眼 | 无 | happy、peek、walk、sleep、sad、notify、4 个互动 |
 | **9（最低）** | idle 待机 | 无（待机被任意状态接管） | 一切 |
 
 > 经验：`canInterrupt` 含自身 id 属冗余；`notify` 为 loop 且名单含 `*` 时存在"进入后无法回 idle"的 live-lock 隐患，QA 以 warning 提示。
@@ -162,33 +164,74 @@ QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）�
 | 陪伴时长 companionMinutes | ≥0 | 0 | 按实际运行毫秒实时折算为分钟累计 |
 | 提醒 reminders | — | 空 | 到点进入 notify 并气泡播报该条文本；**用户触发任意互动即视为完成**（消费当前待处理提醒），每条只提醒一次后自动移除 |
 
-> 数据以 JSON 原子写入 `userData`，损坏自动回退默认值；4 个互动动作 `durationMs=12000ms`，触发互动会顺带消费挂起的提醒。
+> 数据以 JSON 原子写入 `userData`，损坏自动回退默认值；4 个互动动作 `durationMs=6000ms`（动画播完即回待机，不留静止展示期），触发互动会顺带消费挂起的提醒。
 
 ## 随机行走（walk 移动规则）
 
-开启「随机行走」后，桌宠会在**以拖动中心为圆心**的范围内随机小幅游走，播放 `walk` 走路动画并匀速移动：
+随机行走有 **5 个挡位**（小屋面板「随机行走」下拉）：**木头人**（彻底不走）→ **散步** → **正常**（默认）→ **活泼** → **多动症**。挡位越高，走得越勤、越远。开启后桌宠在**以拖动中心为圆心**的范围内随机游走，播放 `walk` 动画并匀速移动：
 
-| 参数 | 值 | 说明 |
-|---|---|---|
-| 移动范围 RANGE | 120 px | 以每次拖动的中心点为圆心 |
-| 移动间隔 INTERVAL | 8–25 s | 每次游走间随机等待 |
-| 单次距离 DISTANCE | 30–100 px | 每次水平/垂直随机位移 |
-| 移动速度 SPEED | 2 px/帧 | 约 60fps（16ms/帧）匀速移动 |
-| 方向 | 上/下/左/右 | 四向等概率随机 |
+| 挡位 | 移动范围 | 游走间隔 | 单次位移 | 说明 |
+|---|---|---|---|---|
+| 0 木头人 | — | — | — | 完全不移动（等于关闭） |
+| 1 散步 | 220px | 14–30s | 60–140px | 慵懒，偶尔挪两步 |
+| 2 正常（默认） | 320px | 8–25s | 120–260px | 适中 |
+| 3 活泼 | 420px | 4.5–14s | 200–340px | 走得勤、迈得远 |
+| 4 多动症 | 520px | 2.5–7.5s | 300–440px | 高频大步快走 |
 
+- 移动速度固定 **2 px/帧**（约 60fps 匀速）。
 - 移动目标同时受**屏幕工作区**约束，不会超出屏幕。
 - **镜像**：向右或向下移动时播放左右镜像的 `walk` 动画。
-- **拖动打断**：用户拖动桌宠期间暂停游走，移动结束回到 `idle`。
-- 仅当 `settings.randomWalk` 开启时生效（小屋面板「随机行走」开关）。
+- **拖动打断**：用户拖动桌宠期间暂停游走，位移结束回到 `idle`。
+
+## 各动作的气泡机制
+
+气泡显示逻辑统一在桌宠渲染层：**带反馈文本的活动**直接显示；**无文本的普通状态**自动从对应语录组随机取一句；`notify` 为**常驻**气泡。普通气泡 **5 秒后自动消失**，同时最多一个（新气泡顶掉旧的）。
+
+| 动作 | 自动触发间隔 | 气泡内容 | 气泡方式 |
+|---|---|---|---|
+| 待机 idle | — | 无气泡 | — |
+| 眨眼 blink | 待机时随机 5–15s | 「眨眼」语录 | 普通 5s |
+| 开心 happy | 用户单击 | 「点击」语录（`__click__` 组） | 普通 5s |
+| 提醒 notify | 定时提醒到点 | **该条提醒文本** | **常驻**，直到单击/任一互动才消失 |
+| 贴边窥视 peek | 吸附到屏幕边缘 | 「贴边窥视」语录 | 普通 5s |
+| 摸头 pet-head | 右键 → 摸摸头 | 「摸头」互动语录 | 普通 5s |
+| 掏南瓜包 pumpkin-bag | 右键 → 掏南瓜包 | 「掏南瓜包」互动语录 | 普通 5s |
+| 花瓣转圈 petal-spin | 右键 → 花瓣转圈 | 「花瓣转圈」互动语录 | 普通 5s |
+| 海星招手 starfish-wave | 右键 → 海星招手 | 「海星招手」互动语录 | 普通 5s |
+| 走路 walk | 按随机行走挡位的游走间隔 | 「走路」语录 | 普通 5s |
+| 睡觉 sleep | 连续 3 分钟无互动，进入时播 | 「睡觉」语录 | 普通 5s |
+| 沮丧 sad | 心情 < 25 进入时播 | 「沮丧」语录 | 普通 5s |
+
+> 语录一律来自 `experience.quotes`（运行时在 `userData/quotes.json`，可编辑）。互动反馈在 `interactions[].feedback`。
+
+## 重置后的默认设置
+
+单击小屋「状态」页底部 **一键重置** 后，各数据恢复为以下默认值：
+
+| 项 | 默认值 |
+|---|---|
+| 桌宠大小 | 0.8（80%，可 0.5–1.5 自由调） |
+| 随机行走 | 2（正常） |
+| 贴边吸附 edgeSnap | 开 |
+| 置顶显示 alwaysOnTop | 开 |
+| 打字反应 typingReaction | 关 |
+| 鼠标穿透 clickThrough | 关 |
+| 开机自启 autoStart / autoStartInit | 开 |
+| 好感度 affection | 0 |
+| 心情 mood | 20 |
+| 今日互动 todayInteractions | 0 |
+| 陪伴时长 companionMinutes | 0 |
+| 语录 quotes | 恢复 `pet-spec.json` 默认文本 |
+| 提醒 reminders | 清空 |
 
 ## 使用说明
 
-- **拖动**：按住桌宠任意拖动，松手自动吸附屏幕边缘（可到面板关闭"随机行走/贴边吸附"）。
+- **拖动**：按住桌宠任意拖动，松手自动吸附屏幕边缘（可在面板调整贴边吸附/随机行走挡位）。
 - **单击**：桌宠播放「开心」并随机讲一句点击语录。
 - **右键桌宠**：弹出菜单——4 个互动动作（💗 摸头 / 🎃 掏南瓜包 / 🌸 花瓣转圈 / 👋 海星招手）、打开状态 / 语录 / 提醒面板、开关鼠标穿透、隐藏桌宠。
 - **托盘图标**：显示桌宠、打开状态 / 语录 / 提醒、鼠标穿透开关、设置 / 退出。
 - **小屋面板**：
-  - **状态页**：查看好感度 / 心情 / 今日互动 / 陪伴时长；开关置顶显示、鼠标穿透、开机自启、随机行走；**滑块自由调整桌宠大小（50%–150%）**；底部**一键重置**（语录 / 状态 / 提醒 / 设置恢复默认）。
+  - **状态页**：查看好感度 / 心情 / 今日互动 / 陪伴时长；开关置顶显示、鼠标穿透、开机自启；**随机行走 5 挡**（木头人/散步/正常/活泼/多动症）；**滑块自由调整桌宠大小（50%–150%）**；底部**一键重置**（语录 / 状态 / 提醒 / 设置恢复默认）。
   - **语录页**：状态语录与互动语录均可在线编辑，编辑即生效、重启保留（唯一数据源 `userData/quotes.json`）。
   - **提醒页**：新增 / 删除定时提醒，到点由桌宠气泡提醒。
 - **数据位置**：运行时数据在 Electron `userData`（`quotes.json` / `settings.json` / `pet-stats.json` / `reminders.json` / `logs/app.jsonl`）。

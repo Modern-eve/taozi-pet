@@ -129,6 +129,33 @@ async function log(chunk) {
   await appendFile(logFile, value);
 }
 
+// 打包体积瘦身：Electron 自带运行时存在大量本应用用不到的冗余文件，
+// 在 make(打 zip/setup) 之前从解压产物里清掉，zip/绿色版体积显著下降。
+async function slimPackagedApp(directory) {
+  const removed = [];
+  // 1) 只保留默认 en-US 语言包，其余 .pak/.json locale 全部去掉
+  const locales = path.join(directory, 'locales');
+  try {
+    for (const entry of await readdir(locales)) {
+      if (entry === 'en-US.pak') continue;
+      if (/\.(pak|json)$/.test(entry)) {
+        await rm(path.join(locales, entry), { force: true });
+        removed.push(`locales/${entry}`);
+      }
+    }
+  } catch { /* 无 locales 目录则跳过 */ }
+  // 2) 移除软件 Vulkan 兜底与 Chromium LICENSE（桌面宠物用不上软件渲染）
+  for (const name of ['vk_swiftshader.dll', 'vk_swiftshader_icd.json', 'LICENSES.chromium.html']) {
+    const target = path.join(directory, name);
+    try {
+      await access(target);
+      await rm(target, { force: true });
+      removed.push(name);
+    } catch { /* 文件不存在则跳过 */ }
+  }
+  if (removed.length) await log(`Slim: removed ${removed.length} unused Electron runtime files (${removed.join(', ')})\n`);
+}
+
 async function run(command, args, stage, environment = {}) {
   await status(stage);
   await log(`\n[${new Date().toISOString()}] ${command} ${args.join(' ')}\n`);
@@ -185,6 +212,8 @@ try {
     } : {}),
   };
   await run(forgeNode, [forgeCli, 'package', `--platform=${selected.platform}`, `--arch=${selected.arch}`], 'package', environment);
+  // 瘦身：在打 zip/setup 前清理解压产物中的 Electron 冗余运行时文件
+  await slimPackagedApp(path.join(outDir, `${spec.app.name}-${selected.platform}-${selected.arch}`));
   if (selected.make) {
     await run(forgeNode, [forgeCli, 'make', '--skip-package', `--platform=${selected.platform}`, `--arch=${selected.arch}`], 'make', environment);
   }
