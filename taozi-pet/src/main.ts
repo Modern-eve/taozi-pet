@@ -46,13 +46,17 @@ let moodDecayTimer: ReturnType<typeof setInterval> | undefined;
 let randomWalkTimer: ReturnType<typeof setTimeout> | undefined;
 let randomWalkAnimTimer: ReturnType<typeof setInterval> | undefined;
 let randomWalkCenter: { x: number; y: number } | undefined;
-const RANDOM_WALK_RANGE = 120; // 以拖动中心为圆心的半径范围
-const RANDOM_WALK_INTERVAL_MIN = 8000; // 最小间隔8秒
-const RANDOM_WALK_INTERVAL_MAX = 25000; // 最大间隔25秒
-const RANDOM_WALK_DISTANCE_MIN = 30; // 最小移动距离
-const RANDOM_WALK_DISTANCE_MAX = 100; // 最大移动距离
 const RANDOM_WALK_SPEED = 2; // 每帧移动像素（匀速）
 const RANDOM_WALK_FRAME_MS = 16; // 约60fps
+// 随机行走挡位配置（索引=挡位）：0 木头人(关闭) / 1 散步 / 2 正常 / 3 活泼 / 4 多动症
+// range=移动范围，interval=两次游走间隔，distance=单次位移；挡位越高走得越频、越远
+const RANDOM_WALK_LEVELS: Array<{ range: number; intervalMin: number; intervalMax: number; distMin: number; distMax: number } | null> = [
+  null,
+  { range: 220, intervalMin: 14000, intervalMax: 30000, distMin: 60, distMax: 140 }, // 1 散步
+  { range: 320, intervalMin: 8000, intervalMax: 25000, distMin: 120, distMax: 260 }, // 2 正常
+  { range: 420, intervalMin: 4500, intervalMax: 14000, distMin: 200, distMax: 340 }, // 3 活泼
+  { range: 520, intervalMin: 2500, intervalMax: 7500, distMin: 300, distMax: 440 },  // 4 多动症
+];
 const SLEEP_TRIGGER_MS = 3 * 60 * 1000; // 3分钟无互动触发睡觉
 const MOOD_SAD_THRESHOLD = 25; // 心情低于25触发sad
 const PET_BUBBLE_ZONE = 110; // 顶部气泡区高度（px）：气泡固定在此区内，换行也不会遮住精灵动画
@@ -77,8 +81,12 @@ let fatalExitStarted = false;
 let quitPersisting = false;
 const roles = new Map<number, Role>();
 const reminderTimers = new Map<string, ReturnType<typeof setTimeout>>();
-// 已到点但尚未被用户点击消费的提醒 id（桌宠一直 notify 循环，直到用户点击其他动作）
-const pendingReminderIds = new Set<string>();
+// 已到点、等待用户逐个消费的提醒队列（按到点先后排队：旧→新）。
+// 队首正在播报（notify 持续循环+气泡）；用户点击消费队首后，等打断动画播完再播报下一条。
+// 不做一次性清空，保证多条提醒按先后顺序逐个展示。
+let pendingReminderQueue: Reminder[] = [];
+// 消费队首后延时播报下一条的定时器（连续消费时需取消旧的，防止残留定时器重复播报）
+let nextAnnounceReminderTimer: ReturnType<typeof setTimeout> | null = null;
 const typingListener = new TypingListener();
 const expectedRuntimeAssets = new Set([spec.character.coreAsset, ...spec.states.flatMap((state) => state.frames)]);
 const runtimeReadyFile = path.join(process.cwd(), '.build', 'runtime-ready.json');
@@ -97,7 +105,7 @@ const defaultSettings: Settings = {
   autoStart: true,
   // 默认已初始化：新用户默认开机自启（首次启动即写入系统自启动项）
   autoStartInit: true,
-  randomWalk: false,
+  randomWalk: 2,
 };
 
 const defaultStats: PersistedStats = {
@@ -264,13 +272,16 @@ function decayMood(): void {
   const now = Date.now();
   const elapsed = now - stats.lastMoodDecayMs;
   // 每2分钟衰减1点心情
-  const decayPoints = Math.floor(elapsed / 120_000);
+  const accrued = Math.floor(elapsed / 120_000);
+  // 封顶单次结算点数，避免长期静置/休眠唤醒后一次性暴跌（心情"突然跃变"）
+  const decayPoints = Math.min(6, accrued);
   if (decayPoints > 0 && stats.mood > 0) {
     stats.mood = Math.max(0, stats.mood - decayPoints);
     stats.lastMoodDecayMs = now;
     broadcastStats();
     checkMoodState();
   } else if (decayPoints === 0) {
+    // 静置不足一个结算周期：时间前进，纯粹提前刷新参考点，防止累积瞬间扣分
     stats.lastMoodDecayMs = now;
   }
 }
@@ -299,9 +310,11 @@ function stopMoodDecay(): void {
 }
 
 function randomWalkStep(): void {
-  if (!petWindow || petWindow.isDestroyed() || !settings.randomWalk) return;
+  if (!petWindow || petWindow.isDestroyed()) return;
   if (isDraggingActive()) return;
   if (randomWalkAnimTimer) return; // 正在移动中，不触发新的移动
+  const cfg = RANDOM_WALK_LEVELS[settings.randomWalk];
+  if (!cfg) return; // 0 木头人（关闭）
   if (!randomWalkCenter) {
     const b = petWindow.getBounds();
     randomWalkCenter = { x: b.x, y: b.y };
@@ -312,7 +325,7 @@ function randomWalkStep(): void {
 
   // 随机选择方向：0=上, 1=下, 2=左, 3=右
   const direction = Math.floor(Math.random() * 4);
-  const distance = RANDOM_WALK_DISTANCE_MIN + Math.random() * (RANDOM_WALK_DISTANCE_MAX - RANDOM_WALK_DISTANCE_MIN);
+  const distance = cfg.distMin + Math.random() * (cfg.distMax - cfg.distMin);
 
   let targetX = bounds.x;
   let targetY = bounds.y;
@@ -327,8 +340,8 @@ function randomWalkStep(): void {
   const dx = targetX - randomWalkCenter.x;
   const dy = targetY - randomWalkCenter.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
-  if (dist > RANDOM_WALK_RANGE) {
-    const scale = RANDOM_WALK_RANGE / dist;
+  if (dist > cfg.range) {
+    const scale = cfg.range / dist;
     targetX = randomWalkCenter.x + Math.round(dx * scale);
     targetY = randomWalkCenter.y + Math.round(dy * scale);
   }
@@ -376,8 +389,9 @@ function isDraggingActive(): boolean {
 
 function scheduleNextRandomWalk(): void {
   if (randomWalkTimer) clearTimeout(randomWalkTimer);
-  if (!settings.randomWalk) return;
-  const delay = RANDOM_WALK_INTERVAL_MIN + Math.random() * (RANDOM_WALK_INTERVAL_MAX - RANDOM_WALK_INTERVAL_MIN);
+  const cfg = RANDOM_WALK_LEVELS[settings.randomWalk];
+  if (!cfg) return; // 0 木头人（关闭）
+  const delay = cfg.intervalMin + Math.random() * (cfg.intervalMax - cfg.intervalMin);
   randomWalkTimer = setTimeout(() => {
     randomWalkStep();
     scheduleNextRandomWalk();
@@ -390,7 +404,7 @@ function startRandomWalk(): void {
     clearInterval(randomWalkAnimTimer);
     randomWalkAnimTimer = undefined;
   }
-  if (!settings.randomWalk) return;
+  if (!RANDOM_WALK_LEVELS[settings.randomWalk]) return;
   scheduleNextRandomWalk();
 }
 
@@ -537,8 +551,8 @@ async function triggerInteraction(id: string): Promise<InteractionResult> {
   const feedback = list[Math.floor(Math.random() * list.length)] ?? interaction.label;
   await persistStats();
   const result: InteractionResult = { interaction, feedback, stats: publicStats() };
-  // 用户触发互动（“点击其他动作”）即视为消费掉当前待处理的提醒
-  ackPendingReminder();
+  // 用户触发互动即消费当前待处理的队首提醒；等本互动播完再播放下一条
+  ackPendingReminder(interaction.durationMs);
   sendActivity({ kind: 'interaction', stateId: interaction.stateId, durationMs: interaction.durationMs, feedback });
   broadcastStats();
   // 互动结束后检查心情，若仍低于阈值则回到sad
@@ -650,19 +664,37 @@ function scheduleReminder(reminder: Reminder): void {
       scheduleReminder(reminder);
       return;
     }
-    // 到点触发：notify 动作 + 气泡持续循环，直到用户点击桌宠（ack）或触发其他动作后才删除
-    pendingReminderIds.add(reminder.id);
-    const state = stateForTrigger('reminder:due');
-    sendActivity({ kind: 'notify', stateId: state?.id, durationMs: 0, feedback: reminder.text });
+    // 到点入队：队首正在播报时，后续到点的仅排队等待，不打断当前播报（保证旧→新顺序）
+    const wasIdle = pendingReminderQueue.length === 0;
+    pendingReminderQueue.push(reminder);
+    if (wasIdle) announceReminder(reminder);
   }, delay));
 }
 
-// 用户点击桌宠或其他动作时消费掉所有待处理提醒
-function ackPendingReminder(): boolean {
-  if (pendingReminderIds.size === 0) return false;
-  reminders = reminders.filter((item) => !pendingReminderIds.has(item.id));
-  for (const id of pendingReminderIds) clearReminderTimer(id);
-  pendingReminderIds.clear();
+// 播放一条提醒：notify 动作 + 气泡持续循环显示
+function announceReminder(reminder: Reminder): void {
+  const state = stateForTrigger('reminder:due');
+  sendActivity({ kind: 'notify', stateId: state?.id, durationMs: 0, feedback: reminder.text });
+}
+
+// 用户点击桌宠或触发其他动作时，消费旧→新队列里的队首一条；
+// 若仍待消费，则等打断动画播完（afterMs）再播放下一条，避免一次性全部清空。
+function ackPendingReminder(afterMs = 0): boolean {
+  const consumed = pendingReminderQueue.shift();
+  if (!consumed) return false;
+  reminders = reminders.filter((item) => item.id !== consumed.id);
+  clearReminderTimer(consumed.id);
+  if (nextAnnounceReminderTimer !== null) {
+    clearTimeout(nextAnnounceReminderTimer);
+    nextAnnounceReminderTimer = null;
+  }
+  if (pendingReminderQueue.length > 0) {
+    const next = pendingReminderQueue[0]!;
+    nextAnnounceReminderTimer = setTimeout(() => {
+      nextAnnounceReminderTimer = null;
+      announceReminder(next);
+    }, Math.max(0, afterMs));
+  }
   void persistReminders();
   broadcastRemindersUpdated();
   return true;
@@ -755,7 +787,10 @@ function registerIpc(): void {
   });
   ipcMain.handle('reminders:ack', (event) => {
     assertSender(event, ['pet']);
-    return ackPendingReminder();
+    // 点击桌宠会打断到 happy，需等它（frames × 帧长）播完再播放下一条提醒
+    const interrupt = spec.states.find((s) => s.id === 'happy');
+    const afterMs = interrupt ? interrupt.frames.length * interrupt.frameDurationMs : 0;
+    return ackPendingReminder(afterMs);
   });
   ipcMain.handle('reminders:remove', async (event, id: unknown) => {
     assertSender(event, ['dashboard']);
@@ -763,7 +798,7 @@ function registerIpc(): void {
     const oldLength = reminders.length;
     reminders = reminders.filter((item) => item.id !== id);
     clearReminderTimer(id);
-    pendingReminderIds.delete(id);
+    pendingReminderQueue = pendingReminderQueue.filter((item) => item.id !== id);
     await persistReminders();
     broadcastRemindersUpdated();
     return oldLength !== reminders.length;
@@ -792,7 +827,11 @@ function registerIpc(): void {
     // 提醒 → 清空并清理所有定时器与待处理项
     for (const r of reminders) clearReminderTimer(r.id);
     reminders = [];
-    pendingReminderIds.clear();
+    pendingReminderQueue.length = 0;
+    if (nextAnnounceReminderTimer !== null) {
+      clearTimeout(nextAnnounceReminderTimer);
+      nextAnnounceReminderTimer = null;
+    }
     await persistReminders();
     broadcastRemindersUpdated();
     // 设置 → 默认值

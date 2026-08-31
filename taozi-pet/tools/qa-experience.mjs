@@ -32,12 +32,23 @@ checks.push(makeCheck({
   id: 'caninterrupt-live-lock',
   gate: 'interrupt-matrix',
   severity: 'warning',
-  describe: 'no 无限循环（loop）+ 全通配（*）的永久卡死态',
+  describe: 'loop 状态无「逃生门」（不被任何其它状态能打断）才判定卡死',
   run: () => {
-    const stuck = spec.states.filter((state) => state.loop && (state.canInterrupt ?? []).includes('*')).map((state) => state.id);
+    // 判定：一个有限/无限循环状态要能自拔回 idle，必须有另一个状态（含 * 通配）能打断它。
+    // 只凭自身 loop+'*' 并不构成死锁——能被 happy/互动等打断即可安全退出，需反向推演。
+    const stuck = [];
+    for (const state of spec.states) {
+      if (state.id === 'idle' || !state.loop) continue;
+      const escapedBy = spec.states.find((other) =>
+        other.id !== state.id && ((other.canInterrupt ?? []).includes('*') || (other.canInterrupt ?? []).includes(state.id))
+      );
+      if (!escapedBy) stuck.push(`${state.id}`);
+    }
     return {
       passed: stuck.length === 0,
-      detail: stuck.length ? `${stuck.join(', ')} 为 loop 且名单含 '*'：进入后无法被打断回 idle，建议有限时长或让出打断权` : '无卡死态',
+      detail: stuck.length
+        ? `${stuck.join(', ')} 为 loop 且无任何状态能打断它：一旦进入将无法回 idle，请补充一个可打断它的状态，或改为有限时长`
+        : '所有 loop 状态都有逃生门（可被其它状态打断回 idle）',
     };
   },
 }));

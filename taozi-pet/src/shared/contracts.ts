@@ -124,7 +124,8 @@ export interface Settings {
   autoStart: boolean;
   /** 是否用户已显式设置过开机自启；false 表示从未配置（首次/损坏回退），此时不写入系统自启动项 */
   autoStartInit: boolean;
-  randomWalk: boolean;
+  /** 随机行走挡位 0–4：0 木头人(关闭) / 1 散步 / 2 正常 / 3 活泼 / 4 多动症 */
+  randomWalk: number;
 }
 
 export interface Reminder {
@@ -259,13 +260,16 @@ export function assertSettingsPatch(value: unknown): asserts value is Partial<Se
     throw new TypeError('Invalid settings patch');
   }
   const obj = value as Record<string, unknown>;
-  const booleanKeys = new Set(['edgeSnap', 'alwaysOnTop', 'typingReaction', 'clickThrough', 'autoStart', 'randomWalk']);
-  const allowedKeys = new Set([...booleanKeys, 'petScale']);
+  const booleanKeys = new Set(['edgeSnap', 'alwaysOnTop', 'typingReaction', 'clickThrough', 'autoStart']);
+  const allowedKeys = new Set([...booleanKeys, 'petScale', 'randomWalk']);
   for (const [key, item] of Object.entries(obj)) {
     if (!allowedKeys.has(key)) throw new TypeError(`Unknown settings field: ${key}`);
     if (booleanKeys.has(key) && typeof item !== 'boolean') throw new TypeError(`Invalid settings field: ${key}`);
     if (key === 'petScale' && (typeof item !== 'number' || !Number.isFinite(item) || item < 0.5 || item > 1.5)) {
       throw new TypeError('Invalid settings field: petScale');
+    }
+    if (key === 'randomWalk' && (!Number.isInteger(item) || (item as number) < 0 || (item as number) > 4)) {
+      throw new TypeError('Invalid settings field: randomWalk');
     }
   }
 }

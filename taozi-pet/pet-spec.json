@@ -138,7 +138,7 @@
         "emoji": "💗",
         "label": "摸摸头",
         "stateId": "pet-head",
-        "durationMs": 12000,
+        "durationMs": 6000,
         "affectionGain": 2,
         "feedback": [
           "嘿嘿，别乱摸啦~",
@@ -153,7 +153,7 @@
         "emoji": "🎃",
         "label": "掏南瓜包",
         "stateId": "pumpkin-bag",
-        "durationMs": 12000,
+        "durationMs": 6000,
         "affectionGain": 3,
         "feedback": [
           "猜猜我包里藏了什么？",
@@ -168,7 +168,7 @@
         "emoji": "🌸",
         "label": "花瓣转圈",
         "stateId": "petal-spin",
-        "durationMs": 12000,
+        "durationMs": 6000,
         "affectionGain": 2,
         "feedback": [
           "好看吧？",
@@ -183,7 +183,7 @@
         "emoji": "👋",
         "label": "海星招手",
         "stateId": "starfish-wave",
-        "durationMs": 12000,
+        "durationMs": 6000,
         "affectionGain": 1,
         "feedback": [
           "嗨！",
@@ -291,9 +291,7 @@
       ],
       "frameDurationMs": 250,
       "loop": false,
-      "canInterrupt": [
-        "idle"
-      ],
+      "canInterrupt": [],
       "interrupt": "restart",
       "cooldownMs": 2500,
       "direction": "neutral",
@@ -337,7 +335,6 @@
       "frameDurationMs": 250,
       "loop": false,
       "canInterrupt": [
-        "idle",
         "blink",
         "walk",
         "sleep",
@@ -359,18 +356,6 @@
         "reminder:due"
       ],
       "frames": [
-        "notify-01.png",
-        "notify-02.png",
-        "notify-03.png",
-        "notify-04.png",
-        "notify-05.png",
-        "notify-06.png",
-        "notify-07.png",
-        "notify-08.png",
-        "notify-09.png",
-        "notify-10.png",
-        "notify-11.png",
-        "notify-12.png",
         "notify-01.png",
         "notify-02.png",
         "notify-03.png",
@@ -415,24 +400,11 @@
         "peek-09.png",
         "peek-10.png",
         "peek-11.png",
-        "peek-12.png",
-        "peek-01.png",
-        "peek-02.png",
-        "peek-03.png",
-        "peek-04.png",
-        "peek-05.png",
-        "peek-06.png",
-        "peek-07.png",
-        "peek-08.png",
-        "peek-09.png",
-        "peek-10.png",
-        "peek-11.png",
         "peek-12.png"
       ],
       "frameDurationMs": 250,
       "loop": false,
       "canInterrupt": [
-        "idle",
         "blink",
         "walk"
       ],
@@ -647,7 +619,6 @@
       "frameDurationMs": 250,
       "loop": true,
       "canInterrupt": [
-        "idle",
         "blink"
       ],
       "interrupt": "resume",
@@ -679,7 +650,6 @@
       "frameDurationMs": 250,
       "loop": true,
       "canInterrupt": [
-        "idle",
         "blink",
         "walk",
         "peek",
@@ -716,7 +686,6 @@
       "frameDurationMs": 250,
       "loop": true,
       "canInterrupt": [
-        "idle",
         "blink",
         "walk",
         "peek",

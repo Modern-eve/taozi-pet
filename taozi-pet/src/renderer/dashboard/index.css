@@ -191,6 +191,39 @@ html, body {
   transform: translateX(20px);
 }
 
+.walk-level {
+  display: flex;
+  gap: 4px;
+  background: #fff3e2;
+  border-radius: 11px;
+  padding: 3px;
+}
+
+.walk-level button {
+  border: none;
+  background: transparent;
+  color: #a87850;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  -webkit-app-region: no-drag;
+  white-space: nowrap;
+}
+
+.walk-level button:hover {
+  background: rgba(255, 255, 255, 0.7);
+  color: #6b4a30;
+}
+
+.walk-level button.active {
+  background: linear-gradient(135deg, #ffb26b, #ff8a24);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(255, 138, 36, 0.3);
+}
+
 .reset-btn {
   padding: 6px 16px;
   font-size: 13px;
@@ -479,7 +512,7 @@ html, body {
 }
 
 .reminder-time {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted, #9a7b6a);
   margin-top: 2px;
 }
@@ -513,7 +546,7 @@ html, body {
 }
 
 .section-hint {
-  font-size: 11px;
+  font-size: 12px;
   color: #b08657;
   margin-bottom: 8px;
 }
