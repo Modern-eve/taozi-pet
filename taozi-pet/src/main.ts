@@ -106,6 +106,7 @@ const defaultSettings: Settings = {
   // 默认已初始化：新用户默认开机自启（首次启动即写入系统自启动项）
   autoStartInit: true,
   randomWalk: 2,
+  devMode: false,
 };
 
 const defaultStats: PersistedStats = {
@@ -839,6 +840,25 @@ function registerIpc(): void {
     // 重置为未配置状态后 applyAutoStart 不再管注册表，这里显式清除系统自启动项，避免残留仍自启
     app.setLoginItemSettings({ openAtLogin: false, openAsHidden: true });
     return undefined;
+  });
+  // 开发者模式：喂安眠药 —— 立即进入睡觉，但遵守打断逻辑（由 pet 端 start() 判定能否压过当前状态）
+  ipcMain.handle('dev:trigger-sleep', (event) => {
+    assertSender(event, ['dashboard']);
+    resetActivityTimer();
+    sendActivity({ kind: 'ambient', stateId: 'sleep' });
+    return undefined;
+  });
+  // 开发者模式：直接设置心情值（0/100），会随之触发 sad / 回 idle 的状态切换
+  ipcMain.handle('dev:set-mood', async (event, value: unknown) => {
+    assertSender(event, ['dashboard']);
+    const mood = value as number;
+    if (!Number.isInteger(mood) || mood < 0 || mood > 100) throw new TypeError('Invalid mood value');
+    stats.mood = mood;
+    stats.lastMoodDecayMs = Date.now();
+    await persistStats();
+    broadcastStats();
+    checkMoodState();
+    return publicStats();
   });
   ipcMain.handle('interactions:list', (event) => { assertSender(event, ['pet', 'dashboard']); return spec.experience.interactions; });
   ipcMain.handle('interactions:stats', (event) => { assertSender(event, ['pet', 'dashboard']); normalizeStatsDay(); return publicStats(); });

@@ -3,7 +3,7 @@
   "app": {
     "name": "套子桌宠",
     "appId": "com.taozi.pet",
-    "version": "4.0.0",
+    "version": "4.1.2",
     "language": "zh-CN"
   },
   "targets": {
@@ -222,8 +222,7 @@
     "relationship": true,
     "filePocket": false,
     "dashboard": true,
-    "typingReaction": false,
-    "autonomousMovement": false
+    "typingReaction": false
   },
   "states": [
     {

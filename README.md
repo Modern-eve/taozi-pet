@@ -140,19 +140,19 @@ QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）�
 
 优先级通过 `canInterrupt`（"可打断名单"）实现：状态机 `start()` 时，只要**当前状态是 idle**，或**新状态可打断名单包含当前状态 id** 就允许切换。名单越宽越"霸道"，层次从高到低：
 
-| 层级 | 状态 | 可打断（canInterrupt） | 会被谁打断 |
+| 层级 | 状态 | 能打断（压过） | 会被谁打断 |
 |---|---|---|---|
-| **1（最高）** | 摸头 / 掏南瓜包 / 转圈 / 海星招手 | `['*']` 可打断一切 | 任何状态下都**不被打断**，彼此互不打断 |
-| 2 | happy 开心 | blink、walk、sleep、notify、peek | sad、notify、4 个互动 |
-| 3 | notify 提醒 | `['*']`（循环） | happy、4 个互动 |
-| 4 | peek 贴边窥视 | blink、walk | happy、sleep、sad、notify、4 个互动 |
-| 5 | sleep 睡觉 | blink、walk、peek、sad | happy、notify、4 个互动 |
-| 6 | sad 沮丧 | blink、walk、peek、happy | sleep、notify、4 个互动 |
-| 7 | walk 走路 | blink | happy、peek、sleep、sad、notify、4 个互动 |
-| 8 | blink 眨眼 | 无 | happy、peek、walk、sleep、sad、notify、4 个互动 |
-| **9（最低）** | idle 待机 | 无（待机被任意状态接管） | 一切 |
+| **1（最高）** | 摸头 / 掏南瓜包 / 花瓣转圈 / 海星招手 | 一切（**含彼此**，可打断名单 `['*']`） | 通知、其它 3 个互动 |
+| 2 | happy 开心 | 待机、眨眼、走路、睡觉、通知、偷看 | 伤心、通知、4 个互动 |
+| 3 | notify 提醒 | 一切（可打断名单 `['*']`，循环） | 开心、4 个互动 |
+| 4 | peek 贴边窥视 | 待机、眨眼、走路 | 睡觉、伤心、开心、4 个互动、通知 |
+| 5 | sleep 睡觉 | 待机、眨眼、走路、偷看、伤心 | 开心、4 个互动、通知 |
+| 6 | sad 沮丧 | 待机、眨眼、走路、偷看、开心 | 睡觉、4 个互动、通知 |
+| 7 | walk 走路 | 待机、眨眼 | 偷看、睡觉、伤心、开心、4 个互动、通知 |
+| 8 | blink 眨眼 | 待机 | 偷看、走路、睡觉、伤心、开心、4 个互动、通知 |
+| **9（最低）** | idle 待机 | 无 | 一切 |
 
-> 经验：`canInterrupt` 含自身 id 属冗余；`notify` 为 loop 且名单含 `*` 时存在"进入后无法回 idle"的 live-lock 隐患，QA 以 warning 提示。
+> ① "能打断"里的**待机**由状态机特判：当前为 `idle` 时任意新状态直接接管，因此 `pet-spec.json` 各状态的可打断名单里**无需也不能**显式写出 idle。② `canInterrupt` 含自身 id 属冗余；③ `notify` 为循环且名单含 `*`，意味着它只能被 happy/互动打断（其余状态压不过它），QA 以 warning 提示该 live-lock 风险。
 
 ## 数值规则
 

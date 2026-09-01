@@ -46,7 +46,7 @@ for (const section of document.querySelectorAll<HTMLElement>('.view')) {
   viewSections.set(section.id.replace('view-', ''), section);
 }
 
-function switchView(view: 'status' | 'quotes' | 'reminders'): void {
+function switchView(view: 'status' | 'quotes' | 'reminders' | 'dev'): void {
   viewTabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.view === view));
   viewSections.forEach((section, key) => section.classList.toggle('active', key === view));
 }
@@ -459,6 +459,103 @@ async function init(): Promise<void> {
   await loadQuotes();
   renderQuotes();
   await loadReminders();
+  initDevMode();
+}
+
+// === 开发者模式：版本号连击检测 + 开发者选项逻辑 ===
+const DEV_TAP_WINDOW_MS = 2000; // 2 秒内连续点击 6 次
+let tapTimestamps: number[] = [];
+let devModeActive = false;
+const versionLine = document.getElementById('version-line') as HTMLDivElement;
+const versionText = document.getElementById('version-text') as HTMLSpanElement;
+const devPopup = document.getElementById('dev-popup') as HTMLDivElement;
+const devTab = document.querySelector('.dev-tab') as HTMLButtonElement;
+const toggleDevMode = document.getElementById('toggle-dev-mode') as HTMLDivElement;
+let popupTimer: number | undefined;
+
+// 在版本号上方显示一个自动消失的气泡
+function showDevPopup(text: string, durationMs = 2000): void {
+  devPopup.textContent = text;
+  devPopup.hidden = false;
+  devPopup.classList.remove('dev-popup');
+  void devPopup.offsetWidth; // 强制 reflow，让 animation 每次都能重新触发
+  devPopup.classList.add('dev-popup');
+  if (popupTimer !== undefined) window.clearTimeout(popupTimer);
+  popupTimer = window.setTimeout(() => {
+    devPopup.hidden = true;
+    devPopup.classList.remove('dev-popup');
+  }, durationMs);
+}
+
+function initDevMode(): void {
+  // 设置版本号文本
+  versionText.textContent = `v${petSpec.app.version}`;
+
+  // 应用持久化的开发者模式状态（进入开发者模式后不自动切页签，重启仍保持开启）
+  if (currentSettings?.devMode) {
+    devModeActive = true;
+    devTab.hidden = false;
+    toggleDevMode.classList.add('active');
+  }
+
+  versionLine.addEventListener('click', () => {
+    // 每次点击都给出版本号的按压反馈（写入列表以保留窗口逻辑）
+    const now = Date.now();
+    tapTimestamps = tapTimestamps.filter((t) => now - t < DEV_TAP_WINDOW_MS);
+    tapTimestamps.push(now);
+    tapTimestamps = tapTimestamps.slice(-6);
+    if (devModeActive) return;
+    // 第 4、5 下提示倒计时，第 6 下进入开发者模式
+    if (tapTimestamps.length >= 6) {
+      tapTimestamps = [];
+      devModeActive = true;
+      devTab.hidden = false;
+      toggleDevMode.classList.add('active');
+      showDevPopup('已进入开发者模式');
+      void window.petAPI?.settings.update({ devMode: true });
+    } else if (tapTimestamps.length >= 4) {
+      showDevPopup(`还差 ${6 - tapTimestamps.length} 下`);
+    }
+  });
+
+  // 关闭开发者模式开关
+  toggleDevMode.addEventListener('click', () => {
+    if (!devModeActive) return;
+    devModeActive = false;
+    toggleDevMode.classList.remove('active');
+    devTab.hidden = true;
+    switchView('status');
+    void window.petAPI?.settings.update({ devMode: false });
+  });
+
+  // 💊 喂安眠药
+  document.getElementById('dev-sleep-btn')!.addEventListener('click', async () => {
+    try {
+      await window.petAPI?.dev.triggerSleep();
+    } catch (error) {
+      console.error('Dev: trigger sleep failed', error);
+    }
+  });
+
+  // 🍃 飞叶子（心情 100）
+  document.getElementById('dev-happy-btn')!.addEventListener('click', async () => {
+    try {
+      const stats = await window.petAPI?.dev.setMood(100);
+      if (stats) updateStats(stats);
+    } catch (error) {
+      console.error('Dev: set mood 100 failed', error);
+    }
+  });
+
+  // 👊 轻抚脸颊（心情 0）
+  document.getElementById('dev-sad-btn')!.addEventListener('click', async () => {
+    try {
+      const stats = await window.petAPI?.dev.setMood(0);
+      if (stats) updateStats(stats);
+    } catch (error) {
+      console.error('Dev: set mood 0 failed', error);
+    }
+  });
 }
 
 init();

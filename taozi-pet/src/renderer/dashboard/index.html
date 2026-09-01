@@ -15,6 +15,7 @@
         <button class="view-tab active" data-view="status">🏠 状态</button>
         <button class="view-tab" data-view="quotes">💬 语录</button>
         <button class="view-tab" data-view="reminders">⏰ 提醒</button>
+        <button class="view-tab dev-tab" data-view="dev" hidden>🧪 开发者</button>
       </nav>
       <div class="content-scroll">
         <section id="view-status" class="view active">
@@ -100,6 +101,41 @@
                 <div class="setting-desc">将语录、状态、提醒、设置恢复到最初默认值</div>
               </div>
               <button class="reset-btn" id="reset-data-btn">重置</button>
+            </div>
+          </div>
+          <div class="version-line" id="version-line"><span id="version-text">v0.0.0</span><div class="dev-popup" id="dev-popup" hidden></div></div>
+        </section>
+
+        <section id="view-dev" class="view">
+          <div class="settings-group">
+            <div class="section-title">🔧 开发者选项</div>
+            <div class="setting-item">
+              <div>
+                <div class="setting-label">关闭开发者模式</div>
+                <div class="setting-desc">退出开发者模式，隐藏此页面</div>
+              </div>
+              <div class="toggle active" id="toggle-dev-mode"></div>
+            </div>
+            <div class="setting-item">
+              <div>
+                <div class="setting-label">💊 喂安眠药</div>
+                <div class="setting-desc">立即进入睡觉状态，但遵守打断逻辑</div>
+              </div>
+              <button class="dev-btn" id="dev-sleep-btn">触发睡觉</button>
+            </div>
+            <div class="setting-item">
+              <div>
+                <div class="setting-label">🍃 飞叶子</div>
+                <div class="setting-desc">心情设置为 100，立刻开心起来</div>
+              </div>
+              <button class="dev-btn" id="dev-happy-btn">心情100</button>
+            </div>
+            <div class="setting-item">
+              <div>
+                <div class="setting-label">👊 轻抚脸颊</div>
+                <div class="setting-desc">心情设置为 0，立刻沮丧</div>
+              </div>
+              <button class="dev-btn" id="dev-sad-btn">心情0</button>
             </div>
           </div>
         </section>

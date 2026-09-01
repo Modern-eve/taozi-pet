@@ -16,6 +16,7 @@ const defaults: Settings = {
   autoStart: true,
   autoStartInit: true,
   randomWalk: 2,
+  devMode: false,
 };
 
 test('atomic JSON persistence round-trips without temporary files', async () => {
