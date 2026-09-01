@@ -29,13 +29,15 @@ export function localDateKey(date = new Date()): string {
 
 export function parseSettings(value: unknown): Settings {
   const obj = record(value, 'settings');
-  const expected = new Set(['edgeSnap', 'alwaysOnTop', 'typingReaction', 'clickThrough', 'petScale', 'autoStart', 'autoStartInit', 'randomWalk']);
+  const expected = new Set(['edgeSnap', 'alwaysOnTop', 'typingReaction', 'clickThrough', 'petScale', 'autoStart', 'autoStartInit', 'randomWalk', 'devMode']);
   for (const key of Object.keys(obj)) if (!expected.has(key)) throw new TypeError(`Unknown settings field: ${key}`);
   for (const key of ['edgeSnap', 'alwaysOnTop', 'typingReaction', 'clickThrough', 'autoStart'] as const) {
     if (typeof obj[key] !== 'boolean') throw new TypeError(`Invalid settings field: ${key}`);
   }
   // autoStartInit 兼容旧数据：缺失视为已配置（保持旧行为，不改变既有自启状态）
   if (obj.autoStartInit !== undefined && typeof obj.autoStartInit !== 'boolean') throw new TypeError('Invalid settings field: autoStartInit');
+  // devMode 兼容旧数据：缺失视为未开启
+  if (obj.devMode !== undefined && typeof obj.devMode !== 'boolean') throw new TypeError('Invalid settings field: devMode');
   if (typeof obj.petScale !== 'number' || !Number.isFinite(obj.petScale) || obj.petScale < PET_SCALE_MIN || obj.petScale > PET_SCALE_MAX) {
     throw new TypeError('Invalid settings field: petScale');
   }
@@ -57,6 +59,7 @@ export function parseSettings(value: unknown): Settings {
     autoStart: obj.autoStart as boolean,
     autoStartInit: obj.autoStartInit === undefined ? true : (obj.autoStartInit as boolean),
     randomWalk,
+    devMode: obj.devMode === undefined ? false : (obj.devMode as boolean),
   };
 }
 

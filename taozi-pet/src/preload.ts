@@ -25,6 +25,10 @@ const api: PetAPI = {
   data: {
     reset: () => ipcRenderer.invoke('data:reset') as Promise<void>,
   },
+  dev: {
+    triggerSleep: () => ipcRenderer.invoke('dev:trigger-sleep') as Promise<void>,
+    setMood: (value) => ipcRenderer.invoke('dev:set-mood', value) as Promise<PetStats>,
+  },
   interactions: {
     list: () => ipcRenderer.invoke('interactions:list') as Promise<InteractionSpec[]>,
     trigger: (id) => ipcRenderer.invoke('interactions:trigger', id) as Promise<InteractionResult>,

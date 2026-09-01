@@ -9,7 +9,7 @@ const packageJson = JSON.parse(packageText);
 
 const knownTriggers = new Set([
   'app:start', 'ambient:idle', 'ambient:blink', 'ambient:random', 'pointer:tap', 'window:drag', 'window:edge-snap',
-  'reminder:due', 'typing:activity', 'file:drop', 'file:drop-success', 'file:drop-fail', 'movement:left', 'movement:right',
+  'reminder:due', 'typing:activity', 'file:drop', 'file:drop-success', 'file:drop-fail',
 ]);
 
 // 顶层构建一次共享映射，供 states/interactions 两个 check 闭包复用
@@ -32,7 +32,6 @@ const conditional = {
   edgeSnap: ['window:edge-snap'],
   typingReaction: ['typing:activity'],
   filePocket: ['file:drop', 'file:drop-success', 'file:drop-fail'],
-  autonomousMovement: ['movement:left', 'movement:right'],
 };
 
 const checks = [];
@@ -139,10 +138,6 @@ checks.push(makeCheck({
     for (const trigger of ['pointer:tap', 'reminder:due', 'window:edge-snap', 'ambient:random']) {
       const state = states.get(triggers.get(trigger));
       if (state && (state.frames.length < 5 || state.frames.length > 24)) problems.push(`「${trigger}」状态 ${state.id} 帧数必须为 5-24`);
-    }
-    for (const trigger of ['movement:left', 'movement:right']) {
-      const state = states.get(triggers.get(trigger));
-      if (state && (state.frames.length < 6 || state.frames.length > 24)) problems.push(`「${trigger}」状态 ${state.id} 帧数必须为 6-24`);
     }
     if (![...states.values()].some((state) => state.frames.includes(spec.character?.coreAsset))) problems.push('character.coreAsset 必须被某个运行时状态使用');
     return { passed: problems.length === 0, detail: problems.length ? problems.join('; ') : `${interactions.size} interactions 合法` };

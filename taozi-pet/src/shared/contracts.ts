@@ -61,7 +61,6 @@ export interface PetSpec {
     filePocket: boolean;
     dashboard: boolean;
     typingReaction: boolean;
-    autonomousMovement: boolean;
   };
   states: PetState[];
   storage: {
@@ -126,6 +125,8 @@ export interface Settings {
   autoStartInit: boolean;
   /** 随机行走挡位 0–4：0 木头人(关闭) / 1 散步 / 2 正常 / 3 活泼 / 4 多动症 */
   randomWalk: number;
+  /** 开发者模式是否开启（版本号连点 6 次进入，持久化到 settings.json） */
+  devMode: boolean;
 }
 
 export interface Reminder {
@@ -195,6 +196,10 @@ export interface PetAPI {
   data: {
     reset: () => Promise<void>;
   };
+  dev: {
+    triggerSleep: () => Promise<void>;
+    setMood: (value: number) => Promise<PetStats>;
+  };
   interactions: {
     list: () => Promise<InteractionSpec[]>;
     trigger: (id: string) => Promise<InteractionResult>;
@@ -260,7 +265,7 @@ export function assertSettingsPatch(value: unknown): asserts value is Partial<Se
     throw new TypeError('Invalid settings patch');
   }
   const obj = value as Record<string, unknown>;
-  const booleanKeys = new Set(['edgeSnap', 'alwaysOnTop', 'typingReaction', 'clickThrough', 'autoStart']);
+  const booleanKeys = new Set(['edgeSnap', 'alwaysOnTop', 'typingReaction', 'clickThrough', 'autoStart', 'devMode']);
   const allowedKeys = new Set([...booleanKeys, 'petScale', 'randomWalk']);
   for (const [key, item] of Object.entries(obj)) {
     if (!allowedKeys.has(key)) throw new TypeError(`Unknown settings field: ${key}`);
