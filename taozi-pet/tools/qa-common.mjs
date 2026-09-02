@@ -138,6 +138,6 @@ export function parseArgv(argv = process.argv) {
 
 export function assetSetsFromSpec(spec) {
   const stateFrames = new Set(spec.states?.flatMap((state) => state.frames ?? []) ?? []);
-  const referenced = new Set([spec.character?.coreAsset, ...stateFrames].filter(Boolean));
-  return { referenced, stateFrames };
+  // coreAsset 已移除；运行时帧集合即为 states.frames 的并集。
+  return { referenced: stateFrames, stateFrames };
 }

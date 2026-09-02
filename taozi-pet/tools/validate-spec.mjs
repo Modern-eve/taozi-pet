@@ -139,7 +139,6 @@ checks.push(makeCheck({
       const state = states.get(triggers.get(trigger));
       if (state && (state.frames.length < 5 || state.frames.length > 24)) problems.push(`「${trigger}」状态 ${state.id} 帧数必须为 5-24`);
     }
-    if (![...states.values()].some((state) => state.frames.includes(spec.character?.coreAsset))) problems.push('character.coreAsset 必须被某个运行时状态使用');
     return { passed: problems.length === 0, detail: problems.length ? problems.join('; ') : `${interactions.size} interactions 合法` };
   },
 }));
