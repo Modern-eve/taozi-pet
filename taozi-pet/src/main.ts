@@ -924,7 +924,9 @@ function registerIpc(): void {
       const state = stateForTrigger('window:edge-snap');
       // 用 snapBounds 的计算结果判断右侧，避免 setBounds 动画导致 getBounds 延迟
       const isRightSide = snapped.x + snapped.width >= workArea.x + workArea.width - 10;
-      sendActivity({ kind: 'edge-snap', stateId: state?.id, durationMs: 900, mirror: isRightSide });
+      // 不指定 durationMs：由渲染层按 spec 的 frames.length × frameDurationMs 播完整一轮，
+      // 素材加帧/减帧自动适配（曾硬编码 900ms，peek 12 帧只播到第 4 帧就被切回 idle）
+      sendActivity({ kind: 'edge-snap', stateId: state?.id, mirror: isRightSide });
     }
     // 更新随机行走中心为拖动结束位置
     const b = petWindow.getBounds();
