@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
 
@@ -11,7 +11,6 @@ function argsOf(argv) {
 const args = argsOf(process.argv.slice(2));
 const inputDir = path.resolve(args.input ?? 'incoming-assets');
 const outputDir = path.resolve(args.output ?? path.join('src', 'assets', 'pet'));
-const trayDir = path.resolve(args.tray ?? path.join('src', 'assets', 'tray'));
 const specPath = path.resolve(args.spec ?? 'pet-spec.json');
 const spec = JSON.parse(await readFile(specPath, 'utf8'));
 const threshold = Number(spec.assetPipeline?.backgroundTolerance);
@@ -27,9 +26,7 @@ const selectedStateId = args.state;
 const states = selectedStateId ? spec.states.filter((state) => state.id === selectedStateId) : spec.states;
 if (selectedStateId && states.length !== 1) throw new Error(`Unknown asset state: ${selectedStateId}`);
 const names = new Set(states.flatMap((state) => state.frames));
-if (!selectedStateId) names.add(spec.character.coreAsset);
 await mkdir(outputDir, { recursive: true });
-await mkdir(trayDir, { recursive: true });
 
 const reports = [];
 const failures = [];
@@ -318,32 +315,7 @@ if (!failures.length) {
   }
 }
 
-let trayIcon;
-const selectedIncludesCore = states.some((state) => state.frames.includes(spec.character.coreAsset));
-if (!failures.length && (!selectedStateId || selectedIncludesCore)) {
-  const trayPath = path.join(trayDir, 'tray-icon.png');
-  const corePath = path.join(outputDir, spec.character.coreAsset);
-  const trimmed = await sharp(corePath).trim({ threshold: 8 }).resize(28, 28, { fit: 'contain', kernel: sharp.kernel.lanczos3 }).png().toBuffer();
-  await sharp({ create: { width: 32, height: 32, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
-    .composite([{ input: trimmed, left: 2, top: 2 }]).png({ compressionLevel: 9 }).toFile(trayPath);
-  const metadata = await sharp(trayPath).metadata();
-  trayIcon = { path: path.relative(process.cwd(), trayPath).replaceAll('\\', '/'), width: metadata.width, height: metadata.height };
-}
-
-const reportPath = path.join(outputDir, 'asset-processing-report.json');
-await writeFile(reportPath, `${JSON.stringify({
-  schemaVersion: spec.schemaVersion,
-  scope: selectedStateId || 'all',
-  backgroundMode: spec.assetPipeline.backgroundMode,
-  generationBackground,
-  threshold,
-  feather,
-  safeMargin,
-  targetOccupancy,
-  trayIcon,
-  assets: [...reports, ...failures],
-}, null, 2)}\n`, 'utf8');
-console.log(`Processed ${reports.length}/${names.size} assets. Report: ${reportPath}`);
+console.log(`Processed ${reports.length}/${names.size} assets.`);
 if (failures.length) {
   for (const failure of failures) console.error(`[${failure.code}] ${failure.message}\n  repair: ${failure.repair}`);
   process.exit(1);

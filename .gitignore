@@ -6,3 +6,6 @@ __pycache__/
 # 保留 assets-raw（不可再生的 AI 源图）与 taozi-pet/src/assets/pet（运行时最终帧））
 assets-processed/
 taozi-pet/incoming-assets/
+
+# 运行时诊断产物：process-assets 已不再生成此文件，加入是防御性兜底
+taozi-pet/src/assets/pet/asset-processing-report.json
