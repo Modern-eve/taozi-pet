@@ -329,12 +329,13 @@ async function init(): Promise<void> {
     scheduleIdleEvents();
     animationFrame = requestAnimationFrame(animate);
 
-    // 等待图片加载
-    const coreAsset = petSpec.character.coreAsset;
-    const coreUrl = assetMap.get(coreAsset);
-    if (coreUrl) {
+    // 等待 idle 首帧图片加载（coreAsset 已移除，改用 idle.frames[0]）
+    const idleFrames = petSpec.states.find((s) => s.id === 'idle')?.frames ?? [];
+    const prewarmFrame = idleFrames[0];
+    const prewarmUrl = prewarmFrame ? assetMap.get(prewarmFrame) : undefined;
+    if (prewarmUrl) {
       const img = new Image();
-      img.src = coreUrl;
+      img.src = prewarmUrl;
       await new Promise((resolve) => {
         img.onload = resolve;
         img.onerror = resolve;

@@ -88,7 +88,8 @@ let pendingReminderQueue: Reminder[] = [];
 // 消费队首后延时播报下一条的定时器（连续消费时需取消旧的，防止残留定时器重复播报）
 let nextAnnounceReminderTimer: ReturnType<typeof setTimeout> | null = null;
 const typingListener = new TypingListener();
-const expectedRuntimeAssets = new Set([spec.character.coreAsset, ...spec.states.flatMap((state) => state.frames)]);
+// coreAsset 已移除：idle 首帧本身已包含在 states.frames 中，这里直接聚合所有帧即可。
+const expectedRuntimeAssets = new Set(spec.states.flatMap((state) => state.frames));
 const runtimeReadyFile = path.join(process.cwd(), '.build', 'runtime-ready.json');
 const runtimeFailureFile = path.join(process.cwd(), '.build', 'runtime-failed.json');
 const runtimeEvidenceEnabled = !app.isPackaged || process.env.PET_PREVIEW_MODE === '1';

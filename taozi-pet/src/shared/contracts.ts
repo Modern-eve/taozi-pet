@@ -12,7 +12,6 @@ export interface PetSpec {
   };
   character: {
     inputType: string;
-    coreAsset: string;
     displayName: string;
     archetype: string;
     personality: string[];

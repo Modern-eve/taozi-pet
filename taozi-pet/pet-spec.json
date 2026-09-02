@@ -18,7 +18,6 @@
   },
   "character": {
     "inputType": "single-image",
-    "coreAsset": "idle-01.png",
     "displayName": "套子",
     "archetype": "person",
     "personality": [
