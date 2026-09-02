@@ -4,20 +4,25 @@
 与 process-assets.mjs 解耦：因为 core-ip.png 是角色母版源图，永远不会
 变化，所以托盘图标可以独立于动画帧流水线更新，不用每次重跑全部素材。
 
-默认裁剪区域对应 core-ip.png 头部+光环+肩部，可通过 --crop 覆盖。
-缩放采用 alpha 预乘的 LANCZOS：先把 RGB 按 alpha 预乘（透明像素 RGB=0），
-LANCZOS 缩放后再反预乘回 RGB。这样避免透明区域残留的浅色 RGB 在缩小
-过程中被插值进角色边缘，形成黑斑/灰斑。
-
-默认输出满画布（--inner = --size），不带内边距。
+抠图策略：
+- 不用全局"白→透明"阈值（会误抠角色内部的白色高光、裙摆、光环等），
+  改用从裁剪区四角出发的 flood-fill：只有与边缘连通、颜色相近的背景
+  区域才变透明，角色实体（包括内部浅色）保留，从而避免内部空洞。
+- 缩放前先做 alpha 预乘（premultiply），LANCZOS 缩放后再反预乘，避免
+  透明区域残留的浅色 RGB 被插值进角色边缘形成黑斑/灰斑。
+- 默认按原图比例等比缩放到 32×32 画布内居中；不会为填满画布而压扁头像。
 """
 import argparse
 import os
 import sys
+from collections import deque
 from PIL import Image
 
 DEFAULT_CORE = "core-ip.png"
 DEFAULT_OUT = os.path.join("taozi-pet", "src", "assets", "tray", "tray-icon.png")
+
+# 默认只取头部+肩部区域（水平居中半宽、垂直 2%-30%），让脸在托盘里更完整。
+DEFAULT_CROP_RATIO = (0.25, 0.02, 0.75, 0.30)
 
 
 def parse_crop(value):
@@ -28,26 +33,55 @@ def parse_crop(value):
 
 
 def default_crop(width, height):
-    """头部+光环+肩部：水平居中取 1/2 宽、垂直取前 40%。"""
+    """基于源图尺寸返回默认头部裁剪区域（绝对像素坐标）。"""
+    r = DEFAULT_CROP_RATIO
     return (
-        int(width * 0.25),
-        int(height * 0.03),
-        int(width * 0.75),
-        int(height * 0.40),
+        int(width * r[0]),
+        int(height * r[1]),
+        int(width * r[2]),
+        int(height * r[3]),
     )
 
 
-def white_to_alpha(image, threshold=245):
-    """将接近白色的像素转成透明，保留抗锯齿边缘。"""
+def flood_fill_background(image, tol=12):
+    """从图像四角 flood-fill，仅把与边缘连通的背景区域变透明。
+
+    tol 是相邻像素的最大通道差；背景渐变通常差很小，而角色轮廓与背景
+    的色差大，flood-fill 会自然停在角色边缘，不会进入角色实体内部。
+    """
     if image.mode != "RGBA":
         image = image.convert("RGBA")
-    pixels = image.load()
+    px = image.load()
     w, h = image.size
+
+    visited = [[False] * w for _ in range(h)]
+    is_bg = [[False] * w for _ in range(h)]
+    q = deque()
+
+    for sx, sy in [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)]:
+        if not visited[sy][sx]:
+            visited[sy][sx] = True
+            is_bg[sy][sx] = True
+            q.append((sx, sy))
+
+    while q:
+        x, y = q.popleft()
+        cr, cg, cb = px[x, y][:3]
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < w and 0 <= ny < h and not visited[ny][nx]:
+                nr, ng, nb = px[nx, ny][:3]
+                if max(abs(nr - cr), abs(ng - cg), abs(nb - cb)) <= tol:
+                    visited[ny][nx] = True
+                    is_bg[ny][nx] = True
+                    q.append((nx, ny))
+                else:
+                    visited[ny][nx] = True
+
     for y in range(h):
         for x in range(w):
-            r, g, b, a = pixels[x, y]
-            if r >= threshold and g >= threshold and b >= threshold:
-                pixels[x, y] = (r, g, b, 0)
+            if is_bg[y][x]:
+                px[x, y] = (px[x, y][0], px[x, y][1], px[x, y][2], 0)
     return image
 
 
@@ -71,9 +105,7 @@ def unpremultiply_alpha(image):
             r, g, b, a = pixels[x, y]
             if a == 0:
                 pixels[x, y] = (0, 0, 0, 0)
-            elif a == 255:
-                pass
-            else:
+            elif a != 255:
                 pixels[x, y] = (
                     min(255, r * 255 // a),
                     min(255, g * 255 // a),
@@ -91,9 +123,9 @@ def main():
     parser.add_argument("--size", type=int, default=32, help="输出画布边长（默认 32）")
     parser.add_argument(
         "--inner", type=int, default=None,
-        help="内容区域边长（默认等于 --size，不留内边距；想留边距就传比 --size 小的值）",
+        help="内容最大边长（默认等于 --size）。内容按原比例等比缩放，居中放置",
     )
-    parser.add_argument("--white-threshold", type=int, default=245, help="白→透明阈值（默认 245）")
+    parser.add_argument("--bg-tol", type=int, default=12, help="flood-fill 背景容差（默认 12）")
     args = parser.parse_args()
 
     if not os.path.exists(args.core):
@@ -105,30 +137,31 @@ def main():
         print(f"ERROR: --inner({inner}) 不能大于 --size({args.size})", file=sys.stderr)
         return 1
 
-    src = Image.open(args.core)
+    src = Image.open(args.core).convert("RGBA")
     w, h = src.size
     crop = args.crop or default_crop(w, h)
-    print(f"源图: {args.core} {src.size} {src.mode}")
+    print(f"源图: {args.core} {src.size}")
     print(f"裁剪: x={crop[0]}..{crop[2]}  y={crop[1]}..{crop[3]}  ({crop[2]-crop[0]}x{crop[3]-crop[1]})")
-    print(f"画布: {args.size}x{args.size}  内容: {inner}x{inner}  边距: {(args.size - inner) // 2}px")
 
-    # 1) 白底转透明
-    head = white_to_alpha(src, threshold=args.white_threshold).crop(crop)
-    # 2) alpha 预乘（关键：避免缩放插值时把透明 RGB 混进边缘形成黑斑）
+    # 1) 裁出头部工作区
+    head = src.crop(crop)
+    # 2) flood-fill 只去外背景（保留角色内部浅色，避免空洞）
+    head = flood_fill_background(head, tol=args.bg_tol)
+    # 3) alpha 预乘（防缩放黑斑）
     head = premultiply_alpha(head)
-    # 3) LANCZOS 缩放
-    head = head.resize((inner, inner), Image.LANCZOS)
-    # 4) 反预乘，恢复正确 RGB
+    # 4) 等比缩放到 inner×inner 区域内
+    head.thumbnail((inner, inner), Image.LANCZOS)
+    # 5) 反预乘恢复 RGB
     head = unpremultiply_alpha(head)
 
     canvas = Image.new("RGBA", (args.size, args.size), (0, 0, 0, 0))
-    offset = (args.size - inner) // 2
-    canvas.paste(head, (offset, offset), head)
+    offset = ((args.size - head.width) // 2, (args.size - head.height) // 2)
+    canvas.paste(head, offset, head)
 
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     canvas.save(args.out, "PNG", optimize=True)
     size_bytes = os.path.getsize(args.out)
-    print(f"输出: {args.out}  {canvas.size} RGBA  {size_bytes} bytes")
+    print(f"输出: {args.out}  {canvas.size} RGBA  内容{head.size}  边距{offset}  {size_bytes} bytes")
     return 0
 
 

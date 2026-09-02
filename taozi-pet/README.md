@@ -37,7 +37,7 @@ QA: PASS (144/144)
 | `assemble-incoming-assets.py`                       | 组装 + 归一化`incoming-assets`：**全部 12 状态**原地归一化（从 `incoming-assets` 读 preprocess 写入的透明帧，按 `sourceOccupancy` 缩放 + 居中 + 底部对齐到 `sourceCanvas` 写回）；`idle/blink` 为 lockedBody，额外做**帧间尺寸对齐**（首帧尺寸为参考）消除 `SCALE_DRIFT`。阈值唯一权威来自 `pet-spec.json` 的 `assetPipeline.source*`（`sourceCanvas`/`sourceMargin`/`sourceOccupancy`/`sourcePad`） |
 | `rename-assets.py`                                  | 重命名工具：数字缺口顺移、x.5 过渡帧收拢为连续整数（默认 dry-run，`--apply` 执行）                                                                                                                                                                                                                                                                                                                                                     |
 | `repair-src-for-qa.py`                              | 按`qa/assets-report.json` 自动修复失败帧（SCALE_DRIFT / OCCUPANCY_TOO_LARGE / GROUND_RESIDUE / SUBJECT_TOUCHES_BORDER），`--dry-run` 可预览                                                                                                                                                                                                                                                                                          |
-| `make-tray-icon.py`                                 | 从`core-ip.png` 头部裁剪生成 `taozi-pet/src/assets/tray/tray-icon.png`（32×32 透明 PNG）。**与动画帧流水线解耦**：core-ip.png 是母版不会变，idle 等动画帧改了不会影响托盘头像；想换头像只需换 core-ip.png 后跑一次本脚本。缩放采用 **alpha 预乘的 LANCZOS**（premultiply → resize → unpremultiply）防止透明区域残留的浅色 RGB 在缩放插值时混进角色边缘产生黑斑；默认满画布（不留内边距）                                                                                                                                                                                                      |
+| `make-tray-icon.py`                                 | 从`core-ip.png` 头部裁剪生成 `taozi-pet/src/assets/tray/tray-icon.png`（32×32 透明 PNG）。**与动画帧流水线解耦**：core-ip.png 是母版不会变，idle 等动画帧改了不会影响托盘头像；想换头像只需换 core-ip.png 后跑一次本脚本。抠图采用 **flood-fill 去外背景**（保留角色内部浅色，避免内部空洞）；缩放采用 **alpha 预乘的 LANCZOS**（premultiply → resize → unpremultiply）防止透明区域残留的浅色 RGB 在缩放插值时混进角色边缘产生黑斑；默认等比缩放、居中，不压扁头像                                                                                                                                |
 | `tools/process-assets.mjs`                          | 把`incoming-assets` 渲染为 `src/assets/pet/`（在 `taozi-pet/` 内运行）                                                                                                                                                                                                                                                                                                                                                             |
 | `tools/validate-spec.mjs` / `tools/qa-assets.mjs` | 校验 pet-spec 与素材，目标`PASS (144/144)`                                                                                                                                                                                                                                                                                                                                                                                             |
 
@@ -70,17 +70,18 @@ C:\PYTHON312\python.exe repair-src-for-qa.py --dry-run
 托盘图标（`taozi-pet/src/assets/tray/tray-icon.png`，32×32 透明 PNG）由 `make-tray-icon.py` 独立从 **`core-ip.png` 头部**裁剪生成，与动画帧流水线解耦。
 
 ```bash
-# 默认：从仓库根的 core-ip.png 裁剪头部（横向居中取 1/2、纵向取前 40%），白底转透明
+# 默认：从仓库根的 core-ip.png 裁剪头部（横向居中取 1/2、纵向 2%-30%），
+# 用 flood-fill 只去外背景，保留角色内部浅色，避免内部空洞。
 cd D:\Documents\Doubao\chats\2026-08-12\new-chat
 C:\PYTHON312\python.exe make-tray-icon.py
 
 # 自定义裁剪区域（原图坐标，x1,y1,x2,y2）
-C:\PYTHON312\python.exe make-tray-icon.py --crop 384,64,1152,820
+C:\PYTHON312\python.exe make-tray-icon.py --crop 384,40,1152,614
 
-# 自定义源图 / 输出 / 阈值
-C:\PYTHON312\python.exe make-tray-icon.py --core my-source.png --out tray-new.png --white-threshold 240
+# 自定义源图 / 输出 / 背景容差
+C:\PYTHON312\python.exe make-tray-icon.py --core my-source.png --out tray-new.png --bg-tol 15
 
-# 想留 2px 内边距（把内容缩到 28×28 再居中贴到 32×32 画布）
+# 想留 2px 内边距（把内容最大边限制到 28，等比缩放到 28 后居中贴到 32×32 画布）
 C:\PYTHON312\python.exe make-tray-icon.py --inner 28
 ```
 
