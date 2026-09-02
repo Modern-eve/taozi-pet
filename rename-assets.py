@@ -156,14 +156,12 @@ def do_convert(d, converts, recycles, keep_src):
     from PIL import Image
     for name in recycles:
         send_to_recycle_bin(os.path.join(d, name))
-        print(f"  [recycle] {name}   (已移入回收站，可恢复)")
     for src, dst in converts:
         sp, dp = os.path.join(d, src), os.path.join(d, dst)
         with Image.open(sp) as img:
             img.convert('RGB').save(dp, 'PNG')
         if not keep_src:
             send_to_recycle_bin(sp)
-        print(f"  [convert] {src} -> {dst}" + ("" if keep_src else "  (原文件已移入回收站)"))
 
 
 def do_rename(d, plan):
@@ -175,7 +173,6 @@ def do_rename(d, plan):
         tmp[old] = t
     for old, new in plan:
         os.rename(os.path.join(d, tmp[old]), os.path.join(d, new))
-        print(f"  [rename ] {old} -> {new}")
 
 
 def main():
@@ -198,39 +195,32 @@ def main():
         print(f"错误：目录不存在 {d}")
         raise SystemExit(1)
 
-    mode = "DRY-RUN 不执行" if not args.apply else "将执行"
-    total_conv = total_ren = 0
+    short = os.path.basename(d.rstrip('/\\')) or d
 
     for prefix in args.prefix:
         items = collect(prefix, os.listdir(d))
         if not items:
-            print(f"\n[{prefix}] {d}: 未找到该前缀的帧")
+            print(f"[{prefix}] {short} · 未找到该前缀的帧")
             continue
 
         conv_plan, recycles = plan_convert(items) if args.to_png else ([], [])
         final_map = final_name_map(items)
-        ren_plan, unchanged = plan_rename(prefix, final_map)
+        ren_plan, _unchanged = plan_rename(prefix, final_map)
 
-        print(f"\n[{prefix}] {d}: {len(items)} 帧，"
-              f"回收 {len(recycles)} / 转换 {len(conv_plan)} 处 / 改名 {len(ren_plan)} 处 / "
-              f"无需改动 {len(unchanged)} 处（{mode}）")
+        rows = [(name, "回收站", "重名旧 png") for name in recycles]
+        rows += [(f"{src} → {dst}", "", "转 png") for src, dst in conv_plan]
+        rows += [(f"{old} → {new}", "", "编号收拢") for old, new in ren_plan]
 
-        for name in recycles:
-            print(f"  recycle  {name}  -> 回收站（可恢复）")
-        for src, dst in conv_plan:
-            print(f"  convert  {src}  ->  {dst}")
-        for old, new in ren_plan:
-            print(f"  rename   {old}  ->  {new}")
-        if not conv_plan and not ren_plan and not recycles:
-            print(f"  {prefix} 已是连续的 png 序列，无需改动")
+        print(f"[{prefix}] {short} · {len(items)} 帧" + (" · 无需改动" if not rows else ""))
+        for text, tail, note in rows:
+            print(f"  · {text}{(' → ' + tail) if tail else ''}   [{note}]")
 
         # 校验：改名目标是否被本次计划之外的文件占用（将被回收的不算占用）
         sources = {old for old, _ in ren_plan}
         for _old, new in ren_plan:
-            dst = os.path.join(d, new)
-            if os.path.exists(dst) and new not in sources and new not in recycles:
-                print(f"\n错误：目标名 {new} 已被占用且不在本次改名范围内，中止。"
-                      f"（请手工处理该文件或改用其它前缀）")
+            if (os.path.exists(os.path.join(d, new))
+                    and new not in sources and new not in recycles):
+                print(f"错误：{new} 已被占用且不在本次范围内，请手工处理")
                 raise SystemExit(1)
 
         if not args.apply:
@@ -240,14 +230,15 @@ def main():
             do_convert(d, conv_plan, recycles, args.keep_src)
         if ren_plan:
             do_rename(d, ren_plan)
-        total_conv += len(conv_plan)
-        total_ren += len(ren_plan)
-        print(f"  DONE: {prefix} 转换 {len(conv_plan)} / 改名 {len(ren_plan)}")
+
+        done = " · ".join(f"{k} {v}" for k, v in
+                          (("回收", len(recycles)), ("转换", len(conv_plan)),
+                           ("改名", len(ren_plan))) if v)
+        if done:
+            print(f"  ✓ {done}")
 
     if not args.apply:
-        print("\n确认无误后加 --apply 真正执行。")
-    else:
-        print(f"\nDONE: 共转换 {total_conv} 张、改名 {total_ren} 张")
+        print("确认后加 --apply 执行")
 
 
 if __name__ == "__main__":
