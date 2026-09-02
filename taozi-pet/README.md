@@ -76,7 +76,7 @@ cd D:\Documents\Doubao\chats\2026-08-12\new-chat
 C:\PYTHON312\python.exe make-tray-icon.py
 
 # 自定义裁剪区域（原图坐标，x1,y1,x2,y2）
-C:\PYTHON312\python.exe make-tray-icon.py --crop 384,40,1152,614
+C:\PYTHON312\python.exe make-tray-icon.py --crop 460,40,1075,655
 
 # 自定义源图 / 输出 / 背景容差
 C:\PYTHON312\python.exe make-tray-icon.py --core my-source.png --out tray-new.png --bg-tol 15
