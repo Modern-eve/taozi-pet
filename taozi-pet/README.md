@@ -17,7 +17,10 @@
 新增/修改角色动画帧后，按下述步骤把新图整合进桌宠资源。
 
 ```
-assets-raw/  (纯白底 PNG)
+assets-raw/  (新图丢进来：白底 PNG/JPG/WebP/BMP，命名可能不连续)
+   │  ★ 第 1 步 rename-assets.py  (格式归一 jpg→png + 帧号收拢为 01..NN)
+   ▼
+assets-raw/  (纯白底 PNG，<state>-01..NN.png)
    │  preprocess-v7 -gpu.py / -cpu.py  (GPU/CPU 抠白底 → 透明帧，直出 incoming-assets)
    ▼
 taozi-pet/incoming-assets/  (透明抠图)
@@ -29,13 +32,17 @@ taozi-pet/src/assets/pet/  (node tools/process-assets.mjs 渲染为最终桌宠�
 QA: PASS (144/144)
 ```
 
+> ⚠️ **第 1 步不能跳过**：下游抠图脚本 `preprocess-v7 -gpu.py` / `-cpu.py` 的入口**只认 `.png`**
+> （内部 `endswith('.png')` 两处过滤），任何 jpg/webp 都会被**静默跳过**——不会报错，只是那一帧缺失。
+> 帧号不连续同样会让 `assemble-incoming-assets.py`（按 `pet-spec.json` 的 frames 取清单）漏帧。
+
 ### 各脚本职责（都在仓库根目录，单一职责、数据驱动）
 
 | 脚本                                                  | 作用                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `preprocess-v7 -gpu.py`                             | GPU 抠白底（BiRefNet + CUDA），`assets-raw/` → `taozi-pet/incoming-assets/`，**默认全量**（`--states` 不设=处理全部 144 帧）；`--states` 可限定只跑部分状态。CPU 版 `preprocess-v7-cpu.py` 仅作**应急还原（最后手段）**，非默认回退                                                                                                                                                                               |
 | `assemble-incoming-assets.py`                       | 组装 + 归一化`incoming-assets`：**全部 12 状态**原地归一化（从 `incoming-assets` 读 preprocess 写入的透明帧，按 `sourceOccupancy` 缩放 + 居中 + 底部对齐到 `sourceCanvas` 写回）；`idle/blink` 为 lockedBody，额外做**帧间尺寸对齐**（首帧尺寸为参考）消除 `SCALE_DRIFT`。阈值唯一权威来自 `pet-spec.json` 的 `assetPipeline.source*`（`sourceCanvas`/`sourceMargin`/`sourceOccupancy`/`sourcePad`） |
-| `rename-assets.py`                                  | 重命名工具：数字缺口顺移、x.5 过渡帧收拢为连续整数（默认 dry-run，`--apply` 执行）                                                                                                                                                                                                                                                                                                                                                     |
+| `rename-assets.py`                                  | **流水线第 1 步**：整理 `assets-raw/` 帧——① `--to-png` 把 jpg/jpeg/webp/bmp 转成 png（下游抠图只认 png；若目标 png 已存在则先把它送进**回收站**再转换）；② 按帧号排序收拢为连续整数（数字缺口顺移、x.5 过渡帧并入）。默认目标目录 `assets-raw/`，默认 dry-run，`--apply` 才执行；`--keep-src` 转换后保留原文件（默认也送回收站）                                                                                                                                                                                                                                                                                                                                                     |
 | `repair-src-for-qa.py`                              | 按`qa/assets-report.json` 自动修复失败帧（SCALE_DRIFT / OCCUPANCY_TOO_LARGE / GROUND_RESIDUE / SUBJECT_TOUCHES_BORDER），`--dry-run` 可预览                                                                                                                                                                                                                                                                                          |
 | `make-tray-icon.py`                                 | 从`core-ip.png` 头部裁剪生成 `taozi-pet/src/assets/tray/tray-icon.png`（32×32 透明 PNG）。**与动画帧流水线解耦**：core-ip.png 是母版不会变，idle 等动画帧改了不会影响托盘头像；想换头像只需换 core-ip.png 后跑一次本脚本。抠图采用 **flood-fill 去外背景**（保留角色内部浅色，避免内部空洞）；缩放采用 **alpha 预乘的 LANCZOS**（premultiply → resize → unpremultiply）防止透明区域残留的浅色 RGB 在缩放插值时混进角色边缘产生黑斑；默认等比缩放、居中，不压扁头像                                                                                                                                |
 | `tools/process-assets.mjs`                          | 把`incoming-assets` 渲染为 `src/assets/pet/`（在 `taozi-pet/` 内运行）                                                                                                                                                                                                                                                                                                                                                             |
@@ -44,24 +51,27 @@ QA: PASS (144/144)
 ### 标准命令
 
 ```bash
-# 1) 抠白底（GPU，需 conda 环境 my_project；首次会下载 BiRefNet 模型）
+# 1) 帧整理（新增/替换素材后必做）：assets-raw 的帧转 png + 编号收拢为 01..NN
+cd D:\Documents\Doubao\chats\2026-08-12\new-chat
+C:\PYTHON312\python.exe rename-assets.py --prefix notify                # 先 dry-run 看计划
+C:\PYTHON312\python.exe rename-assets.py --prefix notify --apply        # 确认无误后执行
+C:\PYTHON312\python.exe rename-assets.py --prefix sad --to-png --apply  # 混了 jpg 时先转 png
+
+# 2) 抠白底（GPU，需 conda 环境 my_project；首次会下载 BiRefNet 模型）
 #    在 my_project 环境下运行 preprocess-v7 -gpu.py
 
-# 2) 组装 + 归一化 + 渲染
+# 3) 组装 + 归一化 + 渲染
 cd D:\Documents\Doubao\chats\2026-08-12\new-chat
 C:\PYTHON312\python.exe assemble-incoming-assets.py
 cd taozi-pet
 <node> tools/process-assets.mjs          # 全状态；也可 --state <id> 单状态
 
-# 3) 校验
+# 4) 校验
 <node> tools/validate-spec.mjs
 <node> tools/qa-assets.mjs               # 期望输出 PASS (144/144)
 
-# 4) 重命名帧（可选）：把某目录某状态的帧号收拢为连续整数
-cd D:\Documents\Doubao\chats\2026-08-12\new-chat
-C:\PYTHON312\python.exe rename-assets.py --dir taozi-pet/incoming-assets --prefix walk --apply
-
 # 5) QA 兜底（可选）：qa 报错时按报告自动修复
+cd D:\Documents\Doubao\chats\2026-08-12\new-chat
 C:\PYTHON312\python.exe repair-src-for-qa.py --dry-run
 ```
 
