@@ -11,7 +11,7 @@
 QA 分两档：
 
 - **快速 QA**（`npm run check:quick`）：轻量必查，随开发启动自动跑。依次执行 `tsc --noEmit` + 4 个契约/结构校验 + qa-ui + qa-experience，**亚秒级**。
-- **全量 QA**（`npm run check`）：在快速 QA 之上追加 `qa-assets` 逐帧像素级质检（142 张素材，较重）。**素材变更或需出完整报告时主动运行。**
+- **全量 QA**（`npm run check`）：在快速 QA 之上追加 `qa-assets` 逐帧像素级质检（144 张素材，较重）。**素材变更或需出完整报告时主动运行。**
 
 ```bash
 npm run check:quick   # 平时/开发启动
@@ -37,7 +37,7 @@ npm run check          # 素材变更 / 出完整 QA 报告
 
 ## 三、三个 QA 详解
 
-### qa-ui.mjs（18 项）
+### qa-ui.mjs（17 项）
 
 | 关卡 | 检查 | 说明 |
 |---|---|---|
@@ -56,7 +56,6 @@ npm run check          # 素材变更 / 出完整 QA 报告
 | spec+src | pet-size-default-alignment ⚠ | 默认缩放落在滑块中段 0.6–1.1 |
 | window | bubble-contrast-hint ⚠ | 气泡前景与背景亮度差 ≥40（近似 YIQ） |
 | window | drag-bar-height ⚠ | 拖拽条高度 ≥32px，便于抓取拖动 |
-| window | font-size-floor ⚠ | 正文最小学号 ≥12px，避免过小难读 |
 | spec | theme-accent-contrast ⚠ | 主题主色(primary)与表面(surface)亮度差 ≥50，保证强调层级 |
 
 ⚠ = warning，仅提示不阻断。

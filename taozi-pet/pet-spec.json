@@ -3,7 +3,7 @@
   "app": {
     "name": "套子桌宠",
     "appId": "com.taozi.pet",
-    "version": "4.1.2",
+    "version": "4.2.2",
     "language": "zh-CN"
   },
   "targets": {
@@ -644,7 +644,9 @@
         "sleep-07.png",
         "sleep-08.png",
         "sleep-09.png",
-        "sleep-10.png"
+        "sleep-10.png",
+        "sleep-11.png",
+        "sleep-12.png"
       ],
       "frameDurationMs": 250,
       "loop": true,

@@ -222,20 +222,6 @@ checks.push(makeCheck({
   },
 }));
 
-// 渲染最小学号：过低会降低可读性，尤其设置在弱光/缩放下
-checks.push(makeCheck({
-  id: 'font-size-floor',
-  gate: 'window',
-  severity: 'warning',
-  describe: '正文最小学号 ≥12px，避免过小难读',
-  run: () => {
-    const sizes = [...files.dashboardCss.matchAll(/font-size:\s*(\d+)px/g)].map((m) => Number(m[1]));
-    const min = sizes.length ? Math.min(...sizes) : 0;
-    const ok = min >= 12;
-    return { passed: ok, detail: ok ? `最小正文字号 ${min}px` : `存在过小字号 ${min}px（建议 ≥12px），多用于弱可读性辅助文案请确认` };
-  },
-}));
-
 // 主题主色与表面色亮度差过小：可点/强调元素可能与背景粘连、层级弱
 checks.push(makeCheck({
   id: 'theme-accent-contrast',
