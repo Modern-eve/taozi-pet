@@ -65,6 +65,7 @@ applySpriteSize();
 
 // 显示反馈气泡
 // persist=true 时气泡不自动消失（用于提醒通知，直到用户点击桌宠或其他动作后才被替换/隐藏）
+// durationMs 为自动消失时长（默认 5s；peek 用 3s）
 let feedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
 // 气泡定位：短文本贴近桌宠（气泡区底部、精灵上方），长文本固定在气泡区顶部换行/滚动，始终不遮动画
@@ -78,7 +79,7 @@ function positionBubble(): void {
     : `${margin}px`; // 长文本：固定在气泡区顶部，max-height 内滚动
 }
 
-function showFeedback(text: string, persist = false): void {
+function showFeedback(text: string, persist = false, hideAfterMs = 5000): void {
   feedbackBubble.textContent = text;
   positionBubble();
   feedbackBubble.classList.add('show');
@@ -89,7 +90,7 @@ function showFeedback(text: string, persist = false): void {
   }
   feedbackTimer = setTimeout(() => {
     feedbackBubble.classList.remove('show');
-  }, 5000);
+  }, hideAfterMs);
 }
 
 // 切换状态
@@ -130,7 +131,35 @@ function animate(timestamp: number): void {
       feedbackBubble.classList.add('mirrored');
     }
   }
+  ensureSleepQuoteTimer();
   animationFrame = requestAnimationFrame(animate);
+}
+
+// —— 睡眠常驻时不定时弹出睡觉语录 ——
+// sleep 常驻（durationMs 0）期间没有新的 activity 触发，动画循环只换帧不弹气泡；
+// 这里用一个自循环随机定时器，在入睡期间每隔 12~30s 随机补一句睡觉语录，离开 sleep 即停止。
+let sleepQuoteTimer: ReturnType<typeof setTimeout> | null = null;
+
+function ensureSleepQuoteTimer(): void {
+  const isSleeping = stateMachine.currentStateId() === 'sleep';
+  if (isSleeping && sleepQuoteTimer === null) {
+    scheduleSleepQuote();
+  } else if (!isSleeping && sleepQuoteTimer !== null) {
+    clearTimeout(sleepQuoteTimer);
+    sleepQuoteTimer = null;
+  }
+}
+
+function scheduleSleepQuote(): void {
+  const delay = 12000 + Math.random() * 18000; // 12~30s 随机
+  sleepQuoteTimer = setTimeout(() => {
+    sleepQuoteTimer = null;
+    if (stateMachine.currentStateId() === 'sleep') {
+      const quote = getQuote('sleep');
+      if (quote) showFeedback(quote);
+      ensureSleepQuoteTimer();
+    }
+  }, delay);
 }
 
 // 调度空闲事件（眨眼）
@@ -193,7 +222,12 @@ container.addEventListener('click', (event) => {
   scheduleIdleEvents();
   // 点击桌宠即消费待处理提醒（notify 循环被 happy 打断，气泡被点击语录替换）
   void window.petAPI?.reminders.ack().catch(() => {});
-  showFeedback(getQuote('__click__'));
+  // 沮丧状态下 happy 压不过 sad（动画不切，仍是沮丧），点击不该弹兴奋语录——
+  // 此时改弹沮丧安抚语录，语气与心情一致
+  const quote = stateMachine.currentStateId() === 'sad'
+    ? (getQuote('sad') || getQuote('__click__'))
+    : getQuote('__click__');
+  showFeedback(quote);
 });
 
 // 拖拽
@@ -269,7 +303,7 @@ window.petAPI?.events.onStateActivity((activity: StateActivity) => {
       showFeedback(feedback);
     } else if (activity.stateId !== 'idle' && activity.stateId !== 'notify' && activity.kind !== 'interaction') {
       const quote = getQuote(activity.stateId);
-      if (quote) showFeedback(quote);
+      if (quote) showFeedback(quote, false, activity.stateId === 'peek' ? 3000 : 5000);
     }
   } else if (activity.feedback) {
     showFeedback(activity.feedback);
@@ -284,6 +318,10 @@ async function init(): Promise<void> {
     // dashboard 修改语录后刷新本窗口缓存
     window.petAPI?.events.onQuotesChanged(() => {
       void window.petAPI?.quotes.get().then((q) => { customQuotesCache = q; });
+    });
+    // 主进程调整完桌宠窗口尺寸后主动刷新精灵尺寸（双保险，setBounds 后 resize 事件不稳定时仍生效）
+    window.petAPI?.events.onPetSizeApplied(() => {
+      applySpriteSize();
     });
 
     // 先设置 idle 状态

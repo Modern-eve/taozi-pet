@@ -59,6 +59,7 @@ const api: PetAPI = {
     onDashboardView: (listener) => subscribe<DashboardView>('dashboard:view', listener),
     onStats: (listener) => subscribe<PetStats>('pet:stats', listener),
     onTypingStatus: (listener) => subscribe<TypingStatus>('typing:status', listener),
+    onPetSizeApplied: (listener) => subscribe<void>('pet:size-applied', listener),
   },
 };
 

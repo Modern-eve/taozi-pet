@@ -252,25 +252,29 @@ html, body {
 }
 
 /* 版本号：状态页末尾的一行小字，连续快速点击 6 次可进入开发者模式（调试入口） */
+/* 悬停/点击热区只落在文字本身，#version-text 内联于 flex 容器，移出文字即不触发 */
 .version-line {
   position: relative;
-  text-align: center;
+  display: flex;
+  justify-content: center;
   font-size: 12px;
   line-height: 1.2;
-  color: color-mix(in srgb, var(--muted, #b08657) 70%, transparent);
   padding: 2px 0 1px;
+}
+
+#version-text {
   cursor: pointer;
   user-select: none;
+  color: color-mix(in srgb, var(--muted, #b08657) 70%, transparent);
+  transition: color 0.08s;
 }
 
-.version-line:active {
-  color: #ff5100;
-  transform: scale(0.96);
-  transition: transform 0.08s, color 0.08s;
-}
-
-.version-line:hover {
+#version-text:hover {
   color: #ff8a24;
+}
+
+#version-text:active {
+  color: #ff5100;
 }
 
 /* 版本号气泡（开发者模式提示 / 倒计时提示）：出现在版本号上方，居中，自动消失 */

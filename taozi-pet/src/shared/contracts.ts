@@ -230,6 +230,7 @@ export interface PetAPI {
     onDashboardView: (listener: (view: DashboardView) => void) => () => void;
     onStats: (listener: (stats: PetStats) => void) => () => void;
     onTypingStatus: (listener: (status: TypingStatus) => void) => () => void;
+    onPetSizeApplied: (listener: () => void) => () => void;
   };
 }
 
