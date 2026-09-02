@@ -51,11 +51,9 @@ QA: PASS (144/144)
 ### 标准命令
 
 ```bash
-# 1) 帧整理（新增/替换素材后必做）：assets-raw 的帧转 png + 编号收拢为 01..NN
+# 1) 帧整理（新增/替换素材后必做）：转 png + 编号收拢为 01..NN（去掉 --apply 可先预览）
 cd D:\Documents\Doubao\chats\2026-08-12\new-chat
-C:\PYTHON312\python.exe rename-assets.py --prefix notify                # 先 dry-run 看计划
-C:\PYTHON312\python.exe rename-assets.py --prefix notify --apply        # 确认无误后执行
-C:\PYTHON312\python.exe rename-assets.py --prefix sad --to-png --apply  # 混了 jpg 时先转 png
+C:\PYTHON312\python.exe rename-assets.py --prefix <状态> --to-png --apply
 
 # 2) 抠白底（GPU，需 conda 环境 my_project；首次会下载 BiRefNet 模型）
 #    在 my_project 环境下运行 preprocess-v7 -gpu.py
