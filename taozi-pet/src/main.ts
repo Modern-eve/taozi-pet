@@ -370,7 +370,10 @@ function randomWalkStep(): void {
 
   // 触发 walk 动画：向右或向下移动时左右镜像
   const walkMirror = direction === 1 || direction === 3; // 下或右
-  sendActivity({ kind: 'ambient', stateId: 'walk', mirror: walkMirror });
+  // 走动时长按实际位移步数计算，使 walk 动画与物理移动同长：
+  // 高挡位位移可达 3520ms，超过一轮 3000ms 会在移动未结束时就被切回 idle（末段滑行）。
+  const walkDurationMs = totalSteps * RANDOM_WALK_FRAME_MS;
+  sendActivity({ kind: 'ambient', stateId: 'walk', mirror: walkMirror, durationMs: walkDurationMs });
   resetActivityTimer();
 
   randomWalkAnimTimer = setInterval(() => {
