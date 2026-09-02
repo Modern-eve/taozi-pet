@@ -122,8 +122,6 @@ QA 报告统一落在 `qa/`：
 | assets-report.json / contact-sheet.png | qa-assets |
 | asset-hashes.json | qa-assets 回归基线 |
 
-`manual-checklist.md` 为人工复核清单，非自动生成。
-
 ## 六、职责边界（防漂移的核心约定）
 
 | 层面 | 归属 |
