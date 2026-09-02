@@ -21,8 +21,9 @@ from PIL import Image
 DEFAULT_CORE = "core-ip.png"
 DEFAULT_OUT = os.path.join("taozi-pet", "src", "assets", "tray", "tray-icon.png")
 
-# 默认只取头部+肩部区域（水平居中半宽、垂直 2%-30%），让脸在托盘里更完整。
-DEFAULT_CROP_RATIO = (0.25, 0.02, 0.75, 0.30)
+# 默认取头部+头发核心区（横向 30%-70%、纵向 2%-32%），
+# 比例接近正方形，让脸在 32×32 托盘里更完整、更撑满。
+DEFAULT_CROP_RATIO = (0.30, 0.02, 0.70, 0.32)
 
 
 def parse_crop(value):
