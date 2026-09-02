@@ -185,7 +185,7 @@ def main():
     ap.add_argument("--to-png", action="store_true",
                     help="把 jpg/jpeg/webp/bmp 转成 png（下游抠图脚本只认 .png）")
     ap.add_argument("--keep-src", action="store_true",
-                    help="配合 --to-png：转换后保留原文件（默认删除）")
+                        help="配合 --to-png：转换后保留原文件（默认送回收站）")
     ap.add_argument("--apply", action="store_true",
                     help="真正执行；缺省只打印计划（dry-run）")
     args = ap.parse_args()
