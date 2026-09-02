@@ -254,7 +254,11 @@ function secureWindow(options: Electron.BrowserWindowConstructorOptions, role: R
 function applyPetSettings(): void {
   if (!petWindow || petWindow.isDestroyed()) return;
   const { width, height } = petWindowSize();
-  petWindow.setSize(width, height, true);
+  // 用 setBounds 而非 setSize：resizable:false 的透明窗口中 setSize 缩小常不生效（需重启），
+  // setBounds 保留原位即时缩放；通知宠物端主动刷新精灵尺寸（双保险，不依赖 resize 事件是否触发）
+  const bounds = petWindow.getBounds();
+  petWindow.setBounds({ ...bounds, width, height }, false);
+  petWindow.webContents.send('pet:size-applied');
   petWindow.setAlwaysOnTop(settings.alwaysOnTop);
   petWindow.setIgnoreMouseEvents(settings.clickThrough, { forward: true });
 }
@@ -289,7 +293,8 @@ function decayMood(): void {
 
 function checkMoodState(): void {
   if (stats.mood < MOOD_SAD_THRESHOLD && currentStateId !== 'sad') {
-    sendActivity({ kind: 'ambient', stateId: 'sad' });
+    // durationMs:0 = 常驻（如同 notify），心情未回升前持续沮丧，仅被 sleep/互动/通知打断
+    sendActivity({ kind: 'ambient', stateId: 'sad', durationMs: 0 });
   } else if (stats.mood >= MOOD_SAD_THRESHOLD && currentStateId === 'sad') {
     sendActivity({ kind: 'ambient', stateId: 'idle' });
   }
@@ -314,6 +319,9 @@ function randomWalkStep(): void {
   if (!petWindow || petWindow.isDestroyed()) return;
   if (isDraggingActive()) return;
   if (randomWalkAnimTimer) return; // 正在移动中，不触发新的移动
+  // 仅在待机基底状态（idle）下才随机行走；sleep/sad 等常驻状态时既不移动也不发 walk 语录，
+  // 更避免移动结束的回 idle 信号把常驻状态打断
+  if (currentStateId !== 'idle') return;
   const cfg = RANDOM_WALK_LEVELS[settings.randomWalk];
   if (!cfg) return; // 0 木头人（关闭）
   if (!randomWalkCenter) {
@@ -434,7 +442,8 @@ function scheduleSleep(): void {
   sleepTimer = setTimeout(() => {
     const elapsed = Date.now() - lastActivityTime;
     if (elapsed >= SLEEP_TRIGGER_MS && !isDraggingActive() && !randomWalkAnimTimer) {
-      sendActivity({ kind: 'ambient', stateId: 'sleep' });
+      // durationMs:0 = 常驻（如同 notify），保持入睡直到被开心/互动/通知打断
+      sendActivity({ kind: 'ambient', stateId: 'sleep', durationMs: 0 });
     } else {
       scheduleSleep();
     }
@@ -845,7 +854,8 @@ function registerIpc(): void {
   ipcMain.handle('dev:trigger-sleep', (event) => {
     assertSender(event, ['dashboard']);
     resetActivityTimer();
-    sendActivity({ kind: 'ambient', stateId: 'sleep' });
+    // durationMs:0 = 常驻（如同 notify），保持入睡直到被开心/互动/通知打断
+    sendActivity({ kind: 'ambient', stateId: 'sleep', durationMs: 0 });
     return undefined;
   });
   // 开发者模式：直接设置心情值（0/100），会随之触发 sad / 回 idle 的状态切换
