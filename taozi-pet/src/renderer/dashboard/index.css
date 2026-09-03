@@ -319,6 +319,12 @@ html, body {
   transition: transform 0.15s, box-shadow 0.15s;
 }
 
+.dev-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .dev-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(138, 110, 242, 0.45);

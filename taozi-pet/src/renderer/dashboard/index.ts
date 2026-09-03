@@ -537,6 +537,35 @@ function initDevMode(): void {
     }
   });
 
+  // 🏃 奔跑 + 「抽一次 / 一直抽」模式开关
+  const devWalkBtn = document.getElementById('dev-walk-btn')!;
+  const devWalkToggle = document.getElementById('dev-walk-loop-toggle')!;
+  const devWalkDesc = document.getElementById('dev-walk-desc')!;
+  // 开关激活 = 「一直抽」（纯动画+语录常驻循环）；关闭 = 「抽一次」（按挡位走一趟）
+  let devWalkLoop = false;
+  function updateDevWalk(): void {
+    devWalkToggle.classList.toggle('active', devWalkLoop);
+    devWalkDesc.textContent = devWalkLoop
+      ? '一直抽：不产生位移，循环播放走路动画与语录'
+      : '抽一次：按随机行走挡位立即走动一次';
+  }
+  devWalkToggle.addEventListener('click', () => {
+    devWalkLoop = !devWalkLoop;
+    updateDevWalk();
+  });
+  updateDevWalk();
+  devWalkBtn.addEventListener('click', async () => {
+    try {
+      if (devWalkLoop) {
+        await window.petAPI?.dev.triggerWalk();
+      } else {
+        await window.petAPI?.dev.triggerWalkOnce();
+      }
+    } catch (error) {
+      console.error('Dev: trigger walk failed', error);
+    }
+  });
+
   // 🍃 飞叶子（心情 100）
   document.getElementById('dev-happy-btn')!.addEventListener('click', async () => {
     try {
