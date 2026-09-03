@@ -70,7 +70,19 @@ function petWindowSize(): { width: number; height: number } {
   return { width: Math.max(size, PET_BUBBLE_ZONE_WIDTH), height: size + PET_BUBBLE_ZONE };
 }
 
+// 程序化移动桌宠：位置与尺寸一并下发。
+// frameless + transparent + resizable:false 的窗口在 Windows 上程序化移动会发生尺寸被动漂移
+// （跨不同缩放的显示器时尤甚），且漂移会逐次累积，表现为随机行走"越走越大"。
+// 这里每帧都用 petWindowSize()（spec 基准 × petScale 纯计算，不读取当前窗口）钉住尺寸，
+// 任何一次漂移都会在下一帧被纠正，杜绝累积放大。
+function movePetWindow(x: number, y: number): void {
+  if (!petWindow || petWindow.isDestroyed()) return;
+  petWindow.setBounds({ x, y, ...petWindowSize() }, false);
+}
+
 let sleepTimer: ReturnType<typeof setTimeout> | undefined;
+// 一次性状态（loop=false）播完后，把主进程门控状态复位回 idle 的定时器
+let stateResetTimer: ReturnType<typeof setTimeout> | undefined;
 let lastActivityTime = Date.now();
 let currentStateId = 'idle';
 let runtimeRendererReport: RuntimeReadyReport | undefined;
@@ -370,11 +382,9 @@ function randomWalkStep(): void {
 
   // 触发 walk 动画：向右或向下移动时左右镜像
   const walkMirror = direction === 1 || direction === 3; // 下或右
-  // 走动时长按实际位移步数计算，使 walk 动画与物理移动同长：
-  // 高挡位位移可达 3520ms，超过一轮 3000ms 会在移动未结束时就被切回 idle（末段滑行）。
-  const walkDurationMs = totalSteps * RANDOM_WALK_FRAME_MS;
-  sendActivity({ kind: 'ambient', stateId: 'walk', mirror: walkMirror, durationMs: walkDurationMs });
-  resetActivityTimer();
+  sendActivity({ kind: 'ambient', stateId: 'walk', mirror: walkMirror });
+  // 注意：此处【不】调用 resetActivityTimer()。睡觉计时只允许被用户主动动作重置
+  // （互动 / 拖动 / 开发者面板点击）；随机行走是自动行为，不应推迟入睡。
 
   randomWalkAnimTimer = setInterval(() => {
     step++;
@@ -384,15 +394,18 @@ function randomWalkStep(): void {
         randomWalkAnimTimer = undefined;
       }
       if (petWindow && !petWindow.isDestroyed()) {
-        petWindow.setPosition(targetX, targetY, false);
+        movePetWindow(targetX, targetY);
       }
-      // 移动结束，回到 idle
-      sendActivity({ kind: 'ambient', stateId: 'idle' });
+      // 移动结束，回到 idle。仅当期间未被互动 / 提醒 / 贴边等状态接管时才复位：
+      // 无条件广播 idle 会把互动状态从主进程门控里冲掉，导致渲染层仍在播互动而主进程已回 idle。
+      if (currentStateId === 'walk') {
+        sendActivity({ kind: 'ambient', stateId: 'idle' });
+      }
       return;
     }
     const curX = Math.round(startX + (totalDx * step / totalSteps));
     const curY = Math.round(startY + (totalDy * step / totalSteps));
-    petWindow.setPosition(curX, curY, false);
+    movePetWindow(curX, curY);
   }, RANDOM_WALK_FRAME_MS);
 }
 
@@ -536,8 +549,41 @@ function broadcastRemindersUpdated(): void {
   }
 }
 
+// 一次性状态（loop=false，如 peek / happy / 4 个互动）播完后，渲染层会自行回 idle，
+// 但主进程的门控状态 currentStateId 不会自动复位：曾导致贴边吸附播放 peek 后
+// currentStateId 永久停在 'peek'，随机行走被 `currentStateId !== 'idle'` 永久挡死。
+// 此处按状态时长同步复位主进程门控状态（不广播，避免打断渲染层已自行切好的 idle）。
+function scheduleStateReset(activity: StateActivity): void {
+  if (stateResetTimer) {
+    clearTimeout(stateResetTimer);
+    stateResetTimer = undefined;
+  }
+  // 常驻状态（durationMs:0，如 sleep/sad/notify）不自动复位，需被互动等显式打断
+  if (activity.durationMs === 0) return;
+  // walk 由 randomWalkStep 的移动定时器自行收尾，避免重复复位
+  if (activity.stateId === 'walk') return;
+  const state = spec.states.find((item) => item.id === activity.stateId);
+  // 仅一次性状态需要复位；循环状态（idle/walk/sleep/sad/notify）由常驻或打断逻辑管理
+  if (!state || state.loop) return;
+  const ms = activity.durationMs ?? Math.max(1, state.frames.length * state.frameDurationMs);
+  stateResetTimer = setTimeout(() => {
+    stateResetTimer = undefined;
+    // 期间若已被其它状态覆盖（如互动结束后转入 sad），放弃本次复位
+    if (currentStateId !== activity.stateId) return;
+    currentStateId = 'idle';
+    // 被一次性状态打断的随机行走调度在此恢复（如互动结束后继续走动）
+    startRandomWalk();
+  }, ms + 60);
+}
+
 function sendActivity(activity: StateActivity): void {
-  if (activity.stateId) currentStateId = activity.stateId;
+  if (activity.stateId) {
+    const prevStateId = currentStateId;
+    currentStateId = activity.stateId;
+    // 睡觉期间明确停掉随机行走调度，避免定时器在常驻状态下空转；唤醒后由复位/打断路径恢复
+    if (currentStateId === 'sleep' && prevStateId !== 'sleep') stopRandomWalk();
+    scheduleStateReset(activity);
+  }
   if (petWindow && !petWindow.isDestroyed()) petWindow.webContents.send('state:activity', activity);
 }
 
@@ -567,6 +613,9 @@ async function triggerInteraction(id: string): Promise<InteractionResult> {
   const result: InteractionResult = { interaction, feedback, stats: publicStats() };
   // 用户触发互动即消费当前待处理的队首提醒；等本互动播完再播放下一条
   ackPendingReminder(interaction.durationMs);
+  // 互动是用户主动动作：先停下正在进行的随机行走（含移动定时器），避免桌宠一边播互动一边滑行。
+  // 互动为一次性状态（loop=false），播完后由 scheduleStateReset 的复位回调 startRandomWalk() 恢复调度。
+  stopRandomWalk();
   sendActivity({ kind: 'interaction', stateId: interaction.stateId, durationMs: interaction.durationMs, feedback });
   broadcastStats();
   // 互动结束后检查心情，若仍低于阈值则回到sad
@@ -653,11 +702,26 @@ function broadcastTypingStatus(): void {
   }
 }
 
+// 打字反应的节流锚点：真实键盘监听（uiohook-napi 等）会按每次击键高频回调，
+// 直接透传会让眨眼动画被反复重启、永远只播出开头几帧。
+let lastTypingReactionAt = 0;
+
 function restartTypingListener(): void {
   typingListener.stop();
   typingStatus = typingListener.start(settings.typingReaction, () => {
     const state = stateForTrigger('typing:activity');
-    sendActivity({ kind: 'typing', stateId: state?.id, durationMs: 500 });
+    // spec 缺该触发器时静默失败（stateId 为 undefined 会让桌宠毫无反应），这里直接放弃并告警
+    if (!state) {
+      void logger?.write('warn', 'typing-trigger-missing', { trigger: 'typing:activity' });
+      return;
+    }
+    // 时长由状态实际帧长派生，不硬编码，保证动画完整播完（blink 为 24 帧 × 250ms = 6000ms）
+    const durationMs = state.frames.length * state.frameDurationMs;
+    // 至少等上一次反应播完再响应，避免高频击键打断动画
+    const now = Date.now();
+    if (now - lastTypingReactionAt < durationMs) return;
+    lastTypingReactionAt = now;
+    sendActivity({ kind: 'typing', stateId: state.id, durationMs });
   });
   broadcastTypingStatus();
   void logger?.write(typingStatus.enabled ? 'info' : 'warn', 'typing-listener-status', typingStatus as unknown as Record<string, unknown>);
