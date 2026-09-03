@@ -27,6 +27,8 @@ const api: PetAPI = {
   },
   dev: {
     triggerSleep: () => ipcRenderer.invoke('dev:trigger-sleep') as Promise<void>,
+    triggerWalk: () => ipcRenderer.invoke('dev:trigger-walk') as Promise<void>,
+    triggerWalkOnce: () => ipcRenderer.invoke('dev:trigger-walk-once') as Promise<void>,
     setMood: (value) => ipcRenderer.invoke('dev:set-mood', value) as Promise<PetStats>,
   },
   interactions: {

@@ -197,6 +197,8 @@ export interface PetAPI {
   };
   dev: {
     triggerSleep: () => Promise<void>;
+    triggerWalk: () => Promise<void>;
+    triggerWalkOnce: () => Promise<void>;
     setMood: (value: number) => Promise<PetStats>;
   };
   interactions: {

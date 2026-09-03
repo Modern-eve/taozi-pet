@@ -862,6 +862,20 @@ function registerIpc(): void {
     sendActivity({ kind: 'ambient', stateId: 'sleep', durationMs: 0 });
     return undefined;
   });
+  // 开发者模式：触发走路「一直抽」——不产生实际位移，纯循环播放 walk 动画 + walk 语录（符合打断规则）
+  ipcMain.handle('dev:trigger-walk', (event) => {
+    assertSender(event, ['dashboard']);
+    resetActivityTimer();
+    sendActivity({ kind: 'ambient', stateId: 'walk', durationMs: 0 });
+    return undefined;
+  });
+  // 开发者模式：触发走路「抽一次」——按当前随机行走挡位立即走一趟（含实际位移，符合打断规则）
+  ipcMain.handle('dev:trigger-walk-once', (event) => {
+    assertSender(event, ['dashboard']);
+    if (settings.randomWalk === 0) throw new Error('随机行走为「木头人」，无法走动');
+    randomWalkStep();
+    return undefined;
+  });
   // 开发者模式：直接设置心情值（0/100），会随之触发 sad / 回 idle 的状态切换
   ipcMain.handle('dev:set-mood', async (event, value: unknown) => {
     assertSender(event, ['dashboard']);
