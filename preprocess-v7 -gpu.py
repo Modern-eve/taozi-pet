@@ -2,7 +2,7 @@
 GPU 抠白底：assets-raw/ → taozi-pet/incoming-assets/（透明 PNG，默认全量）
 
 用 BiRefNet 在 CUDA 上推理生成基础 alpha，再叠加 v7 后处理
-（保护色 / 清底线 / 最大连通块）保证 QA 兼容。无 GPU 时自动退 CPU。
+（保护色 / 最大连通块）保证 QA 兼容。无 GPU 时自动退 CPU。
 
 保护色对肤色区做 2px 膨胀，可挽回手部/高光边缘的浅色像素，
 避免 happy/starfish-wave 等挥手状态的手颜色被“洗掉”。
@@ -93,58 +93,6 @@ def get_protected_mask(arr, alpha):
     pumpkin = (r > 170) & (g > 110) & (b < 140) & ((r - b) > 70)
     return (skin | pumpkin) & (alpha > 16)
 
-def remove_connected_white_bg(arr, alpha, protected=None):
-    from scipy import ndimage
-    h, w = alpha.shape
-    if protected is None:
-        protected = get_protected_mask(arr, alpha)
-    bg_ref = arr[0, 0].astype(int)
-    r = arr[:, :, 0].astype(int)
-    g = arr[:, :, 1].astype(int)
-    b = arr[:, :, 2].astype(int)
-    dist = np.sqrt((r - bg_ref[0])**2 + (g - bg_ref[1])**2 + (b - bg_ref[2])**2)
-    near_bg = (dist < BG_THRESHOLD) & (alpha > 16) & ~protected
-
-    labeled, num = ndimage.label(near_bg)
-    if num == 0:
-        return alpha
-    sl = ndimage.find_objects(labeled)
-    delete = np.zeros((h, w), dtype=bool)
-    for lab in range(1, num + 1):
-        obj = sl[lab - 1]
-        if obj is None:
-            continue
-        top, bot = obj[0].start, obj[0].stop - 1
-        left, right = obj[1].start, obj[1].stop - 1
-        hb, wb = bot - top + 1, right - left + 1
-        size = int((labeled[obj] == lab).sum())
-        if size < 30:
-            continue
-        if bot >= h - 15 and wb > w * 0.2 and wb >= hb:
-            delete |= (labeled == lab)
-    alpha[delete] = 0
-    return alpha
-
-def remove_bottom_ground_line(arr, alpha):
-    h, w = alpha.shape
-    ys, xs = np.where(alpha > 16)
-    if not len(ys):
-        return alpha
-    y_bot = ys.max()
-    min_n = max(40, int(w * 0.15))
-    for y in range(y_bot, max(0, y_bot - 8), -1):
-        row = alpha[y, :] > 16
-        n = int(row.sum())
-        if n < min_n:
-            continue
-        rp = arr[y, row, :3]
-        mean = float(rp.mean())
-        if mean > 150:
-            alpha[y, row] = 0
-            print(f'    ground line cleared at y={y} n={n} mean={mean:.0f}')
-        break
-    return alpha
-
 def keep_largest_connected(alpha):
     from scipy import ndimage
     h, w = alpha.shape
@@ -191,14 +139,10 @@ def process_image(input_path, output_path):
     protected = ndimage.binary_dilation(protected, iterations=2)
     alpha[protected] = 255
 
-    # 3) 去除与主体连通的底部横线（贴画布底的近背景宽条）
-    alpha = remove_connected_white_bg(arr, alpha, protected)
-    # 4) 去除主体实际最底部的浅色地面线（脚底阴影带）
-    alpha = remove_bottom_ground_line(arr, alpha)
-    # 5) 保留中心最大连通块
+    # 3) 保留中心最大连通块
     alpha = keep_largest_connected(alpha)
 
-    # 6) 清理最边缘 2px 前景，避免 peek 等“贴边出场”状态触发 process-assets 的 SUBJECT_TOUCHES_BORDER。
+    # 4) 清理最边缘 2px 前景，避免 peek 等“贴边出场”状态触发 process-assets 的 SUBJECT_TOUCHES_BORDER。
     # 贴边帧的源图本身就切到画面外，留 2px 透明边不影响观感。
     border = 2
     alpha[:border, :] = 0

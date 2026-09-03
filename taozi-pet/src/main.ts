@@ -53,9 +53,9 @@ const RANDOM_WALK_FRAME_MS = 16; // 约60fps
 const RANDOM_WALK_LEVELS: Array<{ range: number; intervalMin: number; intervalMax: number; distMin: number; distMax: number } | null> = [
   null,
   { range: 220, intervalMin: 14000, intervalMax: 30000, distMin: 60, distMax: 140 }, // 1 散步
-  { range: 320, intervalMin: 8000, intervalMax: 25000, distMin: 120, distMax: 260 }, // 2 正常
-  { range: 420, intervalMin: 4500, intervalMax: 14000, distMin: 200, distMax: 340 }, // 3 活泼
-  { range: 520, intervalMin: 2500, intervalMax: 7500, distMin: 300, distMax: 440 },  // 4 多动症
+  { range: 320, intervalMin: 10000, intervalMax: 20000, distMin: 120, distMax: 260 }, // 2 正常
+  { range: 400, intervalMin: 6000, intervalMax: 14000, distMin: 200, distMax: 320 },  // 3 活泼
+  { range: 480, intervalMin: 4000, intervalMax: 12000, distMin: 300, distMax: 400 },  // 4 多动症
 ];
 const SLEEP_TRIGGER_MS = 3 * 60 * 1000; // 3分钟无互动触发睡觉
 const MOOD_SAD_THRESHOLD = 25; // 心情低于25触发sad
@@ -382,7 +382,9 @@ function randomWalkStep(): void {
 
   // 触发 walk 动画：向右或向下移动时左右镜像
   const walkMirror = direction === 1 || direction === 3; // 下或右
-  sendActivity({ kind: 'ambient', stateId: 'walk', mirror: walkMirror });
+  // durationMs:0 让渲染层把 walk 视为无限循环状态（见 PetStateMachine.durationFor 的 requested===0 分支），
+  // 在物理移动结束前持续循环播放 walk 动画，避免只播一轮（3s）就静止；移动结束时由下方发 idle 收尾。
+  sendActivity({ kind: 'ambient', stateId: 'walk', mirror: walkMirror, durationMs: 0 });
   // 注意：此处【不】调用 resetActivityTimer()。睡觉计时只允许被用户主动动作重置
   // （互动 / 拖动 / 开发者面板点击）；随机行走是自动行为，不应推迟入睡。
 
@@ -994,10 +996,28 @@ function registerIpc(): void {
     assertSender(event, ['pet']);
     if (!petWindow || !dragSession) return;
     dragSession = undefined;
-    if (settings.edgeSnap) {
-      const point = screen.getCursorScreenPoint();
-      const workArea = screen.getDisplayNearestPoint(point).workArea;
-      const snapped = snapBounds(petWindow.getBounds(), workArea);
+    const original = petWindow.getBounds();
+    // 用桌宠中心（而非松手光标）选显示器/工作区，避免 drag-end 时光标跨屏边界导致选错 workArea
+    const center = { x: original.x + original.width / 2, y: original.y + original.height / 2 };
+    const workArea = screen.getDisplayNearestPoint(center).workArea;
+    // 边缘判定：用户把桌宠拖到屏幕左右边缘松手即触发 peek。
+    // 抓取点常在角色中心，光标顶到屏边时窗口会过冲约半个身位（悬在屏外，bounds.x 为负或右缘超出屏缘），
+    // 因此用「窗口左右缘到达/越过屏缘」的方向性判断 + 「松手光标距屏缘 ≤50px」双重信号，
+    // 替换原先 abs(窗口缘-屏缘)<20 的写法（窗口过冲时差值>20，会漏判导致左右都不触发）。
+    const cursor = screen.getCursorScreenPoint();
+    const SNAP_THRESHOLD = 20;
+    const CURSOR_EDGE_BAND = 50;
+    const atLeft = original.x <= workArea.x + SNAP_THRESHOLD
+      || cursor.x <= workArea.x + CURSOR_EDGE_BAND;
+    const atRight = original.x + original.width >= workArea.x + workArea.width - SNAP_THRESHOLD
+      || cursor.x >= workArea.x + workArea.width - CURSOR_EDGE_BAND;
+    const atEdge = atLeft || atRight;
+    if (settings.edgeSnap && atEdge) {
+      // 以精灵为基准贴边：窗口比精灵宽(气泡区最小宽 PET_BUBBLE_ZONE_WIDTH)时精灵水平居中，
+      // 须扣除居中偏移 spriteInset，否则吸附后精灵仍停在离屏边 (windowWidth - spriteWidth)/2 处。
+      const spriteSize = petSize();
+      const spriteInset = (Math.max(spriteSize, PET_BUBBLE_ZONE_WIDTH) - spriteSize) / 2;
+      const snapped = snapBounds(original, workArea, spriteInset, spriteSize);
       petWindow.setBounds(snapped, true);
       const state = stateForTrigger('window:edge-snap');
       // 用 snapBounds 的计算结果判断右侧，避免 setBounds 动画导致 getBounds 延迟
