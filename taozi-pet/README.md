@@ -36,17 +36,25 @@ QA: PASS (144/144)
 > （内部 `endswith('.png')` 两处过滤），任何 jpg/webp 都会被**静默跳过**——不会报错，只是那一帧缺失。
 > 帧号不连续同样会让 `assemble-incoming-assets.py`（按 `pet-spec.json` 的 frames 取清单）漏帧。
 
-### 各脚本职责（都在仓库根目录，单一职责、数据驱动）
+### 各脚本职责
 
-| 脚本                                                  | 作用                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `preprocess-v7 -gpu.py`                             | GPU 抠白底（BiRefNet + CUDA），`assets-raw/` → `taozi-pet/incoming-assets/`，**默认全量**（`--states` 不设=处理全部 144 帧）；`--states` 可限定只跑部分状态。CPU 版 `preprocess-v7-cpu.py` 仅作**应急还原（最后手段）**，非默认回退                                                                                                                                                                               |
-| `assemble-incoming-assets.py`                       | 组装 + 归一化`incoming-assets`：**全部 12 状态**原地归一化（从 `incoming-assets` 读 preprocess 写入的透明帧，按 `sourceOccupancy` 缩放 + 居中 + 底部对齐到 `sourceCanvas` 写回）；`idle/blink` 为 lockedBody，额外做**帧间尺寸对齐**（首帧尺寸为参考）消除 `SCALE_DRIFT`。阈值唯一权威来自 `pet-spec.json` 的 `assetPipeline.source*`（`sourceCanvas`/`sourceMargin`/`sourceOccupancy`/`sourcePad`） |
-| `rename-assets.py`                                  | **流水线第 1 步**：整理 `assets-raw/` 帧——① `--to-png` 把 jpg/jpeg/webp/bmp 转成 png（下游抠图只认 png；若目标 png 已存在则先把它送进**回收站**再转换）；② 按帧号排序收拢为连续整数（数字缺口顺移、x.5 过渡帧并入）。默认目标目录 `assets-raw/`，默认 dry-run，`--apply` 才执行；`--keep-src` 转换后保留原文件（默认也送回收站）                                                                                                                                                                                                                                                                                                                                                     |
-| `repair-src-for-qa.py`                              | 按`qa/assets-report.json` 自动修复失败帧（SCALE_DRIFT / OCCUPANCY_TOO_LARGE / GROUND_RESIDUE / SUBJECT_TOUCHES_BORDER），`--dry-run` 可预览                                                                                                                                                                                                                                                                                          |
-| `make-tray-icon.py`                                 | 从`core-ip.png` 头部裁剪生成 `taozi-pet/src/assets/tray/tray-icon.png`（32×32 透明 PNG）。**与动画帧流水线解耦**：core-ip.png 是母版不会变，idle 等动画帧改了不会影响托盘头像；想换头像只需换 core-ip.png 后跑一次本脚本。抠图采用 **flood-fill 去外背景**（保留角色内部浅色，避免内部空洞）；缩放采用 **alpha 预乘的 LANCZOS**（premultiply → resize → unpremultiply）防止透明区域残留的浅色 RGB 在缩放插值时混进角色边缘产生黑斑；默认等比缩放、居中，不压扁头像                                                                                                                                |
-| `tools/process-assets.mjs`                          | 把`incoming-assets` 渲染为 `src/assets/pet/`（在 `taozi-pet/` 内运行）                                                                                                                                                                                                                                                                                                                                                             |
-| `tools/validate-spec.mjs` / `tools/qa-assets.mjs` | 校验 pet-spec 与素材，目标`PASS (144/144)`                                                                                                                                                                                                                                                                                                                                                                                             |
+Python 脚本在**仓库根目录**运行，Node 工具在 `taozi-pet/` 内运行。
+
+| 脚本 | 输入 → 输出 | 职责 |
+| --- | --- | --- |
+| `rename-assets.py` | `assets-raw/` 内原地整理 | **流水线第 1 步**：`--to-png` 把 jpg/jpeg/webp/bmp 转 png（目标已存在则先送**回收站**再转换）；按帧号排序收拢为连续 `01..NN`（数字缺口顺移、x.5 过渡帧并入、消除文件名空格）。`--prefix` 指定状态（可传多个），`--dir` 换目录；默认 dry-run，`--apply` 落盘，`--keep-src` 保留原文件 |
+| `preprocess-v7 -gpu.py` | `assets-raw/` → `incoming-assets/` | GPU 抠白底（BiRefNet + CUDA），**默认全量**；`--states` 可限定部分状态，`--cpu` 强制 CPU 推理 |
+| `preprocess-v7-cpu.py` | `assets-raw/` → `incoming-assets/` | CPU 抠白底（洪水填充）。**应急兜底**，默认只处理 8 个常用状态，walk/sleep/sad/peek 需显式 `--states` |
+| `assemble-incoming-assets.py` | `incoming-assets/` 原地归一化 | 全部 12 状态按 `sourceOccupancy` 缩放 + 居中 + 底部对齐到 `sourceCanvas`。idle/blink（lockedBody）额外做帧间尺寸对齐消除 `SCALE_DRIFT` |
+| `tools/process-assets.mjs` | `incoming-assets/` → `src/assets/pet/` | 渲染为最终 512×512 桌宠素材（去背景、羽化、按状态统一尺寸、按 anchor 落位） |
+| `tools/validate-spec.mjs` / `tools/qa-assets.mjs` | — | 校验 pet-spec 结构与素材像素质量，目标 `PASS (144/144)` |
+| `repair-src-for-qa.py` | `qa/assets-report.json` → `src/assets/pet/` | 按 QA 报告自动修复失败帧（`SCALE_DRIFT` / `OCCUPANCY_TOO_LARGE` / `GROUND_RESIDUE` / `SUBJECT_TOUCHES_BORDER`），`--dry-run` 可预览 |
+| `make-tray-icon.py` | `core-ip.png` → `src/assets/tray/tray-icon.png` | 从母版源图头部裁剪生成 32×32 透明托盘头像，**与动画帧流水线解耦** |
+
+#### 补充说明
+
+- **`assemble` 的归一化**：读 `pet-spec.json` 的帧清单（**不扫描目录**），以状态内**中位数帧**尺寸为参考；lockedBody（idle/blink）直接对齐参考尺寸，其余状态用有界非等比缩放（sx/sy 偏差 cap=0.035）吸收 GPU 抖动。
+- **`repair-src-for-qa.py` 修的是产物层** `src/assets/pet/`，不修上游 `incoming-assets/`。所以**每次全量 `process-assets` 重跑都会覆盖此前的修复**，需要在 `process-assets` 之后、`qa-assets` 之前重跑本脚本。
 
 ### 标准命令
 

@@ -158,7 +158,7 @@ for (const state of states) {
               if (currentX > compMaxX) compMaxX = currentX;
               if (currentY < compMinY) compMinY = currentY;
               if (currentY > compMaxY) compMaxY = currentY;
-              // 内联 4 邻域，避免每次分配 neighbors 数组（272 帧 × 数十万像素的 GC 压力）
+              // 内联 4 邻域，避免每次分配 neighbors 数组（144 帧 × 数十万像素的 GC 压力）
               if (currentX > 0) { const next = current - 1; if (!visited[next] && data[next * 4 + 3] >= 32) { visited[next] = 1; queue[tail++] = next; } }
               if (currentX + 1 < info.width) { const next = current + 1; if (!visited[next] && data[next * 4 + 3] >= 32) { visited[next] = 1; queue[tail++] = next; } }
               if (currentY > 0) { const next = current - info.width; if (!visited[next] && data[next * 4 + 3] >= 32) { visited[next] = 1; queue[tail++] = next; } }
@@ -262,10 +262,8 @@ for (const state of states) {
       else addDiagnostic(record.errors, record.diagnostics, 'ANCHOR_DRIFT', message);
     }
   }
-  // DUPLICATE_FRAME 检查：帧序列 sha256 去重。状态帧已按文件名去重（双播的重复引用
-  // 只检测一次），这里检查的是"不同文件名的帧内容相同"——walk-03/04 类复制错误仍会被拦截。
-  const checkRecords = stateRecords;
-
+  // DUPLICATE_FRAME：帧序列 sha256 去重，拦截"不同文件名的帧内容相同"这类复制错误。
+  // 同一帧名被双播重复引用时上面已跳过，不会互相误判。
   const seen = new Map();
   for (let index = 0; index < checkRecords.length; index += 1) {
     const record = checkRecords[index];
@@ -284,7 +282,7 @@ const tiles = [];
 const columns = 4;
 const tileWidth = 220;
 const tileHeight = 250;
-// 缩略图并行生成（272 帧串行 sharp → Promise.all，contact sheet 生成提速）
+// 缩略图并行生成（全量 144 帧串行 sharp → Promise.all，contact sheet 生成提速）
 await Promise.all(records.map(async (record, index) => {
   if (!record || !record.frame) return;
   try {

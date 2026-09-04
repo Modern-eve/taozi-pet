@@ -11,13 +11,16 @@ rename-assets.py — assets-raw 帧整理（流水线第 1 步）：格式归一
      ⚠️ 若目标 png 已存在（如 sad-01.jpg 与 sad-01.png 并存），
      先把旧 png **送进回收站**再转换，不静默跳过、也不覆盖。
   2. 编号收拢：按帧号排序后重映射为连续整数，收拢数字缺口、
-     并把 x.5 过渡帧并入连续序列。
+     把 x.5 过渡帧并入连续序列，并消除源文件名中的空格（如
+     " blink - 1 .png" → "blink-01.png"）。collect 阶段已容忍空格，
+     空格在重命名时一并消除。
 
 默认只预览（dry-run），加 --apply 才真正落盘。
 
 用法：
+  python rename-assets.py --prefix blink                 # 预览（含自动去空格）
   python rename-assets.py --prefix notify                 # 预览编号计划（默认）
-  python rename-assets.py --prefix notify --apply         # 执行编号收拢
+  python rename-assets.py --prefix notify --apply         # 执行编号收拢（含去空格）
   python rename-assets.py --prefix sad --to-png --apply   # 先转 png，再编号
   python rename-assets.py --prefix sad --to-png --keep-src --apply   # 转换后保留原文件
   python rename-assets.py --dir taozi-pet/incoming-assets --prefix walk --apply  # 换目录
@@ -39,18 +42,25 @@ FRAME_RE = re.compile(
 
 
 def collect(prefix, names):
-    """返回 {帧号(float): [文件名, ...]}，只保留匹配 <prefix>-<num>.<ext> 的帧。
+    """返回 {帧号(float): [原始文件名, ...]}，只保留匹配 <prefix>-<num>.<ext> 的帧。
 
+    源导出文件名常带空格（如 " blink - 1 .png"），这里在匹配前去掉空格，
+    使乱序/带空格导出也能被识别为合法帧，空格在「编号收拢」重命名时一并消除。
     同一帧号可能同时存在多种格式（如 sad-01.jpg 与 sad-01.png），此时全部收集，
     由 plan_convert 决定取舍。
     """
     items = {}
-    for n in names:
-        m = FRAME_RE.match(n)
+    for orig in names:
+        n = orig.strip()
+        base, ext = os.path.splitext(n)
+        if not ext or ext[1:].lower() not in IMG_EXTS:
+            continue
+        cleaned = base.replace(' ', '') + ext.lower()
+        m = FRAME_RE.match(cleaned)
         if not m or m.group('prefix').lower() != prefix.lower():
             continue
         num = float(m.group('num'))
-        items.setdefault(num, []).append(n)
+        items.setdefault(num, []).append(orig)
     return items
 
 
@@ -111,7 +121,7 @@ def plan_rename(prefix, final_map):
     return plan, unchanged
 
 
-# ---------- 回收站（Windows SHFileOperationW + FOF_ALLOWUNDO） ----------
+# ---- 回收站（Windows SHFileOperationW + FOF_ALLOWUNDO）----
 FO_DELETE = 3
 FOF_SILENT = 0x0004
 FOF_NOCONFIRMATION = 0x0010
@@ -198,10 +208,20 @@ def main():
     short = os.path.basename(d.rstrip('/\\')) or d
 
     for prefix in args.prefix:
-        items = collect(prefix, os.listdir(d))
+        listing = os.listdir(d)
+        # collect 已内置去空格容忍，直接识别带空格/乱序导出；空格在编号收拢时消除
+        items = collect(prefix, listing)
         if not items:
             print(f"[{prefix}] {short} · 未找到该前缀的帧")
             continue
+
+        # 重复帧校验：同一帧号下只允许一个 png 源（其余为非 png 待转换/回收），
+        # 否则去空格后指向同一最终名会冲突，需手工处理。
+        for num, names in items.items():
+            pngs = [n for n in names if n.lower().endswith('.png')]
+            if len(pngs) > 1:
+                raise SystemExit(
+                    f"错误：帧 {prefix}-{num:g} 存在多个 png 源文件 {pngs}，请手工处理")
 
         conv_plan, recycles = plan_convert(items) if args.to_png else ([], [])
         final_map = final_name_map(items)
@@ -226,14 +246,15 @@ def main():
         if not args.apply:
             continue
 
+        # 落盘：先转换（如需），再编号收拢（去空格在重命名时一并完成）
         if conv_plan or recycles:
             do_convert(d, conv_plan, recycles, args.keep_src)
         if ren_plan:
             do_rename(d, ren_plan)
 
         done = " · ".join(f"{k} {v}" for k, v in
-                          (("回收", len(recycles)), ("转换", len(conv_plan)),
-                           ("改名", len(ren_plan))) if v)
+                          (("回收", len(recycles)),
+                           ("转换", len(conv_plan)), ("改名", len(ren_plan))) if v)
         if done:
             print(f"  ✓ {done}")
 

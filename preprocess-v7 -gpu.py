@@ -1,11 +1,14 @@
 """
 GPU 抠白底：assets-raw/ → taozi-pet/incoming-assets/（透明 PNG，默认全量）
 
-用 BiRefNet 在 CUDA 上推理生成基础 alpha，再叠加 v7 后处理
-（保护色 / 最大连通块）保证 QA 兼容。无 GPU 时自动退 CPU。
+用 BiRefNet 在 CUDA 上推理生成基础 alpha，再叠加三步后处理保证 QA 兼容：
+  1) 保护色（肤色 / 南瓜色，含 2px 膨胀）
+  2) 保留中心最大连通块
+  3) 清理最边缘 2px 前景
 
 保护色对肤色区做 2px 膨胀，可挽回手部/高光边缘的浅色像素，
 避免 happy/starfish-wave 等挥手状态的手颜色被“洗掉”。
+无 GPU 时自动退 CPU（也可 --cpu 强制）。
 
 用法:
   python "preprocess-v7 -gpu.py"              # 处理 assets-raw 全部帧
@@ -32,7 +35,7 @@ BG_THRESHOLD = 28
 # BiRefNet 在 1024 边长上训练；大图等比缩放到此尺寸推理，再还原
 MODEL_SIZE = 1024
 
-# ---------- GPU 模型（懒加载，单例，进程内只加载一次） ----------
+# ---- GPU 模型（懒加载单例，进程内只加载一次）----
 _MODEL = None
 
 def get_model():
@@ -83,7 +86,7 @@ def rmbg_alpha(rgba_pil):
     return np.asarray(prob_img).astype(np.uint8)
 
 
-# ===================== v7 后处理（原样保留，保 QA 兼容） =====================
+# ---- v7 后处理（保 QA 兼容）----
 def get_protected_mask(arr, alpha):
     r = arr[:, :, 0].astype(int)
     g = arr[:, :, 1].astype(int)
@@ -94,7 +97,6 @@ def get_protected_mask(arr, alpha):
     return (skin | pumpkin) & (alpha > 16)
 
 def keep_largest_connected(alpha):
-    from scipy import ndimage
     h, w = alpha.shape
     fg = alpha > 16
     labeled, num = ndimage.label(fg)
@@ -165,7 +167,7 @@ def main():
     ap = argparse.ArgumentParser(description="GPU 抠图：assets-raw → taozi-pet/incoming-assets（默认全量）")
     ap.add_argument('files', nargs='*', help='指定文件（默认处理 --states 全部）')
     ap.add_argument('--states', nargs='*', default=None,
-                    help='只处理这些状态（默认 None=全部状态，全量处理）')
+                    help='只处理这些状态（默认 None=全部状态；帧间尺寸漂移由下游 assemble 归一化收口）')
     ap.add_argument('--cpu', action='store_true', help='强制 CPU 推理（无 GPU 兜底）')
     args = ap.parse_args()
     if args.cpu:

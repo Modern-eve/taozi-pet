@@ -121,7 +121,7 @@ checks.push(makeCheck({
   },
 }));
 
-// ---- quotes（新增：语录一致性） ----
+// ---- quotes（语录一致性） ----
 checks.push(makeCheck({
   id: 'quote-sync',
   gate: 'quotes',
@@ -138,7 +138,7 @@ checks.push(makeCheck({
   },
 }));
 
-// ---- 更多防御性 warning（⍺：仅提示不阻断，配置偏离合理形态时提醒） ----
+// ---- 防御性 warning（仅提示，不阻断）----
 
 // 语录组条数过少，避免反馈内容显得单薄
 checks.push(makeCheck({

@@ -2,15 +2,17 @@
 CPU 抠白底（v7 洪水填充算法）：assets-raw/ → taozi-pet/incoming-assets/（透明 PNG）
 
 仅从左/右/上边缘发起洪水填充（下方不发起，保护脚底），叠加保护色障碍物、
-最大连通块保留。仅作最后手段（GPU 版为默认）。
+最大连通块保留。
+
+GPU 版（preprocess-v7 -gpu.py）为默认路径，本脚本仅作**应急兜底**：
+默认只处理 DEFAULT_STATES 列出的 8 个状态，walk/sleep/sad/peek 需显式 --states 指定。
 
 用法:
-  python preprocess-v7-cpu.py                    # 处理非 matted 的 8 个状态
+  python preprocess-v7-cpu.py                    # 处理 DEFAULT_STATES 的 8 个状态
   python preprocess-v7-cpu.py walk-01.png       # 只处理指定文件
-  python preprocess-v7-cpu.py --states idle blink
+  python preprocess-v7-cpu.py --states walk sleep
 """
 import os
-import sys
 import numpy as np
 from PIL import Image
 
@@ -93,7 +95,7 @@ def process_image(input_path, output_path):
     arr[:, :, 3] = alpha
     Image.fromarray(arr).save(output_path)
 
-# 默认处理非 matted 的 8 个状态（matted 4 状态由 GPU 版负责）
+# 默认状态集合（缺 walk/sleep/sad/peek，需时显式 --states 指定）
 DEFAULT_STATES = ["idle", "blink", "happy", "notify", "pet-head", "pumpkin-bag", "petal-spin", "starfish-wave"]
 
 def _state_of(fname):
@@ -102,7 +104,7 @@ def _state_of(fname):
 
 def main():
     import argparse
-    ap = argparse.ArgumentParser(description="CPU 抠图：assets-raw → taozi-pet/incoming-assets（仅非 matted 状态）")
+    ap = argparse.ArgumentParser(description="CPU 抠图（应急兜底）：assets-raw → taozi-pet/incoming-assets（默认 8 个常用状态，其余需 --states）")
     ap.add_argument('files', nargs='*', help='指定文件（默认处理 --states 全部）')
     ap.add_argument('--states', nargs='*', default=DEFAULT_STATES,
                     help=f'只处理这些状态（默认 {DEFAULT_STATES}）')

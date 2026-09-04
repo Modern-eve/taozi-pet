@@ -128,7 +128,7 @@ def build_state(state, frames):
         dst = os.path.join(INC, fr)
         if not os.path.exists(dst):
             raise RuntimeError(f"帧缺失：{dst}（请先运行 preprocess 把透明帧写入 incoming）")
-        render_matted(fr[:-4], ref_size, locked, cap).save(dst)
+        render_normalized(fr[:-4], ref_size, locked, cap).save(dst)
         done += 1
         print(f"  norm   {fr}")
     return done
