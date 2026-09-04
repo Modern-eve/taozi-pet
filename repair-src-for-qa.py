@@ -8,7 +8,11 @@ repair-src-for-qa.py — 按 qa/assets-report.json 自动修复失败帧
   - SUBJECT_TOUCHES_BORDER    : 带 MARGIN 重新居中
 报告说坏修什么；无失败则无改动。
 
-用法：
+⚠️ 修复目标是**产物层** taozi-pet/src/assets/pet/，不是上游 incoming-assets/。
+因此每次全量 `node tools/process-assets.mjs` 重跑都会覆盖掉此前的修复，
+流程上需要在 process-assets 之后、qa-assets 之前重跑本脚本。
+
+用法:
   python repair-src-for-qa.py
   python repair-src-for-qa.py --dry-run
   python repair-src-for-qa.py --report other.json --assets path/to/pet

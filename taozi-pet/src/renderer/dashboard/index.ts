@@ -39,7 +39,7 @@ const randomWalkButtons = Array.from(document.querySelectorAll<HTMLButtonElement
 const scaleSlider = document.getElementById('scale-slider') as HTMLInputElement;
 const scaleValue = document.getElementById('scale-value') as HTMLSpanElement;
 
-// === 视图切换：状态 / 语录 / 提醒（由桌宠右键或托盘右键分别进入）===
+// ---- 视图切换：状态 / 语录 / 提醒（右键进入）----
 const viewTabs = document.querySelectorAll<HTMLButtonElement>('.view-tab');
 const viewSections = new Map<string, HTMLElement>();
 for (const section of document.querySelectorAll<HTMLElement>('.view')) {
@@ -62,7 +62,7 @@ window.petAPI?.events.onDashboardView((view) => switchView(view));
 
 let currentSettings: Settings | null = null;
 
-// === 语录管理（单一数据源：userData/quotes.json，与 pet-spec.json 中的文本同步）===
+// ---- 语录管理（单一数据源 userData/quotes.json）----
 const quotesContainer = document.getElementById('quotes-container') as HTMLDivElement;
 
 // 语录数据内存缓存（init 时从主进程加载；编辑后保存并写回同一份文件）
@@ -145,7 +145,7 @@ function renderQuotes(): void {
   }
 }
 
-// === 提醒列表 ===
+// ---- 提醒列表 ----
 const remindersContainer = document.getElementById('reminders-container') as HTMLDivElement;
 const reminderTextInput = document.getElementById('reminder-text') as HTMLInputElement;
 const reminderTimeInput = document.getElementById('reminder-time') as HTMLInputElement;
@@ -462,7 +462,7 @@ async function init(): Promise<void> {
   initDevMode();
 }
 
-// === 开发者模式：版本号连击检测 + 开发者选项逻辑 ===
+// ---- 开发者模式：版本号连击检测 ----
 const DEV_TAP_WINDOW_MS = 2000; // 2 秒内连续点击 6 次
 let tapTimestamps: number[] = [];
 let devModeActive = false;

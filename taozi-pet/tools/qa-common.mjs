@@ -121,8 +121,8 @@ export async function loadJson(relativePath) {
   return JSON.parse(await readFile(path.join(PROJECT_ROOT, relativePath), 'utf8'));
 }
 
+/** 读取并解析项目根下的 pet-spec.json（路径与报错统一由 loadJson 处理） */
 export function loadSpec() {
-  // spec 同步被多个纯字面量解析使用，这里返回对象；读取失败会让调用方拿到异常，行为与之前一致
   return loadJson('pet-spec.json');
 }
 
@@ -138,6 +138,6 @@ export function parseArgv(argv = process.argv) {
 
 export function assetSetsFromSpec(spec) {
   const stateFrames = new Set(spec.states?.flatMap((state) => state.frames ?? []) ?? []);
-  // coreAsset 已移除；运行时帧集合即为 states.frames 的并集。
+  // 运行时帧集合即 states.frames 的并集（非循环状态靠重复引用 base 帧播两遍，不产生额外文件）
   return { referenced: stateFrames, stateFrames };
 }

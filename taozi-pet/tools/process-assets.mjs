@@ -169,8 +169,7 @@ async function extractForeground(name) {
       const distance = colorDistance(data, offset, nearest);
       alphaFactor = Math.max(0.08, Math.min(1, (distance - threshold) / Math.max(1, feather)));
       // RGB 反推保护：alphaFactor 过低时 (data - bg*(1-a)) / a 会除法爆炸，
-      // 把接近背景的半透明边缘反推成纯白像素（曾导致双腿间白底）。
-      // 此时直接保留原始 RGB，只靠 alpha 衰减羽化，不再反推。
+      // 故仅当 alphaFactor 较高时才反推 RGB，否则直接保留原始 RGB，只靠 alpha 衰减羽化。
       if (alphaFactor >= 0.5) {
         for (let channel = 0; channel < 3; channel += 1) {
           const foreground = (data[offset + channel] - (1 - alphaFactor) * nearest[channel]) / alphaFactor;
@@ -198,7 +197,7 @@ async function extractForeground(name) {
   };
 }
 
-// 并行处理 272 帧（sharp decode/encode 异步，Promise.all 分 8 路并发提速）
+// 并行处理全量 144 帧（sharp decode/encode 异步，Promise.all 分 8 路并发提速）
 const PARALLEL = 8;
 const nameList = [...names];
 for (let start = 0; start < nameList.length; start += PARALLEL) {

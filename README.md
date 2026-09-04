@@ -61,7 +61,8 @@ npm run dev
 # Windows 也可以直接双击 启动桌宠.bat
 ```
 
-> 首次运行会自动执行 `check:quick`（亚秒级）。启动后无命令行黑窗的**正式打包版**请用下面的打包命令。
+> `npm run dev` 启动前会自动跑一次 `check:quick`（亚秒级），任一环节失败都会中止启动。
+> 想要无命令行黑窗的**正式打包版**，请用下面的打包命令。
 
 ## 常用命令
 
@@ -74,7 +75,7 @@ npm run test:e2e       # 端到端测试（自动打包 host）
 npm run test:dev-smoke # 开发冒烟测试（隔离 userData）
 npm run qa:*           # 单项 QA（qa:ui / qa:experience / qa:assets）
 npm run process:assets # 素材处理（incoming-assets/ -> src/assets/pet/）
-npm run inspect:assets # 查看素材处理报告
+npm run inspect:assets # 处理素材 + 跑像素级 QA（process-assets → qa-assets）
 npm run doctor         # 环境诊断
 npm run package:win / make:win / portable:win   # 打包 / 安装包 / 绿色版
 ```
@@ -152,7 +153,7 @@ QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）�
 | 8 | blink 眨眼 | 待机 | 偷看、走路、睡觉、伤心、开心、4 个互动、通知 |
 | **9（最低）** | idle 待机 | 无 | 一切 |
 
-> ① "能打断"里的**待机**由状态机特判：当前为 `idle` 时任意新状态直接接管，因此 `pet-spec.json` 各状态的可打断名单里**无需也不能**显式写出 idle。② `canInterrupt` 含自身 id 属冗余；③ `notify` 为循环且名单含 `*`，意味着它只能被 happy/互动打断（其余状态压不过它），QA 以 warning 提示该 live-lock 风险。
+> ① "能打断"里的**待机**由状态机特判：当前为 `idle` 时任意新状态直接接管，因此 `pet-spec.json` 各状态的可打断名单里**无需也不能**显式写出 idle。② `canInterrupt` 含自身 id 属冗余；③ `notify` 为循环且名单含 `*`，只能被 happy/互动打断，QA 以 warning 提示该 live-lock 风险。
 
 ## 数值规则
 
@@ -185,7 +186,7 @@ QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）�
 - **拖动打断**：用户拖动桌宠期间暂停游走，位移结束回到 `idle`。
 - **睡觉期间不走**：进入 `sleep` 常驻状态（连续 3 分钟无互动）时立即停掉游走调度，避免定时器在常驻状态下空转；被互动 / 提醒唤醒后自动恢复游走。睡觉计时**只由用户主动动作重置**（互动 / 拖动 / 开发者面板点击），随机行走等自动行为不会推迟入睡。
 - **互动期间停下脚步**：触发任意互动（摸头 / 掏南瓜包 / 花瓣转圈 / 海星挥手）时立即停止正在进行的移动，避免桌宠一边播互动动画一边滑行；互动为一次性状态，播完后自动恢复游走调度。
-- **移动时锁定尺寸**：每帧移动都按 `spec 基准 × 桌宠缩放` 的权威尺寸一并下发，避免 frameless 透明窗口在 Windows 上被程序化移动时尺寸漂移并累积（表现为「越走越大」）。
+- **移动时锁定尺寸**：每帧移动都按 `spec 基准 × 桌宠缩放` 的权威尺寸一并下发。frameless 透明窗口在 Windows 上被程序化移动时尺寸会漂移且逐次累积（表现为「越走越大」），钉死尺寸可杜绝累积放大。
 
 ## 各动作的气泡机制
 
@@ -243,5 +244,6 @@ QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）�
 
 ## 目录约定
 
-- `incoming-assets/`、`assets-processed/`、`qa/` 不纳入 Git 追踪，勿提交。
-- 素材源文件经 `tools/process-assets.mjs` 处理为标准 512×512 PNG。
+- 不纳入 Git 追踪、勿提交：`taozi-pet/incoming-assets/`（抠图中间产物）、`taozi-pet/qa/`（QA 报告与接触表）、`.build/`、`.webpack/`、`out/`、`release/`。
+- 纳入版本库：白底源图 `assets-raw/`、运行时素材 `taozi-pet/src/assets/pet/`、配置 `taozi-pet/pet-spec.json`、流水线脚本。
+- 素材从白底源图到运行时 512×512 PNG 的完整流程见 [taozi-pet/README.md](taozi-pet/README.md)。

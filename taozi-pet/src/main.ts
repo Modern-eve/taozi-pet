@@ -47,7 +47,7 @@ let randomWalkTimer: ReturnType<typeof setTimeout> | undefined;
 let randomWalkAnimTimer: ReturnType<typeof setInterval> | undefined;
 let randomWalkCenter: { x: number; y: number } | undefined;
 const RANDOM_WALK_SPEED = 2; // 每帧移动像素（匀速）
-const RANDOM_WALK_FRAME_MS = 16; // 约60fps
+const RANDOM_WALK_FRAME_MS = 16; // 约 60fps
 // 随机行走挡位配置（索引=挡位）：0 木头人(关闭) / 1 散步 / 2 正常 / 3 活泼 / 4 多动症
 // range=移动范围，interval=两次游走间隔，distance=单次位移；挡位越高走得越频、越远
 const RANDOM_WALK_LEVELS: Array<{ range: number; intervalMin: number; intervalMax: number; distMin: number; distMax: number } | null> = [
@@ -58,7 +58,7 @@ const RANDOM_WALK_LEVELS: Array<{ range: number; intervalMin: number; intervalMa
   { range: 480, intervalMin: 4000, intervalMax: 12000, distMin: 300, distMax: 400 },  // 4 多动症
 ];
 const SLEEP_TRIGGER_MS = 3 * 60 * 1000; // 3分钟无互动触发睡觉
-const MOOD_SAD_THRESHOLD = 25; // 心情低于25触发sad
+const MOOD_SAD_THRESHOLD = 25; // 心情低于 25 触发 sad
 const PET_BUBBLE_ZONE = 110; // 顶部气泡区高度（px）：气泡固定在此区内，换行也不会遮住精灵动画
 const PET_BUBBLE_ZONE_WIDTH = 240; // 气泡区最小宽度（px）：保证小尺寸桌宠时气泡也不会被窗口宽度压缩
 
@@ -100,7 +100,7 @@ let pendingReminderQueue: Reminder[] = [];
 // 消费队首后延时播报下一条的定时器（连续消费时需取消旧的，防止残留定时器重复播报）
 let nextAnnounceReminderTimer: ReturnType<typeof setTimeout> | null = null;
 const typingListener = new TypingListener();
-// coreAsset 已移除：idle 首帧本身已包含在 states.frames 中，这里直接聚合所有帧即可。
+// 运行时素材集合 = spec 中各状态 frames 的并集（非循环状态重复引用 base 帧，不产生额外文件）
 const expectedRuntimeAssets = new Set(spec.states.flatMap((state) => state.frames));
 const runtimeReadyFile = path.join(process.cwd(), '.build', 'runtime-ready.json');
 const runtimeFailureFile = path.join(process.cwd(), '.build', 'runtime-failed.json');
@@ -552,8 +552,8 @@ function broadcastRemindersUpdated(): void {
 }
 
 // 一次性状态（loop=false，如 peek / happy / 4 个互动）播完后，渲染层会自行回 idle，
-// 但主进程的门控状态 currentStateId 不会自动复位：曾导致贴边吸附播放 peek 后
-// currentStateId 永久停在 'peek'，随机行走被 `currentStateId !== 'idle'` 永久挡死。
+// 但主进程的门控状态 currentStateId 不会自动复位，会一直停在那个一次性状态上，
+// 挡死依赖 `currentStateId === 'idle'` 的逻辑（如随机行走）。
 // 此处按状态时长同步复位主进程门控状态（不广播，避免打断渲染层已自行切好的 idle）。
 function scheduleStateReset(activity: StateActivity): void {
   if (stateResetTimer) {
@@ -1003,7 +1003,7 @@ function registerIpc(): void {
     // 边缘判定：用户把桌宠拖到屏幕左右边缘松手即触发 peek。
     // 抓取点常在角色中心，光标顶到屏边时窗口会过冲约半个身位（悬在屏外，bounds.x 为负或右缘超出屏缘），
     // 因此用「窗口左右缘到达/越过屏缘」的方向性判断 + 「松手光标距屏缘 ≤50px」双重信号，
-    // 替换原先 abs(窗口缘-屏缘)<20 的写法（窗口过冲时差值>20，会漏判导致左右都不触发）。
+    // 而不是比较窗口缘与屏缘的绝对差值（窗口过冲时差值会很大，导致左右都不触发）。
     const cursor = screen.getCursorScreenPoint();
     const SNAP_THRESHOLD = 20;
     const CURSOR_EDGE_BAND = 50;
@@ -1022,8 +1022,7 @@ function registerIpc(): void {
       const state = stateForTrigger('window:edge-snap');
       // 用 snapBounds 的计算结果判断右侧，避免 setBounds 动画导致 getBounds 延迟
       const isRightSide = snapped.x + snapped.width >= workArea.x + workArea.width - 10;
-      // 不指定 durationMs：由渲染层按 spec 的 frames.length × frameDurationMs 播完整一轮，
-      // 素材加帧/减帧自动适配（曾硬编码 900ms，peek 12 帧只播到第 4 帧就被切回 idle）
+      // 不指定 durationMs：由渲染层按 spec 的 frames.length × frameDurationMs 播完整一轮，素材加帧/减帧自动适配
       sendActivity({ kind: 'edge-snap', stateId: state?.id, mirror: isRightSide });
     }
     // 更新随机行走中心为拖动结束位置

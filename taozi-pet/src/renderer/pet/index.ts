@@ -54,8 +54,8 @@ function playSquash(): void {
   sprite.classList.add('squash');
 }
 
-// 精灵尺寸锚定：显式用窗口高度派生精灵高度（正方形），避免仅依赖 CSS 100vh 在窗口缩小时未能联动重排
-// （问题：调小桌宠时尺寸不变，需重启才生效）。resize 触发即为窗口实际的最终尺寸，缩小/放大均即时生效。
+// 精灵尺寸锚定：显式用窗口高度派生精灵高度（正方形），而非只依赖 CSS 100vh——
+// 后者在窗口缩小/放大时不一定触发重排，尺寸会滞后。resize 触发即为窗口最终尺寸，即时生效。
 function applySpriteSize(): void {
   const height = Math.max(0, window.innerHeight - PET_BUBBLE_ZONE);
   sprite.style.height = `${height}px`;
@@ -135,7 +135,7 @@ function animate(timestamp: number): void {
   animationFrame = requestAnimationFrame(animate);
 }
 
-// —— 睡眠常驻时不定时弹出睡觉语录 ——
+// ---- 睡眠常驻时随机补弹睡觉语录 ----
 // sleep 常驻（durationMs 0）期间没有新的 activity 触发，动画循环只换帧不弹气泡；
 // 这里用一个自循环随机定时器，在入睡期间每隔 12~30s 随机补一句睡觉语录，离开 sleep 即停止。
 let sleepQuoteTimer: ReturnType<typeof setTimeout> | null = null;
@@ -171,7 +171,6 @@ function scheduleIdleEvents(): void {
   blinkTimer = setTimeout(() => {
     if (stateMachine.currentStateId() === 'idle') {
       setState('blink');
-      // 眨眼也走气泡：随机讲一句「眨眼」语录（原来的死配置现在启用）
       const quote = getQuote('blink');
       if (quote) showFeedback(quote);
     }
@@ -329,7 +328,7 @@ async function init(): Promise<void> {
     scheduleIdleEvents();
     animationFrame = requestAnimationFrame(animate);
 
-    // 等待 idle 首帧图片加载（coreAsset 已移除，改用 idle.frames[0]）
+    // 等待 idle 首帧图片加载（取 idle.frames[0] 预热，避免首帧闪烁）
     const idleFrames = petSpec.states.find((s) => s.id === 'idle')?.frames ?? [];
     const prewarmFrame = idleFrames[0];
     const prewarmUrl = prewarmFrame ? assetMap.get(prewarmFrame) : undefined;
