@@ -270,9 +270,7 @@ for (const state of states) {
   for (let index = 0; index < checkRecords.length; index += 1) {
     const record = checkRecords[index];
     if (!record.sha256) continue; // 读取失败/无哈希的记录不参与重复帧判定，避免多张失败帧互判重复
-    const previous = seen.get(record.sha256);
-    const allowedBlinkClosure = state.id === 'blink' && previous === 0 && index === checkRecords.length - 1 && checkRecords.length >= 3;
-    if (previous !== undefined && !allowedBlinkClosure) {
+    if (seen.has(record.sha256)) {
       const message = `duplicate pixels do not create a real animation frame: ${record.frame}`;
       if (regressionFixture) record.warnings.push(message);
       else addDiagnostic(record.errors, record.diagnostics, 'DUPLICATE_FRAME', message);
