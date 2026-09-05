@@ -7,9 +7,12 @@ CPU 抠白底（v7 洪水填充算法）：assets-raw/ → taozi-pet/incoming-as
 GPU 版（preprocess-v7 -gpu.py）为默认路径，本脚本仅作**应急兜底**：
 默认只处理 DEFAULT_STATES 列出的 8 个状态，walk/sleep/sad/peek 需显式 --states 指定。
 
+输入支持 png / jpg / jpeg / webp / bmp（PIL 按内容解码，扩展名不可信），
+输出统一为透明 png（需 alpha 通道）。
+
 用法:
   python preprocess-v7-cpu.py                    # 处理 DEFAULT_STATES 的 8 个状态
-  python preprocess-v7-cpu.py walk-01.png       # 只处理指定文件
+  python preprocess-v7-cpu.py walk-01.jpg       # 只处理指定文件
   python preprocess-v7-cpu.py --states walk sleep
 """
 import os
@@ -18,6 +21,9 @@ from PIL import Image
 
 INPUT_DIR = r'D:\Documents\Doubao\chats\2026-08-12\new-chat\assets-raw'
 OUTPUT_DIR = r'D:\Documents\Doubao\chats\2026-08-12\new-chat\taozi-pet\incoming-assets'
+
+# 可识别的输入格式（源导出常是 jpg；扩展名不可信，PIL 按内容解码）
+IMG_EXTS = ('.png', '.jpg', '.jpeg', '.webp', '.bmp')
 
 BG_THRESHOLD = 28
 
@@ -99,8 +105,14 @@ def process_image(input_path, output_path):
 DEFAULT_STATES = ["idle", "blink", "happy", "notify", "pet-head", "pumpkin-bag", "petal-spin", "starfish-wave"]
 
 def _state_of(fname):
-    """从 'walk-01.png' / 'pet-head-03.png' 取状态前缀。"""
+    """从 'walk-01.png' / 'pet-head-03.jpg' 取状态前缀。"""
     return fname.rsplit('-', 1)[0]
+
+
+def _out_name(fname):
+    """输出统一为透明 png（需 alpha 通道），与输入格式无关。"""
+    return os.path.splitext(fname)[0] + '.png'
+
 
 def main():
     import argparse
@@ -112,16 +124,16 @@ def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     states = set(args.states)
     if args.files:
-        files = [f for f in args.files if f.lower().endswith('.png')]
+        files = [f for f in args.files if f.lower().endswith(IMG_EXTS)]
         print(f'Selected files: {len(files)} files')
     else:
         files = sorted([f for f in os.listdir(INPUT_DIR)
-                        if f.lower().endswith('.png') and _state_of(f) in states])
+                        if f.lower().endswith(IMG_EXTS) and _state_of(f) in states])
         print(f'Processing states {sorted(states)}: {len(files)} files')
     success = 0
     for i, fname in enumerate(files):
         in_path = os.path.join(INPUT_DIR, fname)
-        out_path = os.path.join(OUTPUT_DIR, fname)
+        out_path = os.path.join(OUTPUT_DIR, _out_name(fname))
         if not os.path.exists(in_path):
             print(f'  SKIP (not found): {fname}')
             continue

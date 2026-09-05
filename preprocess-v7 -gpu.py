@@ -1,6 +1,13 @@
 """
 GPU 抠白底：assets-raw/ → taozi-pet/incoming-assets/（透明 PNG，默认全量）
 
+格式的单一契约：
+    <任意格式>  ──rename──▶  <state>-NN.jpg  ──preprocess──▶  <state>-NN.png
+
+输入支持 png / jpg / jpeg / webp / bmp（PIL 按内容解码，扩展名不必可信）；
+输出恒为透明 png —— 抠图结果带 alpha 通道，只有 png 存得下。
+上游 rename-assets.py 已把源收敛为 .jpg，所以这里吃到的通常就是 jpg。
+
 用 BiRefNet 在 CUDA 上推理生成基础 alpha，再叠加三步后处理保证 QA 兼容：
   1) 保护色（肤色 / 南瓜色，含 2px 膨胀）
   2) 保留中心最大连通块
@@ -12,7 +19,7 @@ GPU 抠白底：assets-raw/ → taozi-pet/incoming-assets/（透明 PNG，默认
 
 用法:
   python "preprocess-v7 -gpu.py"              # 处理 assets-raw 全部帧
-  python "preprocess-v7 -gpu.py" walk-01.png  # 只处理指定文件
+  python "preprocess-v7 -gpu.py" walk-01.jpg  # 只处理指定文件
   python "preprocess-v7 -gpu.py" --states walk sleep   # 只处理指定状态
   python "preprocess-v7 -gpu.py" --cpu        # 强制 CPU 推理
 
@@ -23,13 +30,15 @@ import os
 # 国内环境：让 HF 下载走镜像，避免 huggingface.co 直连超时
 os.environ.setdefault('HF_ENDPOINT', 'https://hf-mirror.com')
 
-import sys
 import numpy as np
 from PIL import Image
 from scipy import ndimage
 
 INPUT_DIR = r'D:\Documents\Doubao\chats\2026-08-12\new-chat\assets-raw'
 OUTPUT_DIR = r'D:\Documents\Doubao\chats\2026-08-12\new-chat\taozi-pet\incoming-assets'
+
+# 可识别的输入格式（源导出常是 jpg；扩展名不可信，PIL 按内容解码）
+IMG_EXTS = ('.png', '.jpg', '.jpeg', '.webp', '.bmp')
 
 BG_THRESHOLD = 28
 # BiRefNet 在 1024 边长上训练；大图等比缩放到此尺寸推理，再还原
@@ -159,8 +168,14 @@ def process_image(input_path, output_path):
 # idle/blink 的 SCALE_DRIFT 由下游 assemble 的帧间尺寸对齐处理，CPU 版仅作最后手段。
 
 def _state_of(fname):
-    """从 'walk-01.png' / 'pet-head-03.png' 取状态前缀。"""
+    """从 'walk-01.png' / 'pet-head-03.jpg' 取状态前缀。"""
     return fname.rsplit('-', 1)[0]
+
+
+def _out_name(fname):
+    """输出统一为透明 png（需 alpha 通道），与输入格式无关。"""
+    return os.path.splitext(fname)[0] + '.png'
+
 
 def main():
     import argparse
@@ -175,17 +190,17 @@ def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     states = set(args.states) if args.states else None
     if args.files:
-        files = [f for f in args.files if f.lower().endswith('.png')]
+        files = [f for f in args.files if f.lower().endswith(IMG_EXTS)]
         print(f'Selected files: {len(files)} files')
     else:
         files = sorted([f for f in os.listdir(INPUT_DIR)
-                        if f.lower().endswith('.png') and (states is None or _state_of(f) in states)])
+                        if f.lower().endswith(IMG_EXTS) and (states is None or _state_of(f) in states)])
         label = sorted(states) if states else 'ALL'
         print(f'Processing states {label}: {len(files)} files')
     success = 0
     for i, fname in enumerate(files):
         in_path = os.path.join(INPUT_DIR, fname)
-        out_path = os.path.join(OUTPUT_DIR, fname)
+        out_path = os.path.join(OUTPUT_DIR, _out_name(fname))
         if not os.path.exists(in_path):
             print(f'  SKIP (not found): {fname}')
             continue

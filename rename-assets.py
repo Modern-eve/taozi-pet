@@ -1,29 +1,26 @@
 """
-rename-assets.py — assets-raw 帧整理（流水线第 1 步）：格式归一 + 连续编号
+rename-assets.py — assets-raw 帧整理（流水线第 1 步）：统一转 .jpg + 连续编号
 
-新图丢进 assets-raw/ 之后、抠图之前先跑本脚本，把文件整理成
-「<state>-01.png … <state>-NN.png」的连续 png 序列。
+格式契约（唯一职责）：
+    <任意格式>  ──rename──▶  <state>-NN.jpg
+
+源素材可能是 png/jpg/jpeg/webp/bmp 任意一种，扩展名未必等于真实格式
+（按文件头魔数判定，不信任扩展名）。本脚本把它们统一收敛为
+「<state>-01.jpg … <state>-NN.jpg」，再由 preprocess 统一产出透明 png。
 
 做两件事：
-  1. 格式归一（--to-png）：把 jpg/jpeg/webp/bmp 转成 png。
-     下游 preprocess-v7 -gpu.py / -cpu.py 的入口只认 .png（endswith('.png')），
-     非 png 会被静默跳过，所以必须先转成 png。
-     ⚠️ 若目标 png 已存在（如 sad-01.jpg 与 sad-01.png 并存），
-     先把旧 png **送进回收站**再转换，不静默跳过、也不覆盖。
-  2. 编号收拢：按帧号排序后重映射为连续整数，收拢数字缺口、
-     把 x.5 过渡帧并入连续序列，并消除源文件名中的空格（如
-     " blink - 1 .png" → "blink-01.png"）。collect 阶段已容忍空格，
-     空格在重命名时一并消除。
+  1. 转 jpg：真实格式非 jpg 者解码后存 JPEG（默认 q95、4:4:4 无子采样；
+     subsampling=0 避免角色边缘色渗）。源为 jpg 时只改名不重编码（无损）。
+     RGBA 源按 RGB 落盘（白底图无透明信息需保留）。
+  2. 编号收拢：按帧号排序后重映射为连续整数，收拢数字缺口、把 x.5 过渡帧
+     各自并入连续序列、消除文件名空格（" blink - 1 .png" → "blink-01.jpg"）。
+     落盘按**降序执行**（先写高编号），原地重编号时目标名若与未处理帧的源同名
+     （如 look-03.5 的目标 look-04.jpg 恰是帧 4 的源），先腾走旧名再写入，不会覆盖真实帧。
+
+命名冲突（同帧号多源文件）：按**源文件修改日期最新者**直接覆盖旧的
+（不再送回收站、不再报错中止）。
 
 默认只预览（dry-run），加 --apply 才真正落盘。
-
-用法：
-  python rename-assets.py --prefix blink                 # 预览（含自动去空格）
-  python rename-assets.py --prefix notify                 # 预览编号计划（默认）
-  python rename-assets.py --prefix notify --apply         # 执行编号收拢（含去空格）
-  python rename-assets.py --prefix sad --to-png --apply   # 先转 png，再编号
-  python rename-assets.py --prefix sad --to-png --keep-src --apply   # 转换后保留原文件
-  python rename-assets.py --dir taozi-pet/incoming-assets --prefix walk --apply  # 换目录
 """
 import os
 import re
@@ -31,28 +28,45 @@ import argparse
 
 DEFAULT_DIR = r'D:\Documents\Doubao\chats\2026-08-12\new-chat\assets-raw'
 
-# 支持的图片扩展名（png 是流水线的目标格式，其余需先转换）
+# 可识别的源格式（扩展名不可信，真实格式由文件头魔数判定）
 IMG_EXTS = ('png', 'jpg', 'jpeg', 'webp', 'bmp')
 
-# 匹配 <prefix>-<数字[.数字]>.<ext>，如 sad-02.png / walk-02.5.jpg
+# 统一出口格式：preprocess 只吃 jpg，输出恒为 png
+TARGET_EXT = 'jpg'
+
 FRAME_RE = re.compile(
     r'^(?P<prefix>.+)-(?P<num>\d+(?:\.\d+)?)\.(?P<ext>' + '|'.join(IMG_EXTS) + r')$',
     re.IGNORECASE,
 )
 
 
+def real_ext(path):
+    """读文件头魔数判定真实格式，返回 'png'/'jpg'/'webp'/'bmp'；识别不出返回 None。"""
+    try:
+        with open(path, 'rb') as fh:
+            head = fh.read(12)
+    except OSError:
+        return None
+    if head.startswith(b'\x89PNG\r\n\x1a\n'):
+        return 'png'
+    if head[:3] == b'\xff\xd8\xff':
+        return 'jpg'
+    if head[:4] == b'RIFF' and head[8:12] == b'WEBP':
+        return 'webp'
+    if head[:2] == b'BM':
+        return 'bmp'
+    return None
+
+
 def collect(prefix, names):
     """返回 {帧号(float): [原始文件名, ...]}，只保留匹配 <prefix>-<num>.<ext> 的帧。
 
-    源导出文件名常带空格（如 " blink - 1 .png"），这里在匹配前去掉空格，
-    使乱序/带空格导出也能被识别为合法帧，空格在「编号收拢」重命名时一并消除。
-    同一帧号可能同时存在多种格式（如 sad-01.jpg 与 sad-01.png），此时全部收集，
-    由 plan_convert 决定取舍。
+    源导出文件名常带空格（" blink - 1 .png"），匹配前先去空格；
+    同一帧号多文件（多格式并存）全部收集，冲突在 plan 阶段按 mtime 裁决。
     """
     items = {}
     for orig in names:
-        n = orig.strip()
-        base, ext = os.path.splitext(n)
+        base, ext = os.path.splitext(orig.strip())
         if not ext or ext[1:].lower() not in IMG_EXTS:
             continue
         cleaned = base.replace(' ', '') + ext.lower()
@@ -60,204 +74,103 @@ def collect(prefix, names):
         if not m or m.group('prefix').lower() != prefix.lower():
             continue
         num = float(m.group('num'))
-        items.setdefault(num, []).append(orig)
+        items.setdefault(num, []).append(orig.strip())
     return items
 
 
-def _png_names(names):
-    return [n for n in names if n.lower().endswith('.png')]
+def plan(prefix, items, d):
+    """计算 (converts, deletes)。
 
-
-def final_name_map(items):
-    """计算「转换完成后」每个帧号对应的 png 文件名。
-
-    已有 png → 直接用；只有其它格式 → 换成同名 .png（由 plan_convert 生成）。
+    converts: [(源名, 目标 jpg 名)] —— 每个连续编号 NN 从其同帧号源里选 mtime 最新者，
+              真实格式非 jpg 者需转 jpg（源即 jpg 时仅改名）。
+    deletes:  [文件名] —— 同帧号竞争落败的旧文件（按 mtime 最新者直接覆盖）。
     """
-    return {
-        num: (_png_names(names)[0] if _png_names(names)
-              else os.path.splitext(names[0])[0] + '.png')
-        for num, names in items.items()
-    }
+    converts, deletes = [], []
+    for i, num in enumerate(sorted(items)):
+        dst = f"{prefix}-{i + 1:02d}.{TARGET_EXT}"
+        # 候选只限该帧号自己的源文件；不把同名目标拉入裁决，
+        # 否则 x.5 收拢的目标名恰与其它帧源同名时会误删真实帧。
+        cands = list(items[num])
+        best = max(cands, key=lambda n: os.path.getmtime(os.path.join(d, n)))
+        for n in cands:
+            if n != best:
+                deletes.append(n)
+        converts.append((best, dst))
+    return converts, deletes
 
 
-def plan_convert(items):
-    """计算格式归一计划。
+def do_convert(d, converts, deletes, quality, apply):
+    """转 jpg + 覆盖冲突。默认 dry-run 不落盘。
 
-    返回 (converts, recycles)：
-      converts: [(源名, 目标 png 名)] —— 非 png 转 png
-      recycles: [文件名] —— 需先送回收站的文件：与目标 png 重名的旧 png，
-                以及同一帧号下的冗余非 png 副本（否则转换后会覆盖新 png）
+    按**降序**执行（先写高编号）：原地重编号时目标名可能是未处理帧的旧名
+    （如 look-03.5 → look-04.jpg，而 look-04.jpg 还是帧 4 的源），
+    从高往低写可保证写目标前旧名已被腾走，永不覆盖尚未处理的源文件。
     """
-    converts, recycles = [], []
-    for num in sorted(items):
-        names = items[num]
-        pngs = _png_names(names)
-        others = [n for n in names if not n.lower().endswith('.png')]
-        if not others:
-            continue
-        src = others[0]
-        dst = os.path.splitext(src)[0] + '.png'
-        # 已存在同名 png（sd-01.jpg ↔ sad-01.png）→ 先回收旧 png，再转换
-        recycles.extend(pngs)
-        converts.append((src, dst))
-        # 同一帧号的其余非 png 副本 → 一并回收
-        recycles.extend(others[1:])
-    return converts, recycles
-
-
-def plan_rename(prefix, final_map):
-    """对 {帧号: 转换后的 png 名} 计算重命名计划：排序后逐个重映射为连续整数。
-
-    返回 ([(旧名, 新名)], [无需改名的文件名])。
-    """
-    nums = sorted(final_map)
-    plan, unchanged = [], []
-    for i, num in enumerate(nums):
-        old = final_map[num]
-        new = f"{prefix}-{i + 1:02d}.png"
-        (plan if old != new else unchanged).append(
-            (old, new) if old != new else old
-        )
-    return plan, unchanged
-
-
-# ---- 回收站（Windows SHFileOperationW + FOF_ALLOWUNDO）----
-FO_DELETE = 3
-FOF_SILENT = 0x0004
-FOF_NOCONFIRMATION = 0x0010
-FOF_ALLOWUNDO = 0x0040
-FOF_NOERRORUI = 0x0400
-
-
-def send_to_recycle_bin(path):
-    """把文件移到回收站（可恢复）。非 Windows 平台退化为直接删除。"""
-    path = os.path.abspath(path)
-    if os.name != 'nt':
-        os.remove(path)
-        return
-    import ctypes
-    from ctypes import wintypes
-
-    class SHFILEOPSTRUCTW(ctypes.Structure):
-        _fields_ = [
-            ("hwnd", wintypes.HWND),
-            ("wFunc", wintypes.UINT),
-            ("pFrom", wintypes.LPCWSTR),
-            ("pTo", wintypes.LPCWSTR),
-            ("fFlags", ctypes.c_uint16),
-            ("fAnyOperationsAborted", wintypes.BOOL),
-            ("hNameMappings", wintypes.LPVOID),
-            ("lpszProgressTitle", wintypes.LPCWSTR),
-        ]
-
-    op = SHFILEOPSTRUCTW()
-    op.hwnd = None
-    op.wFunc = FO_DELETE
-    op.pFrom = path + "\0\0"  # 双 null 结尾的路径串
-    op.pTo = None
-    op.fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT | FOF_NOERRORUI
-    res = ctypes.windll.shell32.SHFileOperationW(ctypes.byref(op))
-    if res != 0:
-        raise OSError(f"移到回收站失败 (SHFileOperationW={res}): {path}")
-
-
-def do_convert(d, converts, recycles, keep_src):
-    """执行格式归一：先回收冲突文件，再把非 png 转成 png（白底源图统一存 RGB）。"""
     from PIL import Image
-    for name in recycles:
-        send_to_recycle_bin(os.path.join(d, name))
-    for src, dst in converts:
+    if not apply:
+        return
+    # 先删落败候选
+    for name in deletes:
+        p = os.path.join(d, name)
+        if os.path.exists(p):
+            os.remove(p)
+    # 再把每个 NN 的最新源落到目标（降序执行，避免目标名压到未处理帧的源）
+    for src, dst in reversed(converts):
         sp, dp = os.path.join(d, src), os.path.join(d, dst)
-        with Image.open(sp) as img:
-            img.convert('RGB').save(dp, 'PNG')
-        if not keep_src:
-            send_to_recycle_bin(sp)
-
-
-def do_rename(d, plan):
-    """两阶段改名避免冲突：先全部改成临时名，再落终名。"""
-    tmp = {}
-    for i, (old, _new) in enumerate(plan):
-        t = f".__rn_tmp__{i}.png"
-        os.rename(os.path.join(d, old), os.path.join(d, t))
-        tmp[old] = t
-    for old, new in plan:
-        os.rename(os.path.join(d, tmp[old]), os.path.join(d, new))
+        if src.lower() == dst.lower():
+            continue  # 最新者已是目标名，无需改动
+        if real_ext(sp) == TARGET_EXT:
+            if os.path.exists(dp):
+                os.remove(dp)
+            os.rename(sp, dp)  # 真 jpg 仅改名（无损）
+        else:
+            with Image.open(sp) as img:
+                img.convert('RGB').save(dp, 'JPEG', quality=quality,
+                                       subsampling=0, optimize=True)
+            os.remove(sp)
 
 
 def main():
     ap = argparse.ArgumentParser(
-        description="assets-raw 帧整理（流水线第 1 步）：格式归一 + 连续编号")
+        description=f"assets-raw 帧整理（流水线第 1 步）：统一转 {TARGET_EXT} + 连续编号")
     ap.add_argument("--dir", default=DEFAULT_DIR,
-                    help=f"目标目录（默认 assets-raw；也可指向 incoming-assets 等）")
+                    help="目标目录（默认 assets-raw；也可指向 incoming-assets 等）")
     ap.add_argument("--prefix", required=True, nargs='+',
                     help="状态前缀，如 walk / sleep / sad；可一次传多个")
-    ap.add_argument("--to-png", action="store_true",
-                    help="把 jpg/jpeg/webp/bmp 转成 png（下游抠图脚本只认 .png）")
-    ap.add_argument("--keep-src", action="store_true",
-                        help="配合 --to-png：转换后保留原文件（默认送回收站）")
+    ap.add_argument("--quality", type=int, default=95,
+                    help="转 jpg 的质量（1-95，默认 95；仅对非 jpg 源生效）")
     ap.add_argument("--apply", action="store_true",
                     help="真正执行；缺省只打印计划（dry-run）")
     args = ap.parse_args()
-
+    if not 1 <= args.quality <= 95:
+        print("错误：--quality 需在 1-95 之间")
+        raise SystemExit(1)
     d = args.dir
     if not os.path.isdir(d):
         print(f"错误：目录不存在 {d}")
         raise SystemExit(1)
-
     short = os.path.basename(d.rstrip('/\\')) or d
 
     for prefix in args.prefix:
-        listing = os.listdir(d)
-        # collect 已内置去空格容忍，直接识别带空格/乱序导出；空格在编号收拢时消除
-        items = collect(prefix, listing)
+        items = collect(prefix, os.listdir(d))
         if not items:
             print(f"[{prefix}] {short} · 未找到该前缀的帧")
             continue
-
-        # 重复帧校验：同一帧号下只允许一个 png 源（其余为非 png 待转换/回收），
-        # 否则去空格后指向同一最终名会冲突，需手工处理。
-        for num, names in items.items():
-            pngs = [n for n in names if n.lower().endswith('.png')]
-            if len(pngs) > 1:
-                raise SystemExit(
-                    f"错误：帧 {prefix}-{num:g} 存在多个 png 源文件 {pngs}，请手工处理")
-
-        conv_plan, recycles = plan_convert(items) if args.to_png else ([], [])
-        final_map = final_name_map(items)
-        ren_plan, _unchanged = plan_rename(prefix, final_map)
-
-        rows = [(name, "回收站", "重名旧 png") for name in recycles]
-        rows += [(f"{src} → {dst}", "", "转 png") for src, dst in conv_plan]
-        rows += [(f"{old} → {new}", "", "编号收拢") for old, new in ren_plan]
-
-        print(f"[{prefix}] {short} · {len(items)} 帧" + (" · 无需改动" if not rows else ""))
-        for text, tail, note in rows:
-            print(f"  · {text}{(' → ' + tail) if tail else ''}   [{note}]")
-
-        # 校验：改名目标是否被本次计划之外的文件占用（将被回收的不算占用）
-        sources = {old for old, _ in ren_plan}
-        for _old, new in ren_plan:
-            if (os.path.exists(os.path.join(d, new))
-                    and new not in sources and new not in recycles):
-                print(f"错误：{new} 已被占用且不在本次范围内，请手工处理")
-                raise SystemExit(1)
-
+        converts, deletes = plan(prefix, items, d)
+        print(f"[{prefix}] {short} · {len(items)} 帧")
+        for src, dst in converts:
+            tag = "保留" if src.lower() == dst.lower() else (
+                "转 jpg" if real_ext(os.path.join(d, src)) != TARGET_EXT else "改名")
+            print(f"  · {src} → {dst}   [{tag}]")
+        for name in deletes:
+            print(f"  · {name}   [覆盖删除（非最新）]")
         if not args.apply:
             continue
-
-        # 落盘：先转换（如需），再编号收拢（去空格在重命名时一并完成）
-        if conv_plan or recycles:
-            do_convert(d, conv_plan, recycles, args.keep_src)
-        if ren_plan:
-            do_rename(d, ren_plan)
-
+        do_convert(d, converts, deletes, args.quality, True)
         done = " · ".join(f"{k} {v}" for k, v in
-                          (("回收", len(recycles)),
-                           ("转换", len(conv_plan)), ("改名", len(ren_plan))) if v)
+                          (("转换", len(converts)), ("删除", len(deletes))) if v)
         if done:
             print(f"  ✓ {done}")
-
     if not args.apply:
         print("确认后加 --apply 执行")
 

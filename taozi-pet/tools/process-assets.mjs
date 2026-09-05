@@ -197,7 +197,7 @@ async function extractForeground(name) {
   };
 }
 
-// 并行处理全量 144 帧（sharp decode/encode 异步，Promise.all 分 8 路并发提速）
+// 并行处理全量 base 帧（sharp decode/encode 异步，Promise.all 分 8 路并发提速）
 const PARALLEL = 8;
 const nameList = [...names];
 for (let start = 0; start < nameList.length; start += PARALLEL) {

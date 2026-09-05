@@ -158,7 +158,7 @@ for (const state of states) {
               if (currentX > compMaxX) compMaxX = currentX;
               if (currentY < compMinY) compMinY = currentY;
               if (currentY > compMaxY) compMaxY = currentY;
-              // 内联 4 邻域，避免每次分配 neighbors 数组（144 帧 × 数十万像素的 GC 压力）
+              // 内联 4 邻域，避免每次分配 neighbors 数组（全量帧 × 数十万像素的 GC 压力）
               if (currentX > 0) { const next = current - 1; if (!visited[next] && data[next * 4 + 3] >= 32) { visited[next] = 1; queue[tail++] = next; } }
               if (currentX + 1 < info.width) { const next = current + 1; if (!visited[next] && data[next * 4 + 3] >= 32) { visited[next] = 1; queue[tail++] = next; } }
               if (currentY > 0) { const next = current - info.width; if (!visited[next] && data[next * 4 + 3] >= 32) { visited[next] = 1; queue[tail++] = next; } }
@@ -265,8 +265,8 @@ for (const state of states) {
   // DUPLICATE_FRAME：帧序列 sha256 去重，拦截"不同文件名的帧内容相同"这类复制错误。
   // 同一帧名被双播重复引用时上面已跳过，不会互相误判。
   const seen = new Map();
-  for (let index = 0; index < checkRecords.length; index += 1) {
-    const record = checkRecords[index];
+  for (let index = 0; index < stateRecords.length; index += 1) {
+    const record = stateRecords[index];
     if (!record.sha256) continue; // 读取失败/无哈希的记录不参与重复帧判定，避免多张失败帧互判重复
     if (seen.has(record.sha256)) {
       const message = `duplicate pixels do not create a real animation frame: ${record.frame}`;
@@ -282,7 +282,7 @@ const tiles = [];
 const columns = 4;
 const tileWidth = 220;
 const tileHeight = 250;
-// 缩略图并行生成（全量 144 帧串行 sharp → Promise.all，contact sheet 生成提速）
+// 缩略图并行生成（全量 base 帧串行 sharp → Promise.all，contact sheet 生成提速）
 await Promise.all(records.map(async (record, index) => {
   if (!record || !record.frame) return;
   try {

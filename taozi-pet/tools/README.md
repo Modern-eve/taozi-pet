@@ -11,7 +11,7 @@
 QA 分两档：
 
 - **快速 QA**（`npm run check:quick`）：轻量必查，随开发启动自动跑。依次执行 `tsc --noEmit` + 4 个契约/结构校验 + qa-ui + qa-experience，**亚秒级**。
-- **全量 QA**（`npm run check`）：在快速 QA 之上追加 `qa-assets` 逐帧像素级质检（144 张素材，较重）。**素材变更或需出完整报告时主动运行。**
+- **全量 QA**（`npm run check`）：在快速 QA 之上追加 `qa-assets` 逐帧像素级质检（133 张 base 帧，较重）。**素材变更或需出完整报告时主动运行。**
 
 ```bash
 npm run check:quick   # 平时/开发启动
