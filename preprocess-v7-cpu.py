@@ -68,6 +68,43 @@ def flood_fill_from_edges(arr, alpha, protected=None):
 # 按"只留最大块"会被整块删除。用「面积占全图比例 + 平均置信度」双闸门区分噪点。
 PART_AREA_RATIO = 0.001
 PART_MEAN_ALPHA = 150
+# 部件内部背景清除——仅处理小部件，主体不动
+# （主体内部近白像素多是白色裙边/眼白/高光，删了会把角色打穿）。
+PART_MAX_RATIO = 0.01
+
+
+def clear_part_background(arr, alpha, protected):
+    """清除分离小部件（头顶光环）内部的近背景色像素。
+
+    光环是闭合环（实心椭圆盘+外圈描边），中间背景与外部不连通，
+    洪水填充/连通块都进不去，保留后需单独清除。主体内部近白多为
+    高光/白裙，动不得；本函数只清小部件（面积 0.1%~1% 全图）。
+    """
+    from scipy import ndimage
+    h, w = alpha.shape
+    fg = alpha > 16
+    labeled, num = ndimage.label(fg)
+    if num == 0:
+        return alpha
+    labs = range(1, num + 1)
+    sizes = ndimage.sum(fg, labeled, labs)
+    main = int(np.argmax(sizes)) + 1
+    bg_ref = arr[0, 0].astype(int)
+    r, g, b = arr[:, :, 0].astype(int), arr[:, :, 1].astype(int), arr[:, :, 2].astype(int)
+    dist = np.sqrt((r - bg_ref[0]) ** 2 + (g - bg_ref[1]) ** 2 + (b - bg_ref[2]) ** 2)
+    near_bg = (dist < BG_THRESHOLD) & ~protected
+    out = alpha.copy()
+    min_area = h * w * PART_AREA_RATIO
+    max_area = h * w * PART_MAX_RATIO
+    for lab in labs:
+        if lab == main:
+            continue
+        area = float(sizes[lab - 1])
+        if area < min_area or area > max_area:
+            continue
+        m = (labeled == lab)
+        out[m & near_bg] = 0
+    return out
 
 
 def keep_largest_connected(alpha):
@@ -114,6 +151,10 @@ def process_image(input_path, output_path):
     alpha[delete_mask] = 0
     # 2. 保留中心最大连通块
     alpha = keep_largest_connected(alpha)
+
+    # 3. 分离小部件（头顶光环）内部的近背景像素清掉。
+    # 光环是闭合环，内部背景与外界不连通，洪水填充删不到，必须保留后单独清。
+    alpha = clear_part_background(arr, alpha, protected)
 
     arr[:, :, 3] = alpha
     Image.fromarray(arr).save(output_path)

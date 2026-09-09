@@ -115,6 +115,43 @@ def get_protected_mask(arr, alpha):
 # 两个闸门各有约 2 倍余量，可稳定区分「小而可信的部件」与「噪点」。
 PART_AREA_RATIO = 0.001   # 分离部件最小面积（占全图比例）
 PART_MEAN_ALPHA = 150     # 分离部件最低平均置信度
+# 部件内部背景清除——仅处理小部件，主体不动
+# （主体内部近白像素多是白色裙边/眼白/高光，删了会把角色打穿；
+#  实测主体 fg 连通后内洞 268~388 个）。
+PART_MAX_RATIO = 0.01     # 部件面积上限（占全图），超过则不清
+
+
+def clear_part_background(arr, alpha, protected):
+    """清除分离小部件（头顶光环）内部的近背景色像素。
+
+    光环是闭合环（实心椭圆盘+外圈描边），中间背景与外部不连通，
+    洪水填充/连通块都进不去，保留后需单独清除。主体内部近白多为
+    高光/白裙，动不得；本函数只清小部件（面积 0.1%~1% 全图）。
+    """
+    h, w = alpha.shape
+    fg = alpha > 16
+    labeled, num = ndimage.label(fg)
+    if num == 0:
+        return alpha
+    labs = range(1, num + 1)
+    sizes = ndimage.sum(fg, labeled, labs)
+    main = int(np.argmax(sizes)) + 1
+    bg_ref = arr[0, 0].astype(int)
+    r, g, b = arr[:, :, 0].astype(int), arr[:, :, 1].astype(int), arr[:, :, 2].astype(int)
+    dist = np.sqrt((r - bg_ref[0]) ** 2 + (g - bg_ref[1]) ** 2 + (b - bg_ref[2]) ** 2)
+    near_bg = (dist < BG_THRESHOLD) & ~protected
+    out = alpha.copy()
+    min_area = h * w * PART_AREA_RATIO
+    max_area = h * w * PART_MAX_RATIO
+    for lab in labs:
+        if lab == main:
+            continue
+        area = float(sizes[lab - 1])
+        if area < min_area or area > max_area:
+            continue
+        m = (labeled == lab)
+        out[m & near_bg] = 0
+    return out
 
 
 def keep_largest_connected(alpha):
@@ -181,6 +218,10 @@ def process_image(input_path, output_path):
 
     # 3) 保留中心最大连通块
     alpha = keep_largest_connected(alpha)
+
+    # 3.5) 分离小部件（头顶光环）内部的近背景像素清掉。
+    # 光环是闭合环，内部背景与外界不连通，洪水填充删不到，必须保留后单独清。
+    alpha = clear_part_background(arr, alpha, protected)
 
     # 4) 清理最边缘 2px 前景，避免 peek 等“贴边出场”状态触发 process-assets 的 SUBJECT_TOUCHES_BORDER。
     # 贴边帧的源图本身就切到画面外，留 2px 透明边不影响观感。
