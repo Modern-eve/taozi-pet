@@ -2,9 +2,19 @@ import spec from '../../../pet-spec.json';
 import type { PetSpec, PetStats, Settings, Reminder } from '../../shared/contracts';
 import './index.css';
 
-// 引入头像图片
-const avatarContext = require.context('./assets', false, /avatar\.png$/i);
-const avatarUrl = avatarContext('./avatar.png');
+// 引入头像图片：正常/伤心/睡觉 三张头部特写，随人物状态切换
+const avatarContext = require.context('./assets', false, /avatar-(ip|sad|sleep)\.png$/i);
+const avatarUrls = {
+  ip: avatarContext('./avatar-ip.png'),
+  sad: avatarContext('./avatar-sad.png'),
+  sleep: avatarContext('./avatar-sleep.png'),
+};
+// 状态 → 头像映射：情绪相关状态各自匹配，其余（待机/眨眼/走路/偷看/开心/通知/互动）用正常头像
+function avatarForState(stateId: string): string {
+  if (stateId === 'sad') return avatarUrls.sad;
+  if (stateId === 'sleep') return avatarUrls.sleep;
+  return avatarUrls.ip;
+}
 
 const petSpec = spec as PetSpec;
 document.title = `${petSpec.character.displayName}的小屋`;
@@ -25,7 +35,12 @@ document.getElementById('pet-personality')!.textContent = petSpec.character.pers
 
 // 设置头像
 const avatarEl = document.getElementById('pet-avatar') as HTMLImageElement;
-if (avatarEl) avatarEl.src = avatarUrl;
+if (avatarEl) avatarEl.src = avatarUrls.ip;
+
+// 应用状态到头像
+function applyStateAvatar(stateId: string): void {
+  if (avatarEl) avatarEl.src = avatarForState(stateId);
+}
 
 const closeBtn = document.getElementById('close-btn') as HTMLButtonElement;
 const affectionEl = document.getElementById('affection') as HTMLDivElement;
@@ -440,6 +455,11 @@ resetDataBtn.addEventListener('click', async () => {
   }
 });
 
+// 订阅当前状态 → 切换状态页头像
+window.petAPI?.events.onStateChanged((stateId: string) => {
+  applyStateAvatar(stateId);
+});
+
 // 监听统计数据更新
 window.petAPI?.events.onStats((stats: PetStats) => {
   updateStats(stats);
@@ -456,6 +476,8 @@ async function init(): Promise<void> {
   switchView('status');
   await loadSettings();
   await loadStats();
+  // 首次拉取当前状态，让头像从打开瞬间就反映人物情绪
+  applyStateAvatar(await window.petAPI?.state.get() ?? 'idle');
   await loadQuotes();
   renderQuotes();
   await loadReminders();

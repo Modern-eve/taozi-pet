@@ -52,7 +52,7 @@ Python 脚本在**仓库根目录**运行，Node 工具在 `taozi-pet/` 内运�
 | `tools/process-assets.mjs` | `incoming-assets/` → `src/assets/pet/` | 渲染为最终 512×512 桌宠素材（去背景、羽化、按状态统一尺寸、按 anchor 落位） |
 | `tools/validate-spec.mjs` / `tools/qa-assets.mjs` | — | 校验 pet-spec 结构与素材像素质量，目标 `PASS (133/133)` |
 | `repair-src-for-qa.py` | `qa/assets-report.json` → `src/assets/pet/` | 按 QA 报告自动修复失败帧（`SCALE_DRIFT` / `OCCUPANCY_TOO_LARGE` / `GROUND_RESIDUE` / `SUBJECT_TOUCHES_BORDER`），`--dry-run` 可预览 |
-| `make-tray-icon.py` | `core-ip.jpg` → `src/assets/tray/tray-icon.png` | 从母版源图头部裁剪生成 32×32 透明托盘头像，**与动画帧流水线解耦** |
+| `make-graphics.py` | `core-ip.jpg`(+`sad-ip.jpg`/`sleep-ip.jpg`) → 托盘图标 / 状态头像 | 复用 `preprocess-v7 -gpu.py`（BiRefNet GPU）抠图，从母版头部生成 32×32 透明托盘图标 + 三张页面状态头像，**与动画帧流水线解耦** |
 
 #### 补充说明
 
@@ -86,33 +86,42 @@ cd D:\Documents\Doubao\chats\2026-08-12\new-chat
 C:\PYTHON312\python.exe repair-src-for-qa.py --dry-run
 ```
 
-### 更新托盘头像
+### 更新托盘图标与状态头像（make-graphics.py）
 
-托盘图标（`taozi-pet/src/assets/tray/tray-icon.png`，32×32 透明 PNG）由 `make-tray-icon.py` 独立从 **`core-ip.jpg` 头部**裁剪生成，与动画帧流水线解耦。
+两类产物都由 `make-graphics.py` 从**母版源图头部**独立裁剪生成，**与动画帧流水线解耦**：
+
+- 托盘图标 `taozi-pet/src/assets/tray/tray-icon.png`（32×32 透明 PNG）：源 `core-ip.jpg`
+- 页面状态头像 `taozi-pet/src/renderer/dashboard/assets/avatar-{ip,sad,sleep}.png`（256×256，状态页随情绪切换）：源 `core-ip.jpg` / `sad-ip.jpg` / `sleep-ip.jpg`
+
+抠图复用 `preprocess-v7 -gpu.py`（BiRefNet GPU 推理，发丝/半透明/头顶光环更完整），替代早期自实现的 flood-fill。因此运行需要 torch/CUDA 环境（`conda activate my_project`），与 preprocess 同条件。
 
 ```bash
-# 默认：从仓库根的 core-ip.jpg 裁剪头部（横向居中取约 1/3、纵向 6%-30%），
-# 用 flood-fill 只去外背景，保留角色内部浅色，避免内部空洞。
 cd D:\Documents\Doubao\chats\2026-08-12\new-chat
-C:\PYTHON312\python.exe make-tray-icon.py
+conda activate my_project
+
+# 仅更新托盘图标（向后兼容）
+python make-graphics.py
+
+# 同时更新托盘图标 + 三张页面状态头像
+python make-graphics.py --dashboard
 
 # 自定义裁剪区域（原图坐标，x1,y1,x2,y2）
-C:\PYTHON312\python.exe make-tray-icon.py --crop 571,134,1109,672
+python make-graphics.py --crop 571,134,1109,672
 
-# 自定义源图 / 输出 / 背景容差
-C:\PYTHON312\python.exe make-tray-icon.py --core my-source.png --out tray-new.png --bg-tol 15
+# 自定义源图 / 输出（托盘）
+python make-graphics.py --core my-source.png --out tray-new.png
 
 # 想留 2px 内边距（把内容最大边限制到 28，等比缩放到 28 后居中贴到 32×32 画布）
-C:\PYTHON312\python.exe make-tray-icon.py --inner 28
+python make-graphics.py --inner 28
 ```
 
 **何时跑**：
 
-- 换了 `core-ip.jpg`（例如新立绘），跑一次即可更新托盘；
-- 改了 `idle` / `happy` 等动画帧，**不需要**重新生成托盘——它跟动画无关；
-- `--crop` 用来调整头部区域；脚本的默认值针对 1680×2240 的 `core-ip.jpg` 调好，其他分辨率会按比例自动重算。
+- 换 `core-ip.jpg` / `sad-ip.jpg` / `sleep-ip.jpg`（例如新立绘/新表情），跑一次 `--dashboard` 即可同步托盘与状态头像；
+- 改了 `idle` / `happy` 等动画帧，**不需要**重新生成——图标/头像与动画无关；
+- 头部裁剪用相对比例，1680×2240 与 1536×2048 的 3:4 立绘会自动适配；个别姿势头部偏移时可给对应源图覆盖 `--crop`。
 
-**为什么走 core-ip.jpg 而不是任一动画帧**：母版源图是"角色的真相"，不会再变；动画帧可能改但不该影响托盘形象。把托盘与动画解耦后，UI 的标识稳定可预期。
+**为什么走母版源图而非任一动画帧**：母版是"角色的真相"，不再变；动画帧可能改但不该影响托盘形象。把图标/头像与动画解耦后，UI 标识稳定可预期。
 
 ### 关键约定
 

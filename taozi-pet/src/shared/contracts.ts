@@ -224,8 +224,12 @@ export interface PetAPI {
     ready: (report: RuntimeReadyReport) => Promise<void>;
     fail: (report: RuntimeFailureReport) => Promise<void>;
   };
+  state: {
+    get: () => Promise<string>;
+  };
   events: {
     onStateActivity: (listener: (activity: StateActivity) => void) => () => void;
+    onStateChanged: (listener: (stateId: string) => void) => () => void;
     onRemindersUpdated: (listener: () => void) => () => void;
     onQuotesChanged: (listener: () => void) => () => void;
     onDashboardView: (listener: (view: DashboardView) => void) => () => void;

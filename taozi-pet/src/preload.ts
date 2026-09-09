@@ -54,8 +54,12 @@ const api: PetAPI = {
     ready: (report: RuntimeReadyReport) => ipcRenderer.invoke('runtime:ready', report) as Promise<void>,
     fail: (report: RuntimeFailureReport) => ipcRenderer.invoke('runtime:fail', report) as Promise<void>,
   },
+  state: {
+    get: () => ipcRenderer.invoke('state:get') as Promise<string>,
+  },
   events: {
     onStateActivity: (listener) => subscribe<StateActivity>('state:activity', listener),
+    onStateChanged: (listener) => subscribe<string>('state:changed', listener),
     onRemindersUpdated: (listener) => subscribe<void>('reminders:updated', listener),
     onQuotesChanged: (listener) => subscribe<void>('quotes:changed', listener),
     onDashboardView: (listener) => subscribe<DashboardView>('dashboard:view', listener),

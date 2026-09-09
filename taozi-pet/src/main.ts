@@ -585,6 +585,8 @@ function sendActivity(activity: StateActivity): void {
     // 睡觉期间明确停掉随机行走调度，避免定时器在常驻状态下空转；唤醒后由复位/打断路径恢复
     if (currentStateId === 'sleep' && prevStateId !== 'sleep') stopRandomWalk();
     scheduleStateReset(activity);
+    // 同步当前状态给小屋面板，供状态页头像随情绪切换
+    if (dashboardWindow && !dashboardWindow.isDestroyed()) dashboardWindow.webContents.send('state:changed', currentStateId);
   }
   if (petWindow && !petWindow.isDestroyed()) petWindow.webContents.send('state:activity', activity);
 }
@@ -920,6 +922,8 @@ function registerIpc(): void {
     app.setLoginItemSettings({ openAtLogin: false, openAsHidden: true });
     return undefined;
   });
+  // 查询当前状态供小屋状态页头像切换（首次进入时兜底，后续靠 state:changed 实时同步）
+  ipcMain.handle('state:get', (event) => { assertSender(event, ['dashboard', 'pet']); return currentStateId; });
   // 开发者模式：喂安眠药 —— 立即进入睡觉，但遵守打断逻辑（由 pet 端 start() 判定能否压过当前状态）
   ipcMain.handle('dev:trigger-sleep', (event) => {
     assertSender(event, ['dashboard']);
