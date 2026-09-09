@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""从 core-ip.png 的头部裁剪生成托盘图标。
+"""从 core-ip.jpg 的头部裁剪生成托盘图标。
 
-与 process-assets.mjs 解耦：因为 core-ip.png 是角色母版源图，永远不会
+与 process-assets.mjs 解耦：因为 core-ip.jpg 是角色母版源图，永远不会
 变化，所以托盘图标可以独立于动画帧流水线更新，不用每次重跑全部素材。
 
 抠图策略：
@@ -18,12 +18,14 @@ import sys
 from collections import deque
 from PIL import Image
 
-DEFAULT_CORE = "core-ip.png"
+DEFAULT_CORE = "core-ip.jpg"
 DEFAULT_OUT = os.path.join("taozi-pet", "src", "assets", "tray", "tray-icon.png")
 
-# 默认取头部+头发核心区（横向 30%-70%、纵向 2%-32%），
+# 默认取头部+头发核心区（横向 34%-66%、纵向 6%-30%），
 # 比例接近正方形，让脸在 32×32 托盘里更完整、更撑满。
-DEFAULT_CROP_RATIO = (0.30, 0.02, 0.70, 0.32)
+# 该默认值针对 1680×2240 的全身立绘 core-ip.jpg 调好，会从顶部裁剪出以脸
+# 为中心的方形区域；其它分辨率会按比例自动重算。
+DEFAULT_CROP_RATIO = (0.34, 0.06, 0.66, 0.30)
 
 
 def parse_crop(value):
@@ -118,7 +120,7 @@ def unpremultiply_alpha(image):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--core", default=DEFAULT_CORE, help="源图路径（默认 core-ip.png）")
+    parser.add_argument("--core", default=DEFAULT_CORE, help="源图路径（默认 core-ip.jpg）")
     parser.add_argument("--out", default=DEFAULT_OUT, help=f"输出路径（默认 {DEFAULT_OUT}）")
     parser.add_argument("--crop", type=parse_crop, help="覆盖默认裁剪区域：x1,y1,x2,y2（原图坐标）")
     parser.add_argument("--size", type=int, default=32, help="输出画布边长（默认 32）")

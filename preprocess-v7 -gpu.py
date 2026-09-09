@@ -10,8 +10,12 @@ GPU 抠白底：assets-raw/ → taozi-pet/incoming-assets/（透明 PNG，默认
 
 用 BiRefNet 在 CUDA 上推理生成基础 alpha，再叠加三步后处理保证 QA 兼容：
   1) 保护色（肤色 / 南瓜色，含 2px 膨胀）
-  2) 保留中心最大连通块
+  2) 保留主体连通块 + 可信的分离部件（头顶光环）
   3) 清理最边缘 2px 前景
+
+光环浮在头顶、与身体不相连，面积只有主体的 0.5%~0.7% 且位于画面顶部，
+按"只留最大块"的朴素规则会被整块删掉，故第 2 步用「面积 + 置信度」双闸门
+把它与噪点区分开（详见 keep_largest_connected 注释）。
 
 保护色对肤色区做 2px 膨胀，可挽回手部/高光边缘的浅色像素，
 避免 happy/starfish-wave 等挥手状态的手颜色被“洗掉”。
@@ -24,7 +28,7 @@ GPU 抠白底：assets-raw/ → taozi-pet/incoming-assets/（透明 PNG，默认
   python "preprocess-v7 -gpu.py" --cpu        # 强制 CPU 推理
 
 环境: conda activate my_project（torch + CUDA）
-模型: ZhengPeng7/BiRefNet（首次从 HF 镜像下载，约 350MB）
+模型: ZhengPeng7/BiRefNet
 """
 import os
 # 国内环境：让 HF 下载走镜像，避免 huggingface.co 直连超时
@@ -105,24 +109,49 @@ def get_protected_mask(arr, alpha):
     pumpkin = (r > 170) & (g > 110) & (b < 140) & ((r - b) > 70)
     return (skin | pumpkin) & (alpha > 16)
 
+# 分离部件（头顶光环等）保留阈值。
+# 实测 8 个状态：光环 面积占全图 0.148%~0.266%、平均置信度 187~196；
+#               噪点 面积占全图 ≤0.026%、平均置信度 ≤93。
+# 两个闸门各有约 2 倍余量，可稳定区分「小而可信的部件」与「噪点」。
+PART_AREA_RATIO = 0.001   # 分离部件最小面积（占全图比例）
+PART_MEAN_ALPHA = 150     # 分离部件最低平均置信度
+
+
 def keep_largest_connected(alpha):
+    """保留主体连通块，以及可信的分离部件（如头顶光环）。
+
+    命中任一条件即保留：
+      1) 面积最大的块 —— 主体
+      2) 面积 > 主体 30% 且距画面中心 < 0.4h —— 与主体断开的大部件
+      3) 面积 ≥ 全图 0.1% 且平均置信度 ≥ 150 —— 小而可信的分离部件（光环）
+
+    第 3 条专为光环而设：它浮在头顶、与身体不相连，面积仅主体的 0.5%~0.7%，
+    位置又在画面顶部（距中心约 0.47h > 0.4h），按旧规则两条判据同时不满足，
+    会被当成噪声整块删除。面积用「占全图比例」而非绝对像素，兼顾
+    1536×2048 与 1680×2240 两种源分辨率。
+    """
     h, w = alpha.shape
     fg = alpha > 16
     labeled, num = ndimage.label(fg)
     if num == 0:
         return alpha
-    sizes = ndimage.sum(fg, labeled, range(1, num + 1))
-    centers = ndimage.center_of_mass(fg, labeled, range(1, num + 1))
+    labs = range(1, num + 1)
+    sizes = ndimage.sum(fg, labeled, labs)
+    centers = ndimage.center_of_mass(fg, labeled, labs)
+    means = ndimage.mean(alpha, labeled, labs)
     max_area = float(sizes.max())
+    min_area = h * w * PART_AREA_RATIO
     keep = np.zeros((h, w), dtype=bool)
-    for lab in range(1, num + 1):
+    for lab in labs:
         area = float(sizes[lab - 1])
         if area == max_area:
-            keep |= (labeled == lab)
+            keep |= (labeled == lab)  # 主体
         elif area > max_area * 0.3:
-            cy, cx = centers[lab - 1]
-            if ((cy - h/2)**2 + (cx - w/2)**2) ** 0.5 < h * 0.4:
+            cy, cx = centers[lab - 1]  # 与主体断开的大部件：需靠近中心
+            if ((cy - h / 2) ** 2 + (cx - w / 2) ** 2) ** 0.5 < h * 0.4:
                 keep |= (labeled == lab)
+        elif area >= min_area and float(means[lab - 1]) >= PART_MEAN_ALPHA:
+            keep |= (labeled == lab)  # 小而可信的分离部件（光环）
     new_alpha = np.zeros((h, w), dtype=np.uint8)
     new_alpha[keep] = alpha[keep]
     return new_alpha

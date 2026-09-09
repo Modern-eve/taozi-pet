@@ -2,7 +2,7 @@
 CPU 抠白底（v7 洪水填充算法）：assets-raw/ → taozi-pet/incoming-assets/（透明 PNG）
 
 仅从左/右/上边缘发起洪水填充（下方不发起，保护脚底），叠加保护色障碍物、
-最大连通块保留。
+主体连通块 + 可信分离部件（头顶光环）保留。
 
 GPU 版（preprocess-v7 -gpu.py）为默认路径，本脚本仅作**应急兜底**：
 默认只处理 DEFAULT_STATES 列出的 8 个状态，walk/sleep/sad/peek 需显式 --states 指定。
@@ -62,26 +62,42 @@ def flood_fill_from_edges(arr, alpha, protected=None):
         return np.zeros((h, w), dtype=bool)
     return np.isin(labeled, list(edge_labels))
 
+# 分离部件（头顶光环等）保留阈值，与 GPU 版同口径：
+# 光环浮在头顶、与身体不相连，面积仅主体的 0.5%~0.7% 且在画面顶部，
+# 按"只留最大块"会被整块删除。用「面积占全图比例 + 平均置信度」双闸门区分噪点。
+PART_AREA_RATIO = 0.001
+PART_MEAN_ALPHA = 150
+
+
 def keep_largest_connected(alpha):
+    """保留主体连通块，以及可信的分离部件（如头顶光环），命中任一条件即保留：
+      1) 面积最大的块 —— 主体
+      2) 面积 > 主体 30% 且距画面中心 < 0.4h —— 与主体断开的大部件
+      3) 面积 ≥ 全图 0.1% 且平均置信度 ≥ 150 —— 小而可信的分离部件（光环）
+    """
     from scipy import ndimage
     h, w = alpha.shape
     fg = alpha > 16
     labeled, num = ndimage.label(fg)
     if num == 0:
         return alpha
-    sizes = ndimage.sum(fg, labeled, range(1, num + 1))
-    # 质心（用于"近中心"判定）
-    centers = ndimage.center_of_mass(fg, labeled, range(1, num + 1))
+    labs = range(1, num + 1)
+    sizes = ndimage.sum(fg, labeled, labs)
+    centers = ndimage.center_of_mass(fg, labeled, labs)
+    means = ndimage.mean(alpha, labeled, labs)
     max_area = float(sizes.max())
+    min_area = h * w * PART_AREA_RATIO
     keep = np.zeros((h, w), dtype=bool)
-    for lab in range(1, num + 1):
+    for lab in labs:
         area = float(sizes[lab - 1])
         if area == max_area:
-            keep |= (labeled == lab)
+            keep |= (labeled == lab)  # 主体
         elif area > max_area * 0.3:
-            cy, cx = centers[lab - 1]
-            if ((cy - h/2)**2 + (cx - w/2)**2) ** 0.5 < h * 0.4:
+            cy, cx = centers[lab - 1]  # 与主体断开的大部件：需靠近中心
+            if ((cy - h / 2) ** 2 + (cx - w / 2) ** 2) ** 0.5 < h * 0.4:
                 keep |= (labeled == lab)
+        elif area >= min_area and float(means[lab - 1]) >= PART_MEAN_ALPHA:
+            keep |= (labeled == lab)  # 小而可信的分离部件（光环）
     new_alpha = np.zeros((h, w), dtype=np.uint8)
     new_alpha[keep] = alpha[keep]
     return new_alpha

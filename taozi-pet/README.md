@@ -8,7 +8,7 @@
 蓝发二次元女孩「套子」的桌面宠物项目（Electron + Electron Forge）。
 
 - 应用代码：`taozi-pet/`
-- 角色母版源图：`core-ip.png`
+- 角色母版源图：`core-ip.jpg`
 - 白底素材：`assets-raw/`
 - 透明抠图 + 整合层：`taozi-pet/incoming-assets/`（由 `preprocess-v7 -gpu.py` / `preprocess-v7-cpu.py` 抠图直出，再经 `assemble-incoming-assets.py` 原地归一化）
 
@@ -52,7 +52,7 @@ Python 脚本在**仓库根目录**运行，Node 工具在 `taozi-pet/` 内运�
 | `tools/process-assets.mjs` | `incoming-assets/` → `src/assets/pet/` | 渲染为最终 512×512 桌宠素材（去背景、羽化、按状态统一尺寸、按 anchor 落位） |
 | `tools/validate-spec.mjs` / `tools/qa-assets.mjs` | — | 校验 pet-spec 结构与素材像素质量，目标 `PASS (133/133)` |
 | `repair-src-for-qa.py` | `qa/assets-report.json` → `src/assets/pet/` | 按 QA 报告自动修复失败帧（`SCALE_DRIFT` / `OCCUPANCY_TOO_LARGE` / `GROUND_RESIDUE` / `SUBJECT_TOUCHES_BORDER`），`--dry-run` 可预览 |
-| `make-tray-icon.py` | `core-ip.png` → `src/assets/tray/tray-icon.png` | 从母版源图头部裁剪生成 32×32 透明托盘头像，**与动画帧流水线解耦** |
+| `make-tray-icon.py` | `core-ip.jpg` → `src/assets/tray/tray-icon.png` | 从母版源图头部裁剪生成 32×32 透明托盘头像，**与动画帧流水线解耦** |
 
 #### 补充说明
 
@@ -88,16 +88,16 @@ C:\PYTHON312\python.exe repair-src-for-qa.py --dry-run
 
 ### 更新托盘头像
 
-托盘图标（`taozi-pet/src/assets/tray/tray-icon.png`，32×32 透明 PNG）由 `make-tray-icon.py` 独立从 **`core-ip.png` 头部**裁剪生成，与动画帧流水线解耦。
+托盘图标（`taozi-pet/src/assets/tray/tray-icon.png`，32×32 透明 PNG）由 `make-tray-icon.py` 独立从 **`core-ip.jpg` 头部**裁剪生成，与动画帧流水线解耦。
 
 ```bash
-# 默认：从仓库根的 core-ip.png 裁剪头部（横向居中取 1/2、纵向 2%-30%），
+# 默认：从仓库根的 core-ip.jpg 裁剪头部（横向居中取约 1/3、纵向 6%-30%），
 # 用 flood-fill 只去外背景，保留角色内部浅色，避免内部空洞。
 cd D:\Documents\Doubao\chats\2026-08-12\new-chat
 C:\PYTHON312\python.exe make-tray-icon.py
 
 # 自定义裁剪区域（原图坐标，x1,y1,x2,y2）
-C:\PYTHON312\python.exe make-tray-icon.py --crop 460,40,1075,655
+C:\PYTHON312\python.exe make-tray-icon.py --crop 571,134,1109,672
 
 # 自定义源图 / 输出 / 背景容差
 C:\PYTHON312\python.exe make-tray-icon.py --core my-source.png --out tray-new.png --bg-tol 15
@@ -108,11 +108,11 @@ C:\PYTHON312\python.exe make-tray-icon.py --inner 28
 
 **何时跑**：
 
-- 换了 `core-ip.png`（例如新立绘），跑一次即可更新托盘；
+- 换了 `core-ip.jpg`（例如新立绘），跑一次即可更新托盘；
 - 改了 `idle` / `happy` 等动画帧，**不需要**重新生成托盘——它跟动画无关；
-- `--crop` 用来调整头部区域；脚本的默认值针对 1536×2048 的 `core-ip.png` 调好，其他分辨率会按比例自动重算。
+- `--crop` 用来调整头部区域；脚本的默认值针对 1680×2240 的 `core-ip.jpg` 调好，其他分辨率会按比例自动重算。
 
-**为什么走 core-ip.png 而不是任一动画帧**：母版源图是"角色的真相"，不会再变；动画帧可能改但不该影响托盘形象。把托盘与动画解耦后，UI 的标识稳定可预期。
+**为什么走 core-ip.jpg 而不是任一动画帧**：母版源图是"角色的真相"，不会再变；动画帧可能改但不该影响托盘形象。把托盘与动画解耦后，UI 的标识稳定可预期。
 
 ### 关键约定
 
