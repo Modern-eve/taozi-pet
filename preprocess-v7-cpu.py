@@ -1,10 +1,10 @@
 """
 CPU 抠白底（v7 洪水填充算法）：assets-raw/ → taozi-pet/incoming-assets/（透明 PNG）
 
-仅从左/右/上边缘发起洪水填充（下方不发起，保护脚底），叠加保护色障碍物、
-主体连通块 + 可信分离部件（头顶光环）保留。
+从四边发起洪水填充删除与边缘连通的近背景像素（底边也发起），叠加保护色
+障碍物、主体连通块 + 可信分离部件（头顶光环）保留。
 
-GPU 版（preprocess-v7 -gpu.py）为默认路径，本脚本仅作**应急兜底**：
+GPU 版（preprocess-v7-gpu.py）为默认路径，本脚本仅作**应急兜底**：
 默认只处理 DEFAULT_STATES 列出的 8 个状态，walk/sleep/sad/peek 需显式 --states 指定。
 
 输入支持 png / jpg / jpeg / webp / bmp（PIL 按内容解码，扩展名不可信），
@@ -37,7 +37,7 @@ def get_protected_mask(arr, alpha):
     return (skin | pumpkin) & (alpha > 16)
 
 def flood_fill_from_edges(arr, alpha, protected=None):
-    """删与上/左/右三边连通的近背景像素（下方不发起，保护脚底）。
+    """删与四边连通的近背景像素（底边也发起）。
     scipy.ndimage.label 向量化替代 Python deque BFS（等价且快 10×+）。"""
     from scipy import ndimage
     h, w = arr.shape[:2]
@@ -53,10 +53,11 @@ def flood_fill_from_edges(arr, alpha, protected=None):
     labeled, num = ndimage.label(is_bg)
     if num == 0:
         return np.zeros((h, w), dtype=bool)
-    # 只删与上/左/右边缘连通的块（底边不发起）
+    # 删与上/左/右/下边缘连通的块
     edge_labels = set(np.unique(labeled[0, :]))
     edge_labels |= set(np.unique(labeled[:, 0]))
     edge_labels |= set(np.unique(labeled[:, w - 1]))
+    edge_labels |= set(np.unique(labeled[h - 1, :]))
     edge_labels.discard(0)
     if not edge_labels:
         return np.zeros((h, w), dtype=bool)
@@ -108,7 +109,7 @@ def process_image(input_path, output_path):
     alpha = arr[:, :, 3].copy()
     protected = get_protected_mask(arr, alpha)  # 一帧只算一次，供各步复用
 
-    # 1. 洪水填充（只从左/右/上边缘发起，删背景）
+    # 1. 洪水填充（从四边发起，删与边缘连通的近背景像素）
     delete_mask = flood_fill_from_edges(arr, alpha, protected)
     alpha[delete_mask] = 0
     # 2. 保留中心最大连通块

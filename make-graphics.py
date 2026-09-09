@@ -58,7 +58,7 @@ def load_preprocess():
     if _PROCESSOR_CACHE is not None:
         return _PROCESSOR_CACHE
     here = os.path.dirname(os.path.abspath(__file__)) or '.'
-    path = os.path.join(here, 'preprocess-v7 -gpu.py')
+    path = os.path.join(here, 'preprocess-v7-gpu.py')
     spec = importlib.util.spec_from_file_location('preprocess_v7', path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)  # 触发 torch / BiRefNet 依赖检查
