@@ -7,5 +7,9 @@ __pycache__/
 assets-processed/
 taozi-pet/incoming-assets/
 
+# 生成产物：运行时精灵帧 / 头像均由流水线或 make-graphics.py 重建，不跟踪
+taozi-pet/src/assets/
+taozi-pet/src/renderer/dashboard/assets/
+
 # 防御性兜底：process-assets 不产出该诊断文件，正常流程不会有它
 taozi-pet/src/assets/pet/asset-processing-report.json
