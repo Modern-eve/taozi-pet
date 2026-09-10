@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
  * 极小的 QA 共用框架：
  * - makeCheck 把每个检查归一为 { id, gate, severity, describe, run }，run() 返回 { passed, detail }
  * - check 框架统一收集结果、分级输出（error 阻断 / warning 提示）、写 report.json
- * - blockDecl 轻量解析 CSS 规则块，按选择器片段定位声明，顺序无关（替代整文件正则）
+ * - blockDecl 轻量解析 CSS 规则块，按选择器片段定位声明，顺序无关（不依赖整文件正则）
  */
 
 export function makeCheck({ id, gate, severity = 'error', describe, run }) {

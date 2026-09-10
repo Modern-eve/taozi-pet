@@ -103,7 +103,7 @@ QA 与校验共享一个极小的框架，保证所有脚本输出/报告/退出
 
 - **makeCheck**：把每个检查归一为 `{ id, gate, severity, describe, run }`，`run()` 返回 `{ passed, detail }`
 - **runChecks**：逐个执行并收集，分级输出（`severity: 'error'` 阻断 / `'warning'` 提示），写入 `qa/*-report.json`，设置退出码
-- **blockDecl / hasProps**：轻量 CSS 解析，按选择器定位声明、顺序无关匹配（替代脆弱正则）
+- **blockDecl / hasProps**：轻量 CSS 解析，按选择器定位声明、顺序无关匹配（不依赖整文件正则）
 - **loadJson / loadSpec / PROJECT_ROOT**：从项目根统一读取配置，与运行 cwd 解耦
 - **parseArgv**：统一 CLI 解析（`--flag value`，末位无值静默忽略，含越界保护）
 - **assetSetsFromSpec**：统一「spec 定义了哪些 PNG」

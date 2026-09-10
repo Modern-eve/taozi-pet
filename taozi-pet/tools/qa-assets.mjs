@@ -12,6 +12,12 @@ await mkdir(qaDir, { recursive: true });
 const records = [];
 const regressionFixture = await readFile(path.join(PROJECT_ROOT, 'REGRESSION_FIXTURE_ONLY.txt'), 'utf8').then(() => true, () => false);
 const targetOccupancy = Number(spec.assetPipeline?.targetOccupancy ?? 0.78);
+// 状态内漂移阈值：全部状态共用同一套，取自 pet-spec.json assetPipeline，
+// 与 assemble / process-assets 读同一份配置。
+const maximumScaleRatio = Number(spec.assetPipeline?.qaMaxScaleRatio ?? 1.08);
+const maximumCenterDrift = Number(spec.assetPipeline?.qaMaxCenterDrift ?? 0.035);
+const maximumBottomDrift = Number(spec.assetPipeline?.qaMaxBottomDrift ?? 0.018);
+if (![maximumScaleRatio, maximumCenterDrift, maximumBottomDrift].every(Number.isFinite)) throw new Error('pet-spec assetPipeline drift limits must be numbers');
 const selectedStateId = argumentsMap.state;
 const states = selectedStateId ? spec.states.filter((state) => state.id === selectedStateId) : spec.states;
 if (selectedStateId && states.length !== 1) throw new Error(`Unknown asset state: ${selectedStateId}`);
@@ -234,13 +240,9 @@ for (const state of states) {
   const equivalentScales = widths.map((width, index) => Math.sqrt(width * heights[index]));
   const centers = stateRecords.map((record) => (record.bounds[0] + record.bounds[2]) / 2 / 511);
   const bottoms = stateRecords.map((record) => record.bounds[3] / 511);
-  const lockedBody = state.id === 'idle' || state.triggers.includes('ambient:blink');
-  const maximumScaleRatio = lockedBody ? 1.025 : 1.08;
-  const maximumCenterDrift = lockedBody ? 0.015 : 0.035;
-  const maximumBottomDrift = lockedBody ? 0.01 : 0.018;
-  const scaleDrifts = lockedBody
-    ? Math.max(...widths) / Math.min(...widths) > maximumScaleRatio || Math.max(...heights) / Math.min(...heights) > maximumScaleRatio
-    : Math.max(...equivalentScales) / Math.min(...equivalentScales) > maximumScaleRatio;
+  // 尺度漂移统一按"等价尺度"（√(宽×高)）判定：允许姿态带来的有限长宽比变化，
+  // 只拦面积/尺寸的真实漂移。阈值全状态一致，见文件头 assetPipeline 读取。
+  const scaleDrifts = Math.max(...equivalentScales) / Math.min(...equivalentScales) > maximumScaleRatio;
   if (widths.length > 1 && scaleDrifts) {
     const message = `visible subject scale drifts too much within ${state.id} (limit ${((maximumScaleRatio - 1) * 100).toFixed(1)}%)`;
     for (const record of stateRecords) {

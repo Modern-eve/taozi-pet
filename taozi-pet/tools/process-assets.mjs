@@ -18,9 +18,11 @@ const feather = Number(spec.assetPipeline?.edgeFeather);
 const safeMargin = Number(spec.assetPipeline?.safeMargin);
 const targetOccupancy = Number(spec.assetPipeline?.targetOccupancy);
 const generationBackground = spec.assetPipeline?.generationBackground;
+// 单帧所需缩放校正的上限。全部状态共用同一阈值，取自 pet-spec.json assetPipeline.processMaxCorrection。
+const maximumCorrection = Number(spec.assetPipeline?.processMaxCorrection);
 if (spec.assetPipeline?.backgroundMode !== 'adaptive-flood') throw new Error('pet-spec assetPipeline.backgroundMode must be adaptive-flood');
 if (!['transparent-grid', 'solid-chroma'].includes(generationBackground)) throw new Error('pet-spec generationBackground must be transparent-grid or solid-chroma');
-if (![threshold, feather, safeMargin, targetOccupancy].every(Number.isFinite)) throw new Error('pet-spec assetPipeline values must be numbers');
+if (![threshold, feather, safeMargin, targetOccupancy, maximumCorrection].every(Number.isFinite)) throw new Error('pet-spec assetPipeline values must be numbers');
 
 const selectedStateId = args.state;
 const states = selectedStateId ? spec.states.filter((state) => state.id === selectedStateId) : spec.states;
@@ -259,8 +261,6 @@ if (!failures.length) {
       const { asset } = item;
       try {
         const correction = Math.sqrt((referenceWidth * referenceHeight) / (item.bounds.width * item.bounds.height));
-        const lockedBody = state.id === 'idle' || state.triggers.includes('ambient:blink');
-        const maximumCorrection = lockedBody ? 1.08 : 1.12;
         if (correction < 1 / maximumCorrection || correction > maximumCorrection) {
           throw codedError(
             'NORMALIZATION_TOO_LARGE',

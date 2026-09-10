@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """从角色母版源图生成应用图形资源：托盘图标 + 页面状态头像。
 
-抠图复用 preprocess-v7（BiRefNet GPU 推理，发丝/光环等细节更完整），
-替代早期自实现的 flood-fill 抠图。产物：
+抠图复用 preprocess-v7（BiRefNet GPU 推理，发丝/光环等细节更完整）。产物：
 - 托盘图标：core-ip.jpg → taozi-pet/src/assets/tray/tray-icon.png（32×32）
 - 页面状态头像（--dashboard，仅截头部特写，与托盘观感一致）：
     core-ip.jpg  → taozi-pet/src/renderer/dashboard/assets/avatar-ip.png    「正常」
@@ -13,7 +12,7 @@
 运行前提：与 preprocess-v7 相同的 torch/CUDA 环境（conda activate my_project）。
 
 用法:
-  python make-graphics.py               # 仅生成托盘图标（向后兼容）
+  python make-graphics.py               # 仅生成托盘图标
   python make-graphics.py --dashboard   # 同时生成托盘图标 + 三张页面状态头像
   python make-graphics.py --core 其他源图.jpg --out tray2.png --size 48   # 自定义托盘
 """

@@ -69,6 +69,13 @@ checks.push(makeCheck({
     if (!Number.isInteger(pipeline.sourceMargin) || pipeline.sourceMargin < 0 || pipeline.sourceMargin > 256) problems.push('assetPipeline.sourceMargin 必须为 0-256');
     if (typeof pipeline.sourceOccupancy !== 'number' || pipeline.sourceOccupancy < 0.3 || pipeline.sourceOccupancy > 0.8) problems.push('assetPipeline.sourceOccupancy 必须为 0.3-0.8');
     if (!Number.isInteger(pipeline.sourcePad) || pipeline.sourcePad < 0 || pipeline.sourcePad > 32) problems.push('assetPipeline.sourcePad 必须为 0-32');
+    // 归一化/漂移阈值：全部状态共用一套（不做 idle 等特殊状态分支），故只校验数值本身。
+    if (typeof pipeline.sourceScaleAxisCap !== 'number' || pipeline.sourceScaleAxisCap <= 0 || pipeline.sourceScaleAxisCap > 0.06) problems.push('assetPipeline.sourceScaleAxisCap 必须为 0-0.06 的数值');
+    if (typeof pipeline.processMaxCorrection !== 'number' || pipeline.processMaxCorrection < 1 || pipeline.processMaxCorrection > 1.3) problems.push('assetPipeline.processMaxCorrection 必须为 1-1.3 的数值');
+    if (typeof pipeline.qaMaxScaleRatio !== 'number' || pipeline.qaMaxScaleRatio < 1 || pipeline.qaMaxScaleRatio > 1.3) problems.push('assetPipeline.qaMaxScaleRatio 必须为 1-1.3 的数值');
+    if (typeof pipeline.qaMaxCenterDrift !== 'number' || pipeline.qaMaxCenterDrift <= 0 || pipeline.qaMaxCenterDrift > 0.1) problems.push('assetPipeline.qaMaxCenterDrift 必须为 0-0.1 的数值');
+    if (typeof pipeline.qaMaxBottomDrift !== 'number' || pipeline.qaMaxBottomDrift <= 0 || pipeline.qaMaxBottomDrift > 0.1) problems.push('assetPipeline.qaMaxBottomDrift 必须为 0-0.1 的数值');
+    if (pipeline.qaMaxScaleRatio <= 1 + pipeline.sourceScaleAxisCap) problems.push('assetPipeline.qaMaxScaleRatio 必须大于 1+sourceScaleAxisCap（否则 assemble 的合法输出会被 qa 判失败）');
     const sizing = spec.experience?.petSizing ?? {};
     if (!Number.isInteger(sizing.baseWindowPx) || sizing.baseWindowPx < 180 || sizing.baseWindowPx > 260) problems.push('experience.petSizing.baseWindowPx 必须为 180-260');
     if (![0.65, 0.8, 1, 1.2].includes(sizing.defaultScale)) problems.push('experience.petSizing.defaultScale 必须是 0.65/0.8/1/1.2 之一');

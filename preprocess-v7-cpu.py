@@ -4,16 +4,15 @@ CPU 抠白底（v7 洪水填充算法）：assets-raw/ → taozi-pet/incoming-as
 从四边发起洪水填充删除与边缘连通的近背景像素（底边也发起），叠加保护色
 障碍物、主体连通块 + 可信分离部件（头顶光环）保留。
 
-GPU 版（preprocess-v7-gpu.py）为默认路径，本脚本仅作**应急兜底**：
-默认只处理 DEFAULT_STATES 列出的 8 个状态，walk/sleep/sad/peek 需显式 --states 指定。
+GPU 版（preprocess-v7-gpu.py）为默认路径，本脚本仅作**应急兜底**。
 
 输入支持 png / jpg / jpeg / webp / bmp（PIL 按内容解码，扩展名不可信），
 输出统一为透明 png（需 alpha 通道）。
 
 用法:
-  python preprocess-v7-cpu.py                    # 处理 DEFAULT_STATES 的 8 个状态
+  python preprocess-v7-cpu.py                    # 处理 assets-raw 全部帧
   python preprocess-v7-cpu.py walk-01.jpg       # 只处理指定文件
-  python preprocess-v7-cpu.py --states walk sleep
+  python preprocess-v7-cpu.py --states walk sleep   # 只处理指定状态
 """
 import os
 import numpy as np
@@ -38,7 +37,7 @@ def get_protected_mask(arr, alpha):
 
 def flood_fill_from_edges(arr, alpha, protected=None):
     """删与四边连通的近背景像素（底边也发起）。
-    scipy.ndimage.label 向量化替代 Python deque BFS（等价且快 10×+）。"""
+    scipy.ndimage.label 向量化实现，等价于逐像素 BFS 且快 10×+。"""
     from scipy import ndimage
     h, w = arr.shape[:2]
     if protected is None:
@@ -159,9 +158,6 @@ def process_image(input_path, output_path):
     arr[:, :, 3] = alpha
     Image.fromarray(arr).save(output_path)
 
-# 默认状态集合（缺 walk/sleep/sad/peek，需时显式 --states 指定）
-DEFAULT_STATES = ["idle", "blink", "happy", "notify", "pet-head", "pumpkin-bag", "petal-spin", "starfish-wave"]
-
 def _state_of(fname):
     """从 'walk-01.png' / 'pet-head-03.jpg' 取状态前缀。"""
     return fname.rsplit('-', 1)[0]
@@ -174,20 +170,21 @@ def _out_name(fname):
 
 def main():
     import argparse
-    ap = argparse.ArgumentParser(description="CPU 抠图（应急兜底）：assets-raw → taozi-pet/incoming-assets（默认 8 个常用状态，其余需 --states）")
+    ap = argparse.ArgumentParser(description="CPU 抠图（应急兜底）：assets-raw → taozi-pet/incoming-assets（默认全量，--states 限定部分状态）")
     ap.add_argument('files', nargs='*', help='指定文件（默认处理 --states 全部）')
-    ap.add_argument('--states', nargs='*', default=DEFAULT_STATES,
-                    help=f'只处理这些状态（默认 {DEFAULT_STATES}）')
+    ap.add_argument('--states', nargs='*', default=None,
+                    help='只处理这些状态（默认处理全部状态）')
     args = ap.parse_args()
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    states = set(args.states)
+    states = set(args.states) if args.states else None
     if args.files:
         files = [f for f in args.files if f.lower().endswith(IMG_EXTS)]
         print(f'Selected files: {len(files)} files')
     else:
         files = sorted([f for f in os.listdir(INPUT_DIR)
-                        if f.lower().endswith(IMG_EXTS) and _state_of(f) in states])
-        print(f'Processing states {sorted(states)}: {len(files)} files')
+                        if f.lower().endswith(IMG_EXTS) and (states is None or _state_of(f) in states)])
+        label = sorted(states) if states else 'ALL'
+        print(f'Processing states {label}: {len(files)} files')
     success = 0
     for i, fname in enumerate(files):
         in_path = os.path.join(INPUT_DIR, fname)

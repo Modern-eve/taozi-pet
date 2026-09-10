@@ -2,15 +2,15 @@
 repair-src-for-qa.py — 按 qa/assets-report.json 自动修复失败帧
 
 读取 QA 报告，对每帧失败按 code 应用通用修复（不依赖硬编码帧名）：
-  - SCALE_DRIFT (lockedBody)  : 把该状态各帧缩放到本状态中位 bbox（宽/高一致）
+  - SCALE_DRIFT               : 把该状态各帧缩放到本状态中位 bbox（宽/高一致）
   - OCCUPANCY_TOO_LARGE       : 等比缩到 MAX_DIM
   - GROUND_RESIDUE[_REVIEW]   : 清掉角色最底 GROUND_ROWS 行
   - SUBJECT_TOUCHES_BORDER    : 带 MARGIN 重新居中
 报告说坏修什么；无失败则无改动。
 
 ⚠️ 修复目标是**产物层** taozi-pet/src/assets/pet/，不是上游 incoming-assets/。
-因此每次全量 `node tools/process-assets.mjs` 重跑都会覆盖掉此前的修复，
-流程上需要在 process-assets 之后、qa-assets 之前重跑本脚本。
+全量 `node tools/process-assets.mjs` 会重写产物层，故本脚本须在 process-assets
+之后、qa-assets 之前运行。
 
 用法:
   python repair-src-for-qa.py
@@ -49,7 +49,7 @@ def save(arr, path):
 
 def fix_scale_drift(records, assets_dir):
     """SCALE_DRIFT：把同状态各帧缩放到本状态中位 bbox（宽/高一致），
-    保持各自中心 x 与底部 y，使帧间尺寸一致（满足 lockedBody ≤2.5%）。"""
+    保持各自中心 x 与底部 y，使帧间尺寸一致（满足 assetPipeline.qaMaxScaleRatio）。"""
     boxes = []
     for r in records:
         b = r.get("bounds")                      # 报告格式 [minX, minY, maxX, maxY]

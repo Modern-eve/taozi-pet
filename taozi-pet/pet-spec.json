@@ -47,7 +47,12 @@
     "sourceCanvas": 1280,
     "sourceMargin": 48,
     "sourceOccupancy": 0.62,
-    "sourcePad": 4
+    "sourcePad": 4,
+    "sourceScaleAxisCap": 0.035,
+    "processMaxCorrection": 1.12,
+    "qaMaxScaleRatio": 1.08,
+    "qaMaxCenterDrift": 0.035,
+    "qaMaxBottomDrift": 0.018
   },
   "experience": {
     "theme": {
