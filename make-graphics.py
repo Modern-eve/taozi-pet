@@ -23,7 +23,6 @@ import sys
 
 import numpy as np
 from PIL import Image
-from scipy import ndimage
 
 DEFAULT_CORE = "core-ip.jpg"
 DEFAULT_OUT = os.path.join("taozi-pet", "src", "assets", "tray", "tray-icon.png")
@@ -82,18 +81,11 @@ def cutout(rgba):
     alpha = alpha_pad[:h0, :w0].copy()  # 截回原始头部尺寸
 
     arr = np.array(rgba)
-    # 保护色：强制保留被保护的肤色/南瓜色，并用 2px 膨胀挽回手部/高光边缘浅色像素。
-    # 先去掉贴边保护区，避免膨胀后诱导下游判 SUBJECT_TOUCHES_BORDER。
+    # 保护色：强制保留被保护的肤色/南瓜色像素（不膨胀，避免向轮廓外带进背景白边）。
     protected = pv.get_protected_mask(arr, alpha)
-    border = 4
-    protected[:border, :] = False
-    protected[-border:, :] = False
-    protected[:, :border] = False
-    protected[:, -border:] = False
-    protected = ndimage.binary_dilation(protected, iterations=2)
     alpha[protected] = 255
-    # 保留中心最大连通块 + 可信的分离部件（头顶光环）
-    alpha = pv.keep_largest_connected(alpha)
+    # 保留中心最大连通块 + 可信的分离部件（头顶光环），并清掉光环内部背景
+    alpha = pv.refine_alpha(arr, alpha, protected)
     # 清理最边缘 2px 前景
     b = 2
     alpha[:b, :] = 0

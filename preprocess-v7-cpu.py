@@ -27,9 +27,9 @@ IMG_EXTS = ('.png', '.jpg', '.jpeg', '.webp', '.bmp')
 BG_THRESHOLD = 28
 
 def get_protected_mask(arr, alpha):
-    r = arr[:, :, 0].astype(int)
-    g = arr[:, :, 1].astype(int)
-    b = arr[:, :, 2].astype(int)
+    r = arr[:, :, 0].astype(np.int16)
+    g = arr[:, :, 1].astype(np.int16)
+    b = arr[:, :, 2].astype(np.int16)
     # 肤色保护：r-b>3，避免高光像素被误判为背景；南瓜色不变。
     skin = (r > 150) & (g > 110) & (b > 70) & (r >= g) & (g >= b) & ((r - b) > 3)
     pumpkin = (r > 170) & (g > 110) & (b < 140) & ((r - b) > 70)
@@ -72,45 +72,23 @@ PART_MEAN_ALPHA = 150
 PART_MAX_RATIO = 0.01
 
 
-def clear_part_background(arr, alpha, protected):
-    """清除分离小部件（头顶光环）内部的近背景色像素。
+def refine_alpha(arr, alpha, protected):
+    """一次连通域分析：决定保留哪些块，并清掉分离部件内部的背景（与 GPU 版同口径）。
 
-    光环是闭合环（实心椭圆盘+外圈描边），中间背景与外部不连通，
-    洪水填充/连通块都进不去，保留后需单独清除。主体内部近白多为
-    高光/白裙，动不得；本函数只清小部件（面积 0.1%~1% 全图）。
-    """
-    from scipy import ndimage
-    h, w = alpha.shape
-    fg = alpha > 16
-    labeled, num = ndimage.label(fg)
-    if num == 0:
-        return alpha
-    labs = range(1, num + 1)
-    sizes = ndimage.sum(fg, labeled, labs)
-    main = int(np.argmax(sizes)) + 1
-    bg_ref = arr[0, 0].astype(int)
-    r, g, b = arr[:, :, 0].astype(int), arr[:, :, 1].astype(int), arr[:, :, 2].astype(int)
-    dist = np.sqrt((r - bg_ref[0]) ** 2 + (g - bg_ref[1]) ** 2 + (b - bg_ref[2]) ** 2)
-    near_bg = (dist < BG_THRESHOLD) & ~protected
-    out = alpha.copy()
-    min_area = h * w * PART_AREA_RATIO
-    max_area = h * w * PART_MAX_RATIO
-    for lab in labs:
-        if lab == main:
-            continue
-        area = float(sizes[lab - 1])
-        if area < min_area or area > max_area:
-            continue
-        m = (labeled == lab)
-        out[m & near_bg] = 0
-    return out
-
-
-def keep_largest_connected(alpha):
-    """保留主体连通块，以及可信的分离部件（如头顶光环），命中任一条件即保留：
+    保留判据（命中任一即保留）：
       1) 面积最大的块 —— 主体
       2) 面积 > 主体 30% 且距画面中心 < 0.4h —— 与主体断开的大部件
       3) 面积 ≥ 全图 0.1% 且平均置信度 ≥ 150 —— 小而可信的分离部件（光环）
+
+    光环浮在头顶、与身体不相连，面积仅主体的 0.5%~0.7% 且在画面顶部，
+    按"只留最大块"会被整块删除，故用「面积占全图比例 + 平均置信度」双闸门
+    把它与噪点区分开。
+
+    光环是闭合环，环内背景与外界不连通，连通域处理进不去，故对「保留下来的
+    小部件」再做一次内部近背景清除。主体内部近白多为高光/白裙，动不得，
+    清除只作用于小部件（面积 0.1%~1% 全图）。
+
+    中心与均值只对候选块（大部件 / 小部件）计算，避免对全部连通块做全图归约。
     """
     from scipy import ndimage
     h, w = alpha.shape
@@ -118,25 +96,51 @@ def keep_largest_connected(alpha):
     labeled, num = ndimage.label(fg)
     if num == 0:
         return alpha
-    labs = range(1, num + 1)
-    sizes = ndimage.sum(fg, labeled, labs)
-    centers = ndimage.center_of_mass(fg, labeled, labs)
-    means = ndimage.mean(alpha, labeled, labs)
-    max_area = float(sizes.max())
+    labels = np.arange(1, num + 1)
+    sizes = np.bincount(labeled.ravel(), minlength=num + 1)[1:].astype(np.int64)
+    max_area = int(sizes.max())
     min_area = h * w * PART_AREA_RATIO
+    max_part = h * w * PART_MAX_RATIO
+
+    main = labels[sizes == max_area]                 # 主体（含同面积的并列块）
+    rest = labels[sizes != max_area]
+    big = rest[sizes[rest - 1] > max_area * 0.3]     # 与主体断开的大部件
+    small = rest[sizes[rest - 1] >= min_area]        # 候选小部件
+    small = small[sizes[small - 1] <= max_area * 0.3]  # 与 big 互斥，与保留判据一致
+
     keep = np.zeros((h, w), dtype=bool)
-    for lab in labs:
-        area = float(sizes[lab - 1])
-        if area == max_area:
-            keep |= (labeled == lab)  # 主体
-        elif area > max_area * 0.3:
-            cy, cx = centers[lab - 1]  # 与主体断开的大部件：需靠近中心
+    for lab in main:
+        keep |= (labeled == lab)
+
+    if big.size:
+        centers = ndimage.center_of_mass(fg, labeled, big)
+        for lab, (cy, cx) in zip(big, centers):
             if ((cy - h / 2) ** 2 + (cx - w / 2) ** 2) ** 0.5 < h * 0.4:
                 keep |= (labeled == lab)
-        elif area >= min_area and float(means[lab - 1]) >= PART_MEAN_ALPHA:
+
+    small_kept = np.empty(0, dtype=np.int64)
+    if small.size:
+        means = ndimage.mean(alpha, labeled, small)
+        small_kept = small[means >= PART_MEAN_ALPHA]
+        for lab in small_kept:
             keep |= (labeled == lab)  # 小而可信的分离部件（光环）
-    new_alpha = np.zeros((h, w), dtype=np.uint8)
-    new_alpha[keep] = alpha[keep]
+
+    new_alpha = np.where(keep, alpha, 0).astype(np.uint8)
+
+    # 清掉保留下来的小部件内部的近背景像素
+    clear_labs = small_kept[sizes[small_kept - 1] <= max_part]
+    if clear_labs.size:
+        bg_ref = arr[0, 0].astype(np.int32)
+        r = arr[:, :, 0].astype(np.int32)
+        g = arr[:, :, 1].astype(np.int32)
+        b = arr[:, :, 2].astype(np.int32)
+        near_bg = ((r - bg_ref[0]) ** 2 + (g - bg_ref[1]) ** 2
+                   + (b - bg_ref[2]) ** 2) < BG_THRESHOLD ** 2
+        near_bg &= ~protected
+        hit = np.zeros((h, w), dtype=bool)
+        for lab in clear_labs:
+            hit |= (labeled == lab)
+        new_alpha[near_bg & hit] = 0
     return new_alpha
 
 def process_image(input_path, output_path):
@@ -148,12 +152,8 @@ def process_image(input_path, output_path):
     # 1. 洪水填充（从四边发起，删与边缘连通的近背景像素）
     delete_mask = flood_fill_from_edges(arr, alpha, protected)
     alpha[delete_mask] = 0
-    # 2. 保留中心最大连通块
-    alpha = keep_largest_connected(alpha)
-
-    # 3. 分离小部件（头顶光环）内部的近背景像素清掉。
-    # 光环是闭合环，内部背景与外界不连通，洪水填充删不到，必须保留后单独清。
-    alpha = clear_part_background(arr, alpha, protected)
+    # 2. 保留主体 + 可信分离部件，并清掉分离部件内部背景
+    alpha = refine_alpha(arr, alpha, protected)
 
     arr[:, :, 3] = alpha
     Image.fromarray(arr).save(output_path)

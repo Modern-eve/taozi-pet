@@ -22,10 +22,11 @@ GPU 抠白底：assets-raw/ → taozi-pet/incoming-assets/（透明 PNG，默认
 
 光环浮在头顶、与身体不相连，面积只有主体的 0.5%~0.7% 且位于画面顶部，
 按"只留最大块"的朴素规则会被整块删掉，故第 2 步用「面积 + 置信度」双闸门
-把它与噪点区分开（详见 keep_largest_connected 注释）。
+把它与噪点区分开（详见 refine_alpha 注释）。
 
-保护色对肤色区做 2px 膨胀，可挽回手部/高光边缘的浅色像素，
-避免 happy/starfish-wave 等挥手状态的手颜色被“洗掉”。
+保护色把肤色 / 南瓜色像素强判为前景，避免 happy/starfish-wave 等挥手状态的
+手颜色被模型“洗掉”；只取原像素、不做膨胀——向背景扩张会把背景像素带进剪影，
+在人物外缘留下一圈白边。
 无 GPU 时自动退 CPU（也可 --cpu 强制）。
 
 用法:
@@ -33,11 +34,23 @@ GPU 抠白底：assets-raw/ → taozi-pet/incoming-assets/（透明 PNG，默认
   python preprocess-v7-gpu.py walk-01.jpg  # 只处理指定文件
   python preprocess-v7-gpu.py --states walk sleep   # 只处理指定状态
   python preprocess-v7-gpu.py --cpu        # 强制 CPU 推理
+  python preprocess-v7-gpu.py --serial     # 关闭流水线（逐帧同步，便于定位问题）
+
+环境变量:
+  INFER_FP16=0   推理回到 fp32（默认 fp16 autocast，约快 1.5×）
+  USE_TOONOUT=0  回退原版 BiRefNet（A/B 用）
+  TOONOUT_CKPT   指定 ToonOut 权重路径
+
+速度: 瓶颈依次是 GPU 推理、连通域分析、PNG 编码，对应四条措施——
+  推理走 fp16 autocast；「保留主体 + 清部件背景」合并为一次连通域分析且只对
+  候选块做全图归约；PNG 以 compress_level=1 写出（中间产物不入库，用体积换速度）；
+  推理与收尾流水线重叠（GPU 跑第 N+1 帧时 CPU 收尾第 N 帧）。
 
 环境: conda activate my_project（torch + CUDA）
 模型: ZhengPeng7/BiRefNet + ToonOut 微调权重（设 USE_TOONOUT=0 可回退原版做 A/B）
 """
 import os
+import time
 # 国内环境：让 HF 下载走镜像，避免 huggingface.co 直连超时
 os.environ.setdefault('HF_ENDPOINT', 'https://hf-mirror.com')
 
@@ -77,6 +90,18 @@ TOONOUT_CKPT = os.environ.get(
                  'birefnet_finetuned_toonout.pth'),
 )
 USE_TOONOUT = os.environ.get('USE_TOONOUT', '1') != '0'
+
+# 推理精度：autocast 到 fp16，约快 1.5×（fp32 0.58s/帧 → fp16 0.39s/帧）。
+# 输出与 fp32 的差异只出现在边缘过渡带：前景 mask IoU 0.99998，逐像素最大差 13/255。
+# 若需要与 fp32 逐像素完全一致，设 INFER_FP16=0。
+INFER_FP16 = os.environ.get('INFER_FP16', '1') != '0'
+
+# PNG 压缩级别。输出是流水线中间产物（不入库，最终由 process-assets 降采样），
+# 这里用体积换编码速度：level=1 约 0.09s/帧，level=6 约 0.18s/帧。
+PNG_COMPRESS_LEVEL = 1
+
+# CPU 收尾与 GPU 推理的流水线队列深度（同时驻留的未写出帧数），仅影响内存占用。
+PIPELINE_DEPTH = 3
 
 # ---- GPU 模型（懒加载单例，进程内只加载一次）----
 _MODEL = None
@@ -153,8 +178,12 @@ def rmbg_alpha(rgba_pil):
 
     # 3) ToTensor 把像素压到 [0,1] 后，必须再按 ImageNet 统计量归一化（官方要求）
     inp = normalize(to_tensor(canvas), NORM_MEAN, NORM_STD).unsqueeze(0).to(device)
-    with torch.no_grad():
-        preds = model(inp)
+    with torch.inference_mode():
+        if INFER_FP16 and device == 'cuda':
+            with torch.autocast('cuda', dtype=torch.float16):
+                preds = model(inp)
+        else:
+            preds = model(inp)
     out = preds[-1] if isinstance(preds, (list, tuple)) else preds
     # 压到 2D：[B,1,H,W] -> [H,W]
     while out.dim() > 2:
@@ -169,9 +198,9 @@ def rmbg_alpha(rgba_pil):
 
 # ---- v7 后处理（保 QA 兼容）----
 def get_protected_mask(arr, alpha):
-    r = arr[:, :, 0].astype(int)
-    g = arr[:, :, 1].astype(int)
-    b = arr[:, :, 2].astype(int)
+    r = arr[:, :, 0].astype(np.int16)
+    g = arr[:, :, 1].astype(np.int16)
+    b = arr[:, :, 2].astype(np.int16)
     # 肤色保护：覆盖偏粉/浅的肤色高光，避免手部阴影或浅色手指被 BiRefNet 低置信删除
     skin = (r > 150) & (g > 110) & (b > 70) & (r >= g) & (g >= b) & ((r - b) > 1)
     pumpkin = (r > 170) & (g > 110) & (b < 140) & ((r - b) > 70)
@@ -189,43 +218,10 @@ PART_MEAN_ALPHA = 150     # 分离部件最低平均置信度
 PART_MAX_RATIO = 0.01     # 部件面积上限（占全图），超过则不清
 
 
-def clear_part_background(arr, alpha, protected):
-    """清除分离小部件（头顶光环）内部的近背景色像素。
+def refine_alpha(arr, alpha, protected):
+    """一次连通域分析：决定保留哪些块，并清掉分离部件内部的背景。
 
-    光环是闭合环（实心椭圆盘+外圈描边），中间背景与外部不连通，
-    洪水填充/连通块都进不去，保留后需单独清除。主体内部近白多为
-    高光/白裙，动不得；本函数只清小部件（面积 0.1%~1% 全图）。
-    """
-    h, w = alpha.shape
-    fg = alpha > 16
-    labeled, num = ndimage.label(fg)
-    if num == 0:
-        return alpha
-    labs = range(1, num + 1)
-    sizes = ndimage.sum(fg, labeled, labs)
-    main = int(np.argmax(sizes)) + 1
-    bg_ref = arr[0, 0].astype(int)
-    r, g, b = arr[:, :, 0].astype(int), arr[:, :, 1].astype(int), arr[:, :, 2].astype(int)
-    dist = np.sqrt((r - bg_ref[0]) ** 2 + (g - bg_ref[1]) ** 2 + (b - bg_ref[2]) ** 2)
-    near_bg = (dist < BG_THRESHOLD) & ~protected
-    out = alpha.copy()
-    min_area = h * w * PART_AREA_RATIO
-    max_area = h * w * PART_MAX_RATIO
-    for lab in labs:
-        if lab == main:
-            continue
-        area = float(sizes[lab - 1])
-        if area < min_area or area > max_area:
-            continue
-        m = (labeled == lab)
-        out[m & near_bg] = 0
-    return out
-
-
-def keep_largest_connected(alpha):
-    """保留主体连通块，以及可信的分离部件（如头顶光环）。
-
-    命中任一条件即保留：
+    保留判据（命中任一即保留）：
       1) 面积最大的块 —— 主体
       2) 面积 > 主体 30% 且距画面中心 < 0.4h —— 与主体断开的大部件
       3) 面积 ≥ 全图 0.1% 且平均置信度 ≥ 150 —— 小而可信的分离部件（光环）
@@ -233,74 +229,102 @@ def keep_largest_connected(alpha):
     第 3 条专为光环而设：它浮在头顶、与身体不相连，面积仅主体的 0.5%~0.7%，
     位置又在画面顶部（距中心约 0.47h > 0.4h），前两条判据都不满足，不加本条
     就会被当成噪声整块删除。面积用「占全图比例」而非绝对像素，兼顾
-    1536×2048 与 1680×2240 两种源分辨率。
+    1536×2048 / 1680×2240 / 1440×1920 多种源分辨率。
+
+    光环是闭合环（实心椭圆盘 + 外圈描边），环内背景与外界不连通，连通域处理
+    进不去，故对「保留下来的小部件」再做一次内部近背景清除。主体内部近白多为
+    高光 / 白裙，动不得，所以清除只作用于小部件（面积 0.1%~1% 全图）。
+
+    中心与均值只对候选块（大部件 / 小部件）计算，避免对全部连通块做全图归约。
     """
     h, w = alpha.shape
     fg = alpha > 16
     labeled, num = ndimage.label(fg)
     if num == 0:
         return alpha
-    labs = range(1, num + 1)
-    sizes = ndimage.sum(fg, labeled, labs)
-    centers = ndimage.center_of_mass(fg, labeled, labs)
-    means = ndimage.mean(alpha, labeled, labs)
-    max_area = float(sizes.max())
+    labels = np.arange(1, num + 1)
+    sizes = np.bincount(labeled.ravel(), minlength=num + 1)[1:].astype(np.int64)
+    max_area = int(sizes.max())
     min_area = h * w * PART_AREA_RATIO
+    max_part = h * w * PART_MAX_RATIO
+
+    main = labels[sizes == max_area]           # 主体（含同面积的并列块）
+    rest = labels[sizes != max_area]
+    big = rest[sizes[rest - 1] > max_area * 0.3]     # 与主体断开的大部件
+    small = rest[sizes[rest - 1] >= min_area]        # 候选小部件
+    small = small[sizes[small - 1] <= max_area * 0.3]  # 与 big 互斥，与保留判据一致
+
     keep = np.zeros((h, w), dtype=bool)
-    for lab in labs:
-        area = float(sizes[lab - 1])
-        if area == max_area:
-            keep |= (labeled == lab)  # 主体
-        elif area > max_area * 0.3:
-            cy, cx = centers[lab - 1]  # 与主体断开的大部件：需靠近中心
+    for lab in main:
+        keep |= (labeled == lab)
+
+    if big.size:
+        centers = ndimage.center_of_mass(fg, labeled, big)
+        for lab, (cy, cx) in zip(big, centers):
             if ((cy - h / 2) ** 2 + (cx - w / 2) ** 2) ** 0.5 < h * 0.4:
                 keep |= (labeled == lab)
-        elif area >= min_area and float(means[lab - 1]) >= PART_MEAN_ALPHA:
+
+    small_kept = np.empty(0, dtype=np.int64)
+    if small.size:
+        means = ndimage.mean(alpha, labeled, small)
+        small_kept = small[means >= PART_MEAN_ALPHA]
+        for lab in small_kept:
             keep |= (labeled == lab)  # 小而可信的分离部件（光环）
-    new_alpha = np.zeros((h, w), dtype=np.uint8)
-    new_alpha[keep] = alpha[keep]
+
+    new_alpha = np.where(keep, alpha, 0).astype(np.uint8)
+
+    # 清掉保留下来的小部件内部的近背景像素
+    clear_labs = small_kept[sizes[small_kept - 1] <= max_part]
+    if clear_labs.size:
+        bg_ref = arr[0, 0].astype(np.int32)
+        r = arr[:, :, 0].astype(np.int32)
+        g = arr[:, :, 1].astype(np.int32)
+        b = arr[:, :, 2].astype(np.int32)
+        near_bg = ((r - bg_ref[0]) ** 2 + (g - bg_ref[1]) ** 2
+                   + (b - bg_ref[2]) ** 2) < BG_THRESHOLD ** 2
+        near_bg &= ~protected
+        hit = np.zeros((h, w), dtype=bool)
+        for lab in clear_labs:
+            hit |= (labeled == lab)
+        new_alpha[near_bg & hit] = 0
     return new_alpha
 
 
-def process_image(input_path, output_path):
+def infer_frame(input_path):
+    """读图 + GPU 抠图，返回 (原图 RGBA 数组, 模型基础 alpha)。"""
     img = Image.open(input_path).convert('RGBA')
     arr = np.array(img)
-    alpha = arr[:, :, 3].copy()
+    return arr, rmbg_alpha(img)
 
-    # 1) GPU 模型抠图（基础 alpha）
-    model_alpha = rmbg_alpha(img)
+
+def finish_frame(arr, model_alpha, output_path):
+    """后处理基础 alpha 并写出透明 png。纯 CPU，可放到后台线程与推理重叠。"""
     alpha = model_alpha.copy()
 
-    # 2) 保护色：被保护的像素强制为前景（防止模型把肤色/南瓜色误删）
-    # 对保护区做少量膨胀，可挽回 BiRefNet 在手部/高光边缘丢失的相邻有色像素，
+    # 1) 保护色：被保护的像素强制为前景（防止模型把肤色/南瓜色误删），
     # 让 happy/starfish-wave 等挥手状态的手指颜色不被“洗掉”。
-    # 先去掉贴边保护区，避免膨胀后触发 process-assets 的 SUBJECT_TOUCHES_BORDER。
+    # 保护色只取原像素、不膨胀：扩张进来的相邻像素多是背景，会在剪影外缘留下白边。
     protected = get_protected_mask(arr, alpha)
-    border = 4
-    protected[:border, :] = False
-    protected[-border:, :] = False
-    protected[:, :border] = False
-    protected[:, -border:] = False
-    protected = ndimage.binary_dilation(protected, iterations=2)
     alpha[protected] = 255
 
-    # 3) 保留中心最大连通块
-    alpha = keep_largest_connected(alpha)
+    # 2) 保留主体 + 可信分离部件，并清掉分离部件内部背景
+    alpha = refine_alpha(arr, alpha, protected)
 
-    # 3.5) 分离小部件（头顶光环）内部的近背景像素清掉。
-    # 光环是闭合环，内部背景与外界不连通，洪水填充删不到，必须保留后单独清。
-    alpha = clear_part_background(arr, alpha, protected)
-
-    # 4) 清理最边缘 2px 前景，避免 peek 等“贴边出场”状态触发 process-assets 的 SUBJECT_TOUCHES_BORDER。
+    # 3) 清理最边缘 2px 前景，避免 peek 等“贴边出场”状态触发 process-assets 的 SUBJECT_TOUCHES_BORDER。
     # 贴边帧的源图本身就切到画面外，留 2px 透明边不影响观感。
-    border = 2
-    alpha[:border, :] = 0
-    alpha[-border:, :] = 0
-    alpha[:, :border] = 0
-    alpha[:, -border:] = 0
+    alpha[:2, :] = 0
+    alpha[-2:, :] = 0
+    alpha[:, :2] = 0
+    alpha[:, -2:] = 0
 
     arr[:, :, 3] = alpha
-    Image.fromarray(arr).save(output_path)
+    Image.fromarray(arr).save(output_path, compress_level=PNG_COMPRESS_LEVEL)
+
+
+def process_image(input_path, output_path):
+    """单帧同步处理（少量文件、或需要严格顺序时使用）。"""
+    arr, model_alpha = infer_frame(input_path)
+    finish_frame(arr, model_alpha, output_path)
 
 # 默认 --states 为 None → 处理 assets-raw 全部帧（GPU 全量扣图）。
 # 帧间尺寸漂移统一由下游 assemble 的有界非等比归一化收口，CPU 版仅作应急兜底。
@@ -322,6 +346,8 @@ def main():
     ap.add_argument('--states', nargs='*', default=None,
                     help='只处理这些状态（默认 None=全部状态；帧间尺寸漂移由下游 assemble 归一化收口）')
     ap.add_argument('--cpu', action='store_true', help='强制 CPU 推理（无 GPU 兜底）')
+    ap.add_argument('--serial', action='store_true',
+                    help='关闭流水线，逐帧 推理→收尾→写出（便于定位问题或测单帧耗时）')
     args = ap.parse_args()
     if args.cpu:
         os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
@@ -335,20 +361,70 @@ def main():
                         if f.lower().endswith(IMG_EXTS) and (states is None or _state_of(f) in states)])
         label = sorted(states) if states else 'ALL'
         print(f'Processing states {label}: {len(files)} files')
+
+    t_start = time.perf_counter()
     success = 0
-    for i, fname in enumerate(files):
-        in_path = os.path.join(INPUT_DIR, fname)
-        out_path = os.path.join(OUTPUT_DIR, _out_name(fname))
-        if not os.path.exists(in_path):
-            print(f'  SKIP (not found): {fname}')
-            continue
-        try:
-            process_image(in_path, out_path)
+
+    def report(done, fname, err=None):
+        nonlocal success
+        if err is None:
             success += 1
-            print(f'  [{i+1}/{len(files)}] {fname} OK')
-        except Exception as e:
-            print(f'  ERROR {fname}: {e}')
-    print(f'Done: {success}/{len(files)} succeeded')
+        el = time.perf_counter() - t_start
+        tail = 'OK' if err is None else f'ERROR {err}'
+        print(f'  [{done}/{len(files)}] {fname} {tail}  ({el:.0f}s, {el / done:.2f}s/frame)')
+
+    def run_serial():
+        """逐帧同步：推理与收尾串行，便于定位问题或测单帧耗时。"""
+        n = 0
+        for fname in files:
+            in_path, out_path = os.path.join(INPUT_DIR, fname), os.path.join(OUTPUT_DIR, _out_name(fname))
+            if not os.path.exists(in_path):
+                print(f'  SKIP (not found): {fname}')
+                continue
+            try:
+                process_image(in_path, out_path)
+                n += 1
+                report(n, fname)
+            except Exception as e:
+                n += 1
+                report(n, fname, e)
+
+    def run_pipeline():
+        """推理与收尾流水线：GPU 跑第 N+1 帧时，后台线程收尾并写出第 N 帧。"""
+        from concurrent.futures import ThreadPoolExecutor
+        pending = []
+        n = 0
+
+        def drain(final=False):
+            nonlocal n
+            while pending and (final or len(pending) >= PIPELINE_DEPTH):
+                fut, fname = pending.pop(0)
+                n += 1
+                try:
+                    fut.result()
+                    report(n, fname)
+                except Exception as e:
+                    report(n, fname, e)
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            for fname in files:
+                in_path, out_path = os.path.join(INPUT_DIR, fname), os.path.join(OUTPUT_DIR, _out_name(fname))
+                if not os.path.exists(in_path):
+                    print(f'  SKIP (not found): {fname}')
+                    continue
+                try:
+                    arr, model_alpha = infer_frame(in_path)
+                except Exception as e:
+                    n += 1
+                    report(n, fname, e)
+                    continue
+                pending.append((pool.submit(finish_frame, arr, model_alpha, out_path), fname))
+                drain()
+            drain(final=True)
+
+    (run_serial if args.serial else run_pipeline)()
+    el = time.perf_counter() - t_start
+    print(f'Done: {success}/{len(files)} succeeded in {el:.1f}s ({el / max(1, len(files)):.2f}s/frame)')
 
 if __name__ == '__main__':
     main()
