@@ -44,7 +44,9 @@ GPU 抠白底：assets-raw/ → taozi-pet/incoming-assets/（透明 PNG，默认
 速度: 瓶颈依次是 GPU 推理、连通域分析、PNG 编码，对应四条措施——
   推理走 fp16 autocast；「保留主体 + 清部件背景」合并为一次连通域分析且只对
   候选块做全图归约；PNG 以 compress_level=1 写出（中间产物不入库，用体积换速度）；
-  推理与收尾流水线重叠（GPU 跑第 N+1 帧时 CPU 收尾第 N 帧）。
+  三阶段流水线——预取线程备模型输入、主线程只跑推理、收尾线程后处理并写出。
+  流水线跑满后主线程只剩推理时间（约 0.39s/帧），GPU 与 CPU 并行工作；
+  此时瓶颈完全落在 GPU 推理上，再快需要动模型或输入分辨率。
 
 环境: conda activate my_project（torch + CUDA）
 模型: ZhengPeng7/BiRefNet + ToonOut 微调权重（设 USE_TOONOUT=0 可回退原版做 A/B）
@@ -100,7 +102,7 @@ INFER_FP16 = os.environ.get('INFER_FP16', '1') != '0'
 # 这里用体积换编码速度：level=1 约 0.09s/帧，level=6 约 0.18s/帧。
 PNG_COMPRESS_LEVEL = 1
 
-# CPU 收尾与 GPU 推理的流水线队列深度（同时驻留的未写出帧数），仅影响内存占用。
+# 流水线各阶段的队列深度（同时驻留在内存里的未完成帧数），只影响内存占用。
 PIPELINE_DEPTH = 3
 
 # ---- GPU 模型（懒加载单例，进程内只加载一次）----
@@ -157,11 +159,13 @@ def get_model():
     _MODEL = (model, device)
     return _MODEL
 
-def rmbg_alpha(rgba_pil):
-    """返回与原图同尺寸的 uint8 alpha (0-255)，前景=255。GPU 推理。"""
-    import torch
+def prepare_input(rgba_pil):
+    """把整帧准备成模型输入：保比例缩放 → 补边成方形 → ToTensor → ImageNet Normalize。
+
+    返回 (张量, meta)。meta = (w, h, tw, th, off_x, off_y) 供 restore_alpha 裁补边还原。
+    这一步是纯 CPU（PIL 缩放），与 run_model 拆开是为了让它能在预取线程里先跑。
+    """
     from torchvision.transforms.functional import to_tensor, normalize
-    model, device = get_model()
     img = rgba_pil.convert('RGB')
     w, h = img.size
 
@@ -177,8 +181,16 @@ def rmbg_alpha(rgba_pil):
     canvas.paste(scaled, (off_x, off_y))
 
     # 3) ToTensor 把像素压到 [0,1] 后，必须再按 ImageNet 统计量归一化（官方要求）
-    inp = normalize(to_tensor(canvas), NORM_MEAN, NORM_STD).unsqueeze(0).to(device)
+    tensor = normalize(to_tensor(canvas), NORM_MEAN, NORM_STD)
+    return tensor, (w, h, tw, th, off_x, off_y)
+
+
+def run_model(tensor):
+    """在 GPU 上跑模型，返回 1024² 的前景概率（float32, 0~1）。"""
+    import torch
+    model, device = get_model()
     with torch.inference_mode():
+        inp = tensor.unsqueeze(0).to(device)
         if INFER_FP16 and device == 'cuda':
             with torch.autocast('cuda', dtype=torch.float16):
                 preds = model(inp)
@@ -188,12 +200,32 @@ def rmbg_alpha(rgba_pil):
     # 压到 2D：[B,1,H,W] -> [H,W]
     while out.dim() > 2:
         out = out[0]
-    prob = torch.sigmoid(out).cpu().float().numpy().astype(np.float32)
+    return torch.sigmoid(out).cpu().float().numpy().astype(np.float32)
 
-    # 4) 裁掉补边 → 缩回原图尺寸
+
+def restore_alpha(prob, meta):
+    """裁掉补边 → 缩回原图尺寸，返回 uint8 alpha (0-255)。"""
+    w, h, tw, th, off_x, off_y = meta
     prob_img = Image.fromarray((prob * 255).clip(0, 255).astype('uint8'))
     prob_img = prob_img.crop((off_x, off_y, off_x + tw, off_y + th))
     return np.asarray(prob_img.resize((w, h), Image.BILINEAR)).astype(np.uint8)
+
+
+def rmbg_alpha(rgba_pil):
+    """同步跑完「准备 → 推理 → 还原」，返回与原图同尺寸的 uint8 alpha。
+
+    单帧调用与 make-graphics.py 走这个入口；批量流水线则把三步分别放到不同线程。
+    """
+    tensor, meta = prepare_input(rgba_pil)
+    return restore_alpha(run_model(tensor), meta)
+
+
+def read_frame(input_path):
+    """读图 + 备好模型输入，返回 (原图 RGBA 数组, 输入张量, meta)。供预取线程调用。"""
+    img = Image.open(input_path).convert('RGBA')
+    arr = np.array(img)
+    tensor, meta = prepare_input(img)
+    return arr, tensor, meta
 
 
 # ---- v7 后处理（保 QA 兼容）----
@@ -290,13 +322,6 @@ def refine_alpha(arr, alpha, protected):
     return new_alpha
 
 
-def infer_frame(input_path):
-    """读图 + GPU 抠图，返回 (原图 RGBA 数组, 模型基础 alpha)。"""
-    img = Image.open(input_path).convert('RGBA')
-    arr = np.array(img)
-    return arr, rmbg_alpha(img)
-
-
 def finish_frame(arr, model_alpha, output_path):
     """后处理基础 alpha 并写出透明 png。纯 CPU，可放到后台线程与推理重叠。"""
     alpha = model_alpha.copy()
@@ -321,10 +346,17 @@ def finish_frame(arr, model_alpha, output_path):
     Image.fromarray(arr).save(output_path, compress_level=PNG_COMPRESS_LEVEL)
 
 
+def finish_alpha(arr, prob, meta, output_path):
+    """还原 alpha → 后处理 → 写出。流水线收尾线程的入口。"""
+    finish_frame(arr, restore_alpha(prob, meta), output_path)
+
+
 def process_image(input_path, output_path):
     """单帧同步处理（少量文件、或需要严格顺序时使用）。"""
-    arr, model_alpha = infer_frame(input_path)
-    finish_frame(arr, model_alpha, output_path)
+    img = Image.open(input_path).convert('RGBA')
+    arr = np.array(img)
+    tensor, meta = prepare_input(img)
+    finish_frame(arr, restore_alpha(run_model(tensor), meta), output_path)
 
 # 默认 --states 为 None → 处理 assets-raw 全部帧（GPU 全量扣图）。
 # 帧间尺寸漂移统一由下游 assemble 的有界非等比归一化收口，CPU 版仅作应急兜底。
@@ -347,7 +379,7 @@ def main():
                     help='只处理这些状态（默认 None=全部状态；帧间尺寸漂移由下游 assemble 归一化收口）')
     ap.add_argument('--cpu', action='store_true', help='强制 CPU 推理（无 GPU 兜底）')
     ap.add_argument('--serial', action='store_true',
-                    help='关闭流水线，逐帧 推理→收尾→写出（便于定位问题或测单帧耗时）')
+                    help='关闭流水线，逐帧 准备→推理→收尾 全在主线程（便于定位问题或测单帧耗时）')
     args = ap.parse_args()
     if args.cpu:
         os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
@@ -365,40 +397,47 @@ def main():
     t_start = time.perf_counter()
     success = 0
 
+    jobs = []
+    for fname in files:
+        in_path = os.path.join(INPUT_DIR, fname)
+        if not os.path.exists(in_path):
+            print(f'  SKIP (not found): {fname}')
+            continue
+        jobs.append((fname, in_path, os.path.join(OUTPUT_DIR, _out_name(fname))))
+
     def report(done, fname, err=None):
         nonlocal success
         if err is None:
             success += 1
         el = time.perf_counter() - t_start
         tail = 'OK' if err is None else f'ERROR {err}'
-        print(f'  [{done}/{len(files)}] {fname} {tail}  ({el:.0f}s, {el / done:.2f}s/frame)')
+        print(f'  [{done}/{len(jobs)}] {fname} {tail}  ({el:.0f}s, {el / done:.2f}s/frame)')
 
     def run_serial():
-        """逐帧同步：推理与收尾串行，便于定位问题或测单帧耗时。"""
-        n = 0
-        for fname in files:
-            in_path, out_path = os.path.join(INPUT_DIR, fname), os.path.join(OUTPUT_DIR, _out_name(fname))
-            if not os.path.exists(in_path):
-                print(f'  SKIP (not found): {fname}')
-                continue
+        """逐帧同步：准备→推理→收尾全在主线程，便于定位问题或测单帧耗时。"""
+        for n, (fname, in_path, out_path) in enumerate(jobs, 1):
             try:
                 process_image(in_path, out_path)
-                n += 1
                 report(n, fname)
             except Exception as e:
-                n += 1
                 report(n, fname, e)
 
     def run_pipeline():
-        """推理与收尾流水线：GPU 跑第 N+1 帧时，后台线程收尾并写出第 N 帧。"""
+        """三阶段流水线：预取线程准备模型输入 → 主线程只跑推理 → 收尾线程后处理并写出。
+
+        三阶段各占一个线程，任一阶段慢下来都会立刻被下一帧的其它阶段掩盖；
+        实测主线程只剩推理时间，GPU 利用率与 CPU 并行度同时抬升。
+        """
+        from collections import deque
         from concurrent.futures import ThreadPoolExecutor
-        pending = []
+        pending_pre, pending_post = deque(), deque()
+        it = iter(jobs)
         n = 0
 
-        def drain(final=False):
+        def drain_post(force=False):
             nonlocal n
-            while pending and (final or len(pending) >= PIPELINE_DEPTH):
-                fut, fname = pending.pop(0)
+            while pending_post and (force or len(pending_post) >= PIPELINE_DEPTH):
+                fut, fname = pending_post.popleft()
                 n += 1
                 try:
                     fut.result()
@@ -406,25 +445,33 @@ def main():
                 except Exception as e:
                     report(n, fname, e)
 
-        with ThreadPoolExecutor(max_workers=1) as pool:
-            for fname in files:
-                in_path, out_path = os.path.join(INPUT_DIR, fname), os.path.join(OUTPUT_DIR, _out_name(fname))
-                if not os.path.exists(in_path):
-                    print(f'  SKIP (not found): {fname}')
-                    continue
+        with ThreadPoolExecutor(max_workers=1) as pool_pre, \
+                ThreadPoolExecutor(max_workers=1) as pool_post:
+            def push_pre():
+                job = next(it, None)
+                if job:
+                    pending_pre.append((job, pool_pre.submit(read_frame, job[1])))
+
+            for _ in range(PIPELINE_DEPTH):   # 先填满预取队列，让首帧不必等
+                push_pre()
+            while pending_pre:
+                (fname, _, out_path), fut = pending_pre.popleft()
+                push_pre()                    # 立刻补下一个预取，与本次推理并行
                 try:
-                    arr, model_alpha = infer_frame(in_path)
+                    arr, tensor, meta = fut.result()
                 except Exception as e:
                     n += 1
                     report(n, fname, e)
                     continue
-                pending.append((pool.submit(finish_frame, arr, model_alpha, out_path), fname))
-                drain()
-            drain(final=True)
+                prob = run_model(tensor)      # 主线程只做这一件事
+                pending_post.append(
+                    (pool_post.submit(finish_alpha, arr, prob, meta, out_path), fname))
+                drain_post()
+            drain_post(force=True)
 
     (run_serial if args.serial else run_pipeline)()
     el = time.perf_counter() - t_start
-    print(f'Done: {success}/{len(files)} succeeded in {el:.1f}s ({el / max(1, len(files)):.2f}s/frame)')
+    print(f'Done: {success}/{len(jobs)} succeeded in {el:.1f}s ({el / max(1, len(jobs)):.2f}s/frame)')
 
 if __name__ == '__main__':
     main()
