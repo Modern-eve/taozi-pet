@@ -281,7 +281,7 @@ QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）�
 
 ## 目录约定
 
-- 不纳入 Git 追踪、勿提交：`taozi-pet/incoming-assets/`（抠图中间产物）、`taozi-pet/qa/`（QA 报告与接触表）、`.build/`、`.webpack/`、`out/`、`release/`。
+- 不纳入 Git 追踪、勿提交：`taozi-pet/incoming-assets/`（抠图中间产物）、`taozi-pet/src/assets/`（精灵帧与头像，均由流水线/`make-graphics.py` 重建）、`taozi-pet/qa/`（QA 报告与接触表）、`.build/`、`.webpack/`、`out/`、`release/`。
 
-- 纳入版本库：白底源图 `assets-raw/`、运行时素材 `taozi-pet/src/assets/pet/`、配置 `taozi-pet/pet-spec.json`、流水线脚本。
+- 纳入版本库：白底源图 `assets-raw/`（不可再生的 AI 源图）、配置 `taozi-pet/pet-spec.json`、流水线脚本与文档。
 

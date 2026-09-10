@@ -44,6 +44,7 @@
     "edgeFeather": 12,
     "safeMargin": 24,
     "targetOccupancy": 0.78,
+    "occupancyTolerance": 0.025,
     "sourceCanvas": 1280,
     "sourceMargin": 48,
     "sourceOccupancy": 0.62,

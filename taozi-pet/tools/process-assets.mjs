@@ -17,12 +17,13 @@ const threshold = Number(spec.assetPipeline?.backgroundTolerance);
 const feather = Number(spec.assetPipeline?.edgeFeather);
 const safeMargin = Number(spec.assetPipeline?.safeMargin);
 const targetOccupancy = Number(spec.assetPipeline?.targetOccupancy);
+const occupancyTolerance = Number(spec.assetPipeline?.occupancyTolerance);
 const generationBackground = spec.assetPipeline?.generationBackground;
 // 单帧所需缩放校正的上限。全部状态共用同一阈值，取自 pet-spec.json assetPipeline.processMaxCorrection。
 const maximumCorrection = Number(spec.assetPipeline?.processMaxCorrection);
 if (spec.assetPipeline?.backgroundMode !== 'adaptive-flood') throw new Error('pet-spec assetPipeline.backgroundMode must be adaptive-flood');
 if (!['transparent-grid', 'solid-chroma'].includes(generationBackground)) throw new Error('pet-spec generationBackground must be transparent-grid or solid-chroma');
-if (![threshold, feather, safeMargin, targetOccupancy, maximumCorrection].every(Number.isFinite)) throw new Error('pet-spec assetPipeline values must be numbers');
+if (![threshold, feather, safeMargin, targetOccupancy, occupancyTolerance, maximumCorrection].every(Number.isFinite)) throw new Error('pet-spec assetPipeline values must be numbers');
 
 const selectedStateId = args.state;
 const states = selectedStateId ? spec.states.filter((state) => state.id === selectedStateId) : spec.states;
@@ -214,6 +215,10 @@ for (let start = 0; start < nameList.length; start += PARALLEL) {
 }
 
 const maximum = Math.min(512 - safeMargin * 2, Math.floor(512 * targetOccupancy));
+// 面积校正会把长宽比偏窄的帧按面积放大，最长边可能越过目标占用率。允许它一直放到
+// qa-assets 判 OCCUPANCY_TOO_LARGE 的天花板（targetOccupancy + occupancyTolerance），
+// 再往上就夹住——占用上限是硬约束，帧间面积一致性可在 qaMaxScaleRatio 内让步。
+const occupancyCeiling = Math.floor(512 * (targetOccupancy + occupancyTolerance));
 function median(values) {
   const sorted = [...values].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
@@ -267,8 +272,12 @@ if (!failures.length) {
             `${asset.name}: required scale correction ${correction.toFixed(3)} exceeds the safe ${maximumCorrection.toFixed(2)} limit`,
           );
         }
-        const correctedWidth = Math.max(1, Math.round(item.bounds.width * correction));
-        const correctedHeight = Math.max(1, Math.round(item.bounds.height * correction));
+        // 面积校正会把长宽比偏窄的帧按面积放大，最长边可能越过目标占用率，
+        // 故再按占用天花板夹一次最长边。
+        const longestEdge = Math.max(item.bounds.width, item.bounds.height);
+        const appliedScale = Math.min(correction, occupancyCeiling / longestEdge);
+        const correctedWidth = Math.max(1, Math.round(item.bounds.width * appliedScale));
+        const correctedHeight = Math.max(1, Math.round(item.bounds.height * appliedScale));
         const corrected = await sharp(item.visible)
           .resize(correctedWidth, correctedHeight, { fit: 'fill', kernel: sharp.kernel.lanczos3 })
           .png().toBuffer();

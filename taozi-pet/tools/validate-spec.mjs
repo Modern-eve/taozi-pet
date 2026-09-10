@@ -65,6 +65,8 @@ checks.push(makeCheck({
     if (!Number.isInteger(pipeline.edgeFeather) || pipeline.edgeFeather < 4 || pipeline.edgeFeather > 24) problems.push('assetPipeline.edgeFeather 必须为 4-24');
     if (!Number.isInteger(pipeline.safeMargin) || pipeline.safeMargin < 16 || pipeline.safeMargin > 64) problems.push('assetPipeline.safeMargin 必须为 16-64');
     if (typeof pipeline.targetOccupancy !== 'number' || pipeline.targetOccupancy < 0.65 || pipeline.targetOccupancy > 0.82) problems.push('assetPipeline.targetOccupancy 必须为 0.65-0.82');
+    if (typeof pipeline.occupancyTolerance !== 'number' || pipeline.occupancyTolerance <= 0 || pipeline.occupancyTolerance > 0.06) problems.push('assetPipeline.occupancyTolerance 必须为 0-0.06 的数值');
+    if (pipeline.targetOccupancy + pipeline.occupancyTolerance > 0.85) problems.push('assetPipeline.targetOccupancy+occupancyTolerance 不得大于 0.85（否则主体会顶到画布边）');
     if (!Number.isInteger(pipeline.sourceCanvas) || pipeline.sourceCanvas < 256 || pipeline.sourceCanvas > 4096) problems.push('assetPipeline.sourceCanvas 必须为 256-4096');
     if (!Number.isInteger(pipeline.sourceMargin) || pipeline.sourceMargin < 0 || pipeline.sourceMargin > 256) problems.push('assetPipeline.sourceMargin 必须为 0-256');
     if (typeof pipeline.sourceOccupancy !== 'number' || pipeline.sourceOccupancy < 0.3 || pipeline.sourceOccupancy > 0.8) problems.push('assetPipeline.sourceOccupancy 必须为 0.3-0.8');

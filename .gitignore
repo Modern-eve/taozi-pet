@@ -3,7 +3,7 @@ __pycache__/
 *.pyc
 
 # 素材流水线可重建中间产物（不跟踪；由 assets-raw 源图 + 脚本即可重建。
-# 保留 assets-raw（不可再生的 AI 源图）与 taozi-pet/src/assets/pet（运行时最终帧））
+# 只保留 assets-raw/ 这类不可再生的 AI 源图）
 assets-processed/
 taozi-pet/incoming-assets/
 

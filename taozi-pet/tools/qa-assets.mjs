@@ -12,6 +12,8 @@ await mkdir(qaDir, { recursive: true });
 const records = [];
 const regressionFixture = await readFile(path.join(PROJECT_ROOT, 'REGRESSION_FIXTURE_ONLY.txt'), 'utf8').then(() => true, () => false);
 const targetOccupancy = Number(spec.assetPipeline?.targetOccupancy ?? 0.78);
+// 占用率上限 = targetOccupancy + 容差；process-assets 用同一个值夹最长边。
+const occupancyTolerance = Number(spec.assetPipeline?.occupancyTolerance ?? 0.025);
 // 状态内漂移阈值：全部状态共用同一套，取自 pet-spec.json assetPipeline，
 // 与 assemble / process-assets 读同一份配置。
 const maximumScaleRatio = Number(spec.assetPipeline?.qaMaxScaleRatio ?? 1.08);
@@ -184,7 +186,7 @@ for (const state of states) {
         if (Math.abs(centerX - state.anchor.x) > 0.04) addDiagnostic(errors, diagnostics, 'ANCHOR_DRIFT', `horizontal anchor drift: ${centerX.toFixed(3)}`);
         if (Math.abs(bottomY - state.anchor.y) > 0.02) addDiagnostic(errors, diagnostics, 'ANCHOR_DRIFT', `bottom anchor drift: ${bottomY.toFixed(3)}`);
         const occupancy = Math.max(maxX - minX + 1, maxY - minY + 1) / 512;
-        if (occupancy > targetOccupancy + 0.025) addDiagnostic(errors, diagnostics, 'OCCUPANCY_TOO_LARGE', `visible subject exceeds target occupancy: ${occupancy.toFixed(3)}`);
+        if (occupancy > targetOccupancy + occupancyTolerance) addDiagnostic(errors, diagnostics, 'OCCUPANCY_TOO_LARGE', `visible subject exceeds target occupancy: ${occupancy.toFixed(3)}`);
       }
       const bounds = opaque ? [minX, minY, maxX, maxY] : null;
       const main = components[0];
