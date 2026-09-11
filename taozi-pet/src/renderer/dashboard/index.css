@@ -743,3 +743,93 @@ html, body {
   padding: 3px 10px;
   border-radius: 999px;
 }
+
+/* 通用弹窗：覆盖在卡片之上的暖色对话卡片，用于确认与结果提示 */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(74, 50, 37, 0.32);
+  backdrop-filter: blur(2px);
+}
+
+.modal-overlay[hidden] {
+  display: none;
+}
+
+.modal {
+  width: min(300px, calc(100% - 48px));
+  padding: 20px 20px 16px;
+  background: linear-gradient(165deg, #fffdf8 0%, #fff3e2 100%);
+  border: 1px solid rgba(255, 196, 125, 0.5);
+  border-radius: 18px;
+  box-shadow: 0 18px 50px rgba(214, 128, 40, 0.28), 0 4px 12px rgba(0, 0, 0, 0.08);
+  animation: modal-pop 0.16s ease-out;
+}
+
+@keyframes modal-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modal-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text, #3a2a20);
+  margin-bottom: 8px;
+}
+
+.modal-message {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted, #9a7b6a);
+  margin-bottom: 16px;
+  word-break: break-word;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.modal-btn {
+  padding: 6px 18px;
+  font-size: 13px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.2s;
+}
+
+.modal-btn:hover {
+  transform: translateY(-1px);
+}
+
+.modal-btn:active {
+  transform: translateY(0);
+}
+
+.modal-btn-secondary {
+  color: #6b4a30;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(168, 120, 80, 0.3);
+}
+
+.modal-btn-secondary:hover {
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(168, 120, 80, 0.2);
+}
+
+.modal-btn-primary {
+  color: #fff;
+  border: none;
+  background: linear-gradient(135deg, #ff9a56, #ff6b3a);
+  box-shadow: 0 2px 8px rgba(255, 107, 58, 0.35);
+}
+
+.modal-btn-primary:hover {
+  box-shadow: 0 4px 12px rgba(255, 107, 58, 0.45);
+}

@@ -277,6 +277,7 @@ QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）�
 | 陪伴时长 companionMinutes          | 0                      |
 | 语录 quotes                      | 恢复`pet-spec.json` 默认文本 |
 | 提醒 reminders                   | 清空                     |
+| 开发者模式 devMode                | 关（关闭开发者页并回到状态页） |
 
 ## 使用说明
 

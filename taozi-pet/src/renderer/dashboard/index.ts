@@ -447,7 +447,43 @@ function formatBytes(bytes: number): string {
   return `${value.toFixed(value >= 100 ? 0 : 1)} ${units[unit]}`;
 }
 
-// 清理缓存 → 释放浏览器缓存与写入残留，完成后提示各类释放量
+// ---- 通用弹窗：替代原生 alert/confirm，风格与项目卡片一致 ----
+const modalOverlay = document.getElementById('modal-overlay') as HTMLDivElement;
+const modalTitle = document.getElementById('modal-title') as HTMLDivElement;
+const modalMessage = document.getElementById('modal-message') as HTMLDivElement;
+const modalCancel = document.getElementById('modal-cancel') as HTMLButtonElement;
+const modalOk = document.getElementById('modal-ok') as HTMLButtonElement;
+
+interface ModalOptions {
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+}
+
+// 显示弹窗，返回 Promise<boolean>：确认 true、取消 false（无取消按钮时仅确定）
+function showModal(options: ModalOptions): Promise<boolean> {
+  return new Promise((resolve) => {
+    modalTitle.textContent = options.title;
+    modalMessage.textContent = options.message;
+    modalOk.textContent = options.confirmText ?? '确定';
+    const hasCancel = options.cancelText !== undefined;
+    modalCancel.hidden = !hasCancel;
+    if (hasCancel) modalCancel.textContent = options.cancelText!;
+    modalOverlay.hidden = false;
+
+    const close = (value: boolean): void => {
+      modalOverlay.hidden = true;
+      modalOk.onclick = null;
+      modalCancel.onclick = null;
+      resolve(value);
+    };
+    modalOk.onclick = () => close(true);
+    modalCancel.onclick = () => close(false);
+  });
+}
+
+// 清理缓存 → 释放浏览器缓存与写入残留，完成后提示释放量
 const clearCacheBtn = document.getElementById('clear-cache-btn') as HTMLButtonElement;
 clearCacheBtn.addEventListener('click', async () => {
   if (clearCacheBtn.disabled) return;
@@ -456,18 +492,13 @@ clearCacheBtn.addEventListener('click', async () => {
   try {
     const summary = await window.petAPI?.data.clearCache();
     if (!summary) {
-      window.alert('缓存清理未完成，详情见日志。');
+      await showModal({ title: '清理未完成', message: '缓存清理未完成，详情见日志。' });
       return;
     }
-    window.alert([
-      `已释放 ${formatBytes(summary.freedBytes)}`,
-      `浏览器缓存：${formatBytes(summary.cacheBytes)}（${summary.cacheFiles} 个文件）`,
-      `写入残留：${formatBytes(summary.residueBytes)}（${summary.residueFiles} 个文件）`,
-      `日志截断：${formatBytes(summary.logTrimmedBytes)}`,
-    ].join('\n'));
+    await showModal({ title: '清理完成', message: `已释放 ${formatBytes(summary.freedBytes)} 空间` });
   } catch (error) {
     console.error('Failed to clear cache:', error);
-    window.alert('缓存清理未完成，详情见日志。');
+    await showModal({ title: '清理未完成', message: '缓存清理未完成，详情见日志。' });
   } finally {
     clearCacheBtn.disabled = false;
     clearCacheBtn.textContent = '清理';
@@ -477,7 +508,13 @@ clearCacheBtn.addEventListener('click', async () => {
 // 重置所有数据 → 恢复到最初默认值
 const resetDataBtn = document.getElementById('reset-data-btn') as HTMLButtonElement;
 resetDataBtn.addEventListener('click', async () => {
-  if (!window.confirm('确定重置所有数据吗？语录、状态、提醒、设置将恢复到最初默认值，此操作不可撤销。')) return;
+  const confirmed = await showModal({
+    title: '重置所有数据',
+    message: '语录、状态、提醒、设置将恢复默认，不可撤销。',
+    confirmText: '重置',
+    cancelText: '取消',
+  });
+  if (!confirmed) return;
   if (resetDataBtn.disabled) return;
   resetDataBtn.disabled = true;
   try {
@@ -488,6 +525,8 @@ resetDataBtn.addEventListener('click', async () => {
     await loadSettings();
     await loadStats();
     await loadReminders();
+    // 重置后主进程 devMode 已回默认，同步关闭开发者模式界面
+    disableDevMode();
   } catch (error) {
     console.error('Failed to reset data:', error);
   } finally {
@@ -549,6 +588,14 @@ function showDevPopup(text: string, durationMs = 2000): void {
   }, durationMs);
 }
 
+// 关闭开发者模式（退出并隐藏开发者页，回状态页）
+function disableDevMode(): void {
+  devModeActive = false;
+  toggleDevMode.classList.remove('active');
+  devTab.hidden = true;
+  switchView('status');
+}
+
 function initDevMode(): void {
   // 设置版本号文本
   versionText.textContent = `v${petSpec.app.version}`;
@@ -583,10 +630,7 @@ function initDevMode(): void {
   // 关闭开发者模式开关
   toggleDevMode.addEventListener('click', () => {
     if (!devModeActive) return;
-    devModeActive = false;
-    toggleDevMode.classList.remove('active');
-    devTab.hidden = true;
-    switchView('status');
+    disableDevMode();
     void window.petAPI?.settings.update({ devMode: false });
   });
 

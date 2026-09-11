@@ -1,12 +1,7 @@
 """
 GPU 抠白底：assets-raw/ → taozi-pet/incoming-assets/（透明 PNG，默认全量）
 
-格式的单一契约：
-    <任意格式>  ──rename──▶  <state>-NN.jpg  ──preprocess──▶  <state>-NN.png
-
-输入支持 png / jpg / jpeg / webp / bmp（PIL 按内容解码，扩展名不必可信）；
-输出恒为透明 png —— 抠图结果带 alpha 通道，只有 png 存得下。
-上游 rename-assets.py 已把源收敛为 .jpg，所以这里吃到的通常就是 jpg。
+输入格式与产物命名见 preprocess_common.py。
 
 推理预处理严格对齐官方姿势：保比例缩放 + 补边到方形 + ToTensor + ImageNet Normalize
 （见 BiRefNet 官方 inference.py 与 ToonOut 官方 demo notebook）。方形输入与 Normalize
@@ -14,19 +9,12 @@ GPU 抠白底：assets-raw/ → taozi-pet/incoming-assets/（透明 PNG，默认
 光环实心 / 手部半透」。
 
 抠图引擎用 ToonOut（BiRefNet 的动漫域微调版，MIT）在 CUDA 上推理生成基础 alpha，
-再叠加四步后处理保证 QA 兼容：
-  1) 保护色（肤色 / 南瓜色，含膨胀）
-  2) 保留主体连通块 + 可信的分离部件（头顶光环）
-  3) 清掉分离小部件（光环）内部的近背景像素
-  4) 清理最边缘 2px 前景（避免 SUBJECT_TOUCHES_BORDER）
+再叠加三步后处理保证 QA 兼容（实现见 preprocess_common.py）：
+  1) 保护色：把肤色 / 南瓜色像素强判为前景，避免 happy/starfish-wave 等挥手状态的
+     手颜色被模型“洗掉”；只取原像素、不向轮廓外扩张
+  2) refine_alpha：保留主体 + 可信的分离部件（头顶光环），并清掉光环内部近背景
+  3) 清理最边缘 2px 前景（避免 SUBJECT_TOUCHES_BORDER）
 
-光环浮在头顶、与身体不相连，面积只有主体的 0.5%~0.7% 且位于画面顶部，
-按"只留最大块"的朴素规则会被整块删掉，故第 2 步用「面积 + 置信度」双闸门
-把它与噪点区分开（详见 refine_alpha 注释）。
-
-保护色把肤色 / 南瓜色像素强判为前景，避免 happy/starfish-wave 等挥手状态的
-手颜色被模型“洗掉”；只取原像素、不做膨胀——向背景扩张会把背景像素带进剪影，
-在人物外缘留下一圈白边。
 无 GPU 时自动退 CPU（也可 --cpu 强制）。
 
 用法:
@@ -58,16 +46,18 @@ os.environ.setdefault('HF_ENDPOINT', 'https://hf-mirror.com')
 
 import numpy as np
 from PIL import Image
-from scipy import ndimage
 
-INPUT_DIR = r'D:\Documents\Doubao\chats\2026-08-12\new-chat\assets-raw'
-OUTPUT_DIR = r'D:\Documents\Doubao\chats\2026-08-12\new-chat\taozi-pet\incoming-assets'
+from preprocess_common import (
+    INPUT_DIR,
+    OUTPUT_DIR,
+    clear_outer_border,
+    get_protected_mask,
+    job_list,
+    refine_alpha,
+    select_frames,
+)
 
-# 可识别的输入格式（源导出常是 jpg；扩展名不可信，PIL 按内容解码）
-IMG_EXTS = ('.png', '.jpg', '.jpeg', '.webp', '.bmp')
-
-BG_THRESHOLD = 28
-# 模型输入边长。官方在 1024×1024 方形上训练/推理，见 rmbg_alpha 的补边逻辑。
+# 模型输入边长。官方在 1024×1024 方形上训练/推理，见 prepare_input 的补边逻辑。
 MODEL_SIZE = 1024
 
 # 方形输入的补边色。源图是白底，补白可与背景同色、不在边界造出一条假轮廓；
@@ -229,97 +219,7 @@ def read_frame(input_path):
 
 
 # ---- v7 后处理（保 QA 兼容）----
-def get_protected_mask(arr, alpha):
-    r = arr[:, :, 0].astype(np.int16)
-    g = arr[:, :, 1].astype(np.int16)
-    b = arr[:, :, 2].astype(np.int16)
-    # 肤色保护：覆盖偏粉/浅的肤色高光，避免手部阴影或浅色手指被 BiRefNet 低置信删除
-    skin = (r > 150) & (g > 110) & (b > 70) & (r >= g) & (g >= b) & ((r - b) > 1)
-    pumpkin = (r > 170) & (g > 110) & (b < 140) & ((r - b) > 70)
-    return (skin | pumpkin) & (alpha > 16)
-
-# 分离部件（头顶光环等）保留阈值。
-# 光环：面积占全图 0.148%~0.266%、平均置信度 187~196；
-# 噪点：面积占全图 ≤0.026%、平均置信度 ≤93。
-# 两个闸门各留约 2 倍余量，稳定区分「小而可信的部件」与「噪点」。
-PART_AREA_RATIO = 0.001   # 分离部件最小面积（占全图比例）
-PART_MEAN_ALPHA = 150     # 分离部件最低平均置信度
-# 部件内部背景清除——仅处理小部件，主体不动
-# （主体内部近白像素多是白色裙边/眼白/高光，删了会把角色打穿；
-#  主体 fg 连通后的内洞多达数百个）。
-PART_MAX_RATIO = 0.01     # 部件面积上限（占全图），超过则不清
-
-
-def refine_alpha(arr, alpha, protected):
-    """一次连通域分析：决定保留哪些块，并清掉分离部件内部的背景。
-
-    保留判据（命中任一即保留）：
-      1) 面积最大的块 —— 主体
-      2) 面积 > 主体 30% 且距画面中心 < 0.4h —— 与主体断开的大部件
-      3) 面积 ≥ 全图 0.1% 且平均置信度 ≥ 150 —— 小而可信的分离部件（光环）
-
-    第 3 条专为光环而设：它浮在头顶、与身体不相连，面积仅主体的 0.5%~0.7%，
-    位置又在画面顶部（距中心约 0.47h > 0.4h），前两条判据都不满足，不加本条
-    就会被当成噪声整块删除。面积用「占全图比例」而非绝对像素，兼顾
-    1536×2048 / 1680×2240 / 1440×1920 多种源分辨率。
-
-    光环是闭合环（实心椭圆盘 + 外圈描边），环内背景与外界不连通，连通域处理
-    进不去，故对「保留下来的小部件」再做一次内部近背景清除。主体内部近白多为
-    高光 / 白裙，动不得，所以清除只作用于小部件（面积 0.1%~1% 全图）。
-
-    中心与均值只对候选块（大部件 / 小部件）计算，避免对全部连通块做全图归约。
-    """
-    h, w = alpha.shape
-    fg = alpha > 16
-    labeled, num = ndimage.label(fg)
-    if num == 0:
-        return alpha
-    labels = np.arange(1, num + 1)
-    sizes = np.bincount(labeled.ravel(), minlength=num + 1)[1:].astype(np.int64)
-    max_area = int(sizes.max())
-    min_area = h * w * PART_AREA_RATIO
-    max_part = h * w * PART_MAX_RATIO
-
-    main = labels[sizes == max_area]           # 主体（含同面积的并列块）
-    rest = labels[sizes != max_area]
-    big = rest[sizes[rest - 1] > max_area * 0.3]     # 与主体断开的大部件
-    small = rest[sizes[rest - 1] >= min_area]        # 候选小部件
-    small = small[sizes[small - 1] <= max_area * 0.3]  # 与 big 互斥，与保留判据一致
-
-    keep = np.zeros((h, w), dtype=bool)
-    for lab in main:
-        keep |= (labeled == lab)
-
-    if big.size:
-        centers = ndimage.center_of_mass(fg, labeled, big)
-        for lab, (cy, cx) in zip(big, centers):
-            if ((cy - h / 2) ** 2 + (cx - w / 2) ** 2) ** 0.5 < h * 0.4:
-                keep |= (labeled == lab)
-
-    small_kept = np.empty(0, dtype=np.int64)
-    if small.size:
-        means = ndimage.mean(alpha, labeled, small)
-        small_kept = small[means >= PART_MEAN_ALPHA]
-        for lab in small_kept:
-            keep |= (labeled == lab)  # 小而可信的分离部件（光环）
-
-    new_alpha = np.where(keep, alpha, 0).astype(np.uint8)
-
-    # 清掉保留下来的小部件内部的近背景像素
-    clear_labs = small_kept[sizes[small_kept - 1] <= max_part]
-    if clear_labs.size:
-        bg_ref = arr[0, 0].astype(np.int32)
-        r = arr[:, :, 0].astype(np.int32)
-        g = arr[:, :, 1].astype(np.int32)
-        b = arr[:, :, 2].astype(np.int32)
-        near_bg = ((r - bg_ref[0]) ** 2 + (g - bg_ref[1]) ** 2
-                   + (b - bg_ref[2]) ** 2) < BG_THRESHOLD ** 2
-        near_bg &= ~protected
-        hit = np.zeros((h, w), dtype=bool)
-        for lab in clear_labs:
-            hit |= (labeled == lab)
-        new_alpha[near_bg & hit] = 0
-    return new_alpha
+# 保护色、连通域后处理与贴边清理的实现见 preprocess_common.py。
 
 
 def finish_frame(arr, model_alpha, output_path):
@@ -335,12 +235,8 @@ def finish_frame(arr, model_alpha, output_path):
     # 2) 保留主体 + 可信分离部件，并清掉分离部件内部背景
     alpha = refine_alpha(arr, alpha, protected)
 
-    # 3) 清理最边缘 2px 前景，避免 peek 等“贴边出场”状态触发 process-assets 的 SUBJECT_TOUCHES_BORDER。
-    # 贴边帧的源图本身就切到画面外，留 2px 透明边不影响观感。
-    alpha[:2, :] = 0
-    alpha[-2:, :] = 0
-    alpha[:, :2] = 0
-    alpha[:, -2:] = 0
+    # 3) 清理最边缘前景，避免 peek 等“贴边出场”状态触发 process-assets 的 SUBJECT_TOUCHES_BORDER
+    clear_outer_border(alpha)
 
     arr[:, :, 3] = alpha
     Image.fromarray(arr).save(output_path, compress_level=PNG_COMPRESS_LEVEL)
@@ -361,15 +257,6 @@ def process_image(input_path, output_path):
 # 默认 --states 为 None → 处理 assets-raw 全部帧（GPU 全量扣图）。
 # 帧间尺寸漂移统一由下游 assemble 的有界非等比归一化收口，CPU 版仅作应急兜底。
 
-def _state_of(fname):
-    """从 'walk-01.png' / 'pet-head-03.jpg' 取状态前缀。"""
-    return fname.rsplit('-', 1)[0]
-
-
-def _out_name(fname):
-    """输出统一为透明 png（需 alpha 通道），与输入格式无关。"""
-    return os.path.splitext(fname)[0] + '.png'
-
 
 def main():
     import argparse
@@ -384,26 +271,10 @@ def main():
     if args.cpu:
         os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    states = set(args.states) if args.states else None
-    if args.files:
-        files = [f for f in args.files if f.lower().endswith(IMG_EXTS)]
-        print(f'Selected files: {len(files)} files')
-    else:
-        files = sorted([f for f in os.listdir(INPUT_DIR)
-                        if f.lower().endswith(IMG_EXTS) and (states is None or _state_of(f) in states)])
-        label = sorted(states) if states else 'ALL'
-        print(f'Processing states {label}: {len(files)} files')
+    jobs = job_list(select_frames(args.files, args.states))
 
     t_start = time.perf_counter()
     success = 0
-
-    jobs = []
-    for fname in files:
-        in_path = os.path.join(INPUT_DIR, fname)
-        if not os.path.exists(in_path):
-            print(f'  SKIP (not found): {fname}')
-            continue
-        jobs.append((fname, in_path, os.path.join(OUTPUT_DIR, _out_name(fname))))
 
     def report(done, fname, err=None):
         nonlocal success

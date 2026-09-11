@@ -67,7 +67,7 @@ def load_preprocess():
 def cutout(rgba):
     """对一张头部特写抠图：BiRefNet 生成 alpha + 保护色 + 保留光环等分离部件。
 
-    完全复用 preprocess-v7 的后处理，保证与动画帧产线相同的抠图口径。
+    后处理复用 preprocess_common，保证与动画帧产线相同的抠图口径。
     """
     pv = load_preprocess()
     # BiRefNet 要求输入各边可被其 patch 网格整除；头部特写尺寸任意，
@@ -81,17 +81,13 @@ def cutout(rgba):
     alpha = alpha_pad[:h0, :w0].copy()  # 截回原始头部尺寸
 
     arr = np.array(rgba)
-    # 保护色：强制保留被保护的肤色/南瓜色像素（不膨胀，避免向轮廓外带进背景白边）。
+    # 保护色：强制保留被保护的肤色/南瓜色像素
     protected = pv.get_protected_mask(arr, alpha)
     alpha[protected] = 255
     # 保留中心最大连通块 + 可信的分离部件（头顶光环），并清掉光环内部背景
     alpha = pv.refine_alpha(arr, alpha, protected)
-    # 清理最边缘 2px 前景
-    b = 2
-    alpha[:b, :] = 0
-    alpha[-b:, :] = 0
-    alpha[:, :b] = 0
-    alpha[:, -b:] = 0
+    # 清理最边缘前景
+    pv.clear_outer_border(alpha)
     img = rgba.copy()
     img.putalpha(Image.fromarray(np.clip(alpha, 0, 255).astype('uint8')))
     return img
