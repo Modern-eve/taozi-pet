@@ -24,9 +24,11 @@ try {
       (stateId) => document.getElementById('pet-container')?.dataset.state === stateId,
       interaction.stateId,
     );
+    // 互动结束后状态机自行流转：可能回到 idle，也可能进入眨眼 / 伤心 / 走路等其他动作，
+    // 因此只等「离开该互动动作」，不限定落回哪一个。
     await windows.pet.waitForFunction(
-      () => document.getElementById('pet-container')?.dataset.state === 'idle',
-      undefined,
+      (stateId) => document.getElementById('pet-container')?.dataset.state !== stateId,
+      interaction.stateId,
       { timeout: interaction.durationMs + 2_000 },
     );
   }

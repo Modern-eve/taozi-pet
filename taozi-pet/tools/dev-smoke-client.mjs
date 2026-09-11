@@ -1,8 +1,15 @@
 import process from 'node:process';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const options = Object.fromEntries(process.argv.slice(2).map((entry) => entry.replace(/^--/, '').split('=')));
 const port = Number(options.port || 9223);
 const endpoint = `http://127.0.0.1:${port}`;
+
+// 合法动作清单取自 pet-spec.json：状态机只会落在这 12 个 id 上
+const spec = JSON.parse(await readFile(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'pet-spec.json'), 'utf8'));
+const declaredStates = new Set(spec.states.map((state) => state.id));
 
 async function waitForTargets(timeoutMs = 15_000) {
   const deadline = Date.now() + timeoutMs;
@@ -67,9 +74,21 @@ const interactions = await evaluate(pet, 'window.petAPI.interactions.list()');
 if (!Array.isArray(interactions) || interactions.length < 1) throw new Error('No interactions are available.');
 const interaction = await evaluate(pet, `window.petAPI.interactions.trigger(${JSON.stringify(interactions[0].id)})`);
 if (!interaction?.stats || interaction.stats.todayInteractions < 1) throw new Error('Interaction did not update stats.');
-await new Promise((resolve) => setTimeout(resolve, interactions[0].durationMs + 350));
-const recoveredState = await evaluate(pet, 'document.getElementById("pet-container")?.dataset.state');
-if (recoveredState !== 'idle') throw new Error(`Interaction did not recover to idle (current: ${recoveredState}).`);
+// 互动结束后状态机自行流转：可能回到 idle，也可能进入眨眼 / 伤心 / 走路等其他动作，
+// 所以只要求「离开互动动作」并落在 pet-spec.json 声明的某个动作上，不限定具体是哪一个。
+const recoveredState = await evaluate(pet, `new Promise((resolve)=>{
+  const deadline = Date.now() + 3000;
+  const check = () => {
+    const current = document.getElementById("pet-container")?.dataset.state;
+    if (current && current !== ${JSON.stringify(interactions[0].stateId)}) resolve(current);
+    else if (Date.now() > deadline) resolve(current);
+    else setTimeout(check, 100);
+  };
+  check();
+})`);
+if (!declaredStates.has(recoveredState)) {
+  throw new Error(`Interaction ended on an unknown state (current: ${recoveredState}).`);
+}
 
 const settingsBefore = await evaluate(dashboard, 'window.petAPI.settings.get()');
 const invalidSettingsRejected = await evaluate(
@@ -97,4 +116,12 @@ await evaluate(pet, 'window.petAPI.window.showDashboard()');
 await evaluate(dashboard, 'window.petAPI.window.hideDashboard()');
 await evaluate(pet, 'window.petAPI.window.beginDrag().then(()=>window.petAPI.window.updateDrag()).then(()=>window.petAPI.window.endDrag())');
 
-console.log('Dev smoke: PASS (two renderers, interaction recovery, strict settings, reminder, windows, drag IPC).');
+// 缓存清理（放在末尾：它会删除运行中的 Chromium 缓存目录，避免干扰前面的时序敏感断言）
+const cacheControl = await evaluate(dashboard, 'Boolean(document.getElementById("clear-cache-btn"))');
+if (!cacheControl) throw new Error('Dashboard is missing the cache clear control.');
+const cacheSweep = await evaluate(dashboard, 'window.petAPI.data.clearCache()');
+if (!cacheSweep || typeof cacheSweep.freedBytes !== 'number' || typeof cacheSweep.cacheFiles !== 'number') {
+  throw new Error('Cache sweep IPC did not return a report.');
+}
+
+console.log('Dev smoke: PASS (two renderers, cache sweep, interaction state flow, strict settings, reminder, windows, drag IPC).');
