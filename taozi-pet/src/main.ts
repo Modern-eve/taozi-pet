@@ -3,8 +3,9 @@ import { copyFile, lstat, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import specData from '../pet-spec.json';
-import type { DashboardView, InteractionResult, PetSpec, PetStats, Reminder, RuntimeFailureReport, RuntimeReadyReport, Settings, StateActivity, TypingStatus } from './shared/contracts';
+import type { CacheSweepSummary, DashboardView, InteractionResult, PetSpec, PetStats, Reminder, RuntimeFailureReport, RuntimeReadyReport, Settings, StateActivity, TypingStatus } from './shared/contracts';
 import { assertInteractionId, assertReminderInput, assertRuntimeFailureReport, assertRuntimeReadyReport, assertSettingsPatch, assertStringArray } from './shared/contracts';
+import { reportTotalBytes, runCacheMaintenance, type CacheMaintenanceReport } from './main/cache-maintenance';
 import { draggedBounds, snapBounds, type Point, type Rect } from './main/drag';
 import { JsonLogger } from './main/logger';
 import { atomicWriteJson, uniqueDestination } from './main/persistence';
@@ -15,6 +16,9 @@ import trayIconPath from './assets/tray/tray-icon.png';
 
 const spec = specData as PetSpec;
 type Role = 'pet' | 'dashboard';
+
+// Chromium HTTP 磁盘缓存上限：桌宠只加载本地素材，缓存无需长期占用大容量。
+app.commandLine.appendSwitch('disk-cache-size', String(spec.maintenance.diskCacheLimitMb * 1024 * 1024));
 
 // 语录种子：全部语录文本统一定义在 pet-spec.json（experience.quotes 状态语录 +
 // interactions[].feedback 互动语录）。首次启动据此生成 userData/quotes.json，
@@ -162,6 +166,46 @@ if (process.env.PET_E2E === '1') {
 }
 
 function userFile(name: string): string { return path.join(app.getPath('userData'), name); }
+
+/** 缓存治理的输入：路径取自运行时，阈值取自 pet-spec.json。 */
+function cacheMaintenanceOptions() {
+  return {
+    userDataDir: app.getPath('userData'),
+    logFile: userFile('logs/app.jsonl'),
+    keepCorruptFiles: spec.maintenance.keepCorruptFiles,
+    logMaxBytes: spec.maintenance.logMaxKb * 1024,
+  };
+}
+
+/** 把一次治理的释放量写入结构化日志。 */
+async function logCacheReport(context: string, report: CacheMaintenanceReport): Promise<void> {
+  await logger?.write('info', 'cache-swept', {
+    context,
+    freedBytes: reportTotalBytes(report),
+    caches: report.caches,
+    tempFiles: report.tempFiles,
+    corruptFiles: report.corruptFiles,
+    logTrimmedBytes: report.logTrimmedBytes,
+  });
+}
+
+/** 执行一次缓存治理并记录结果；失败只写日志，不影响主流程。 */
+async function sweepCaches(context: string): Promise<CacheMaintenanceReport | undefined> {
+  try {
+    const report = await runCacheMaintenance(cacheMaintenanceOptions());
+    await logCacheReport(context, report);
+    return report;
+  } catch (error) {
+    await logger?.write('warn', 'cache-sweep-failed', { context, message: error instanceof Error ? error.message : String(error) });
+    return undefined;
+  }
+}
+
+// 启动清理在 ready 之前发起：此时 Chromium 尚未打开缓存目录，删除成功率最高。
+const startupCacheSweep: Promise<CacheMaintenanceReport | undefined> = spec.maintenance.cacheSweepOnStartup
+  ? runCacheMaintenance(cacheMaintenanceOptions()).catch(() => undefined)
+  : Promise.resolve(undefined);
+
 function filePocket(): string { return path.join(app.getPath('documents'), spec.app.name); }
 function stateForTrigger(trigger: string) { return spec.states.find((state) => state.triggers.includes(trigger)); }
 
@@ -922,6 +966,20 @@ function registerIpc(): void {
     app.setLoginItemSettings({ openAtLogin: false, openAsHidden: true });
     return undefined;
   });
+  // 清理可重建的缓存（Chromium 派生目录 / 写入残留 / 日志超限），返回释放量供界面提示
+  ipcMain.handle('data:clear-cache', async (event): Promise<CacheSweepSummary | undefined> => {
+    assertSender(event, ['dashboard']);
+    const report = await sweepCaches('dashboard');
+    if (!report) return undefined;
+    return {
+      freedBytes: reportTotalBytes(report),
+      cacheBytes: report.caches.bytes,
+      cacheFiles: report.caches.files,
+      residueBytes: report.tempFiles.bytes + report.corruptFiles.bytes,
+      residueFiles: report.tempFiles.files + report.corruptFiles.files,
+      logTrimmedBytes: report.logTrimmedBytes,
+    };
+  });
   // 查询当前状态供小屋状态页头像切换（首次进入时兜底，后续靠 state:changed 实时同步）
   ipcMain.handle('state:get', (event) => { assertSender(event, ['dashboard', 'pet']); return currentStateId; });
   // 开发者模式：喂安眠药 —— 立即进入睡觉，但遵守打断逻辑（由 pet 端 start() 判定能否压过当前状态）
@@ -1044,6 +1102,8 @@ function registerIpc(): void {
 
 async function initialize(): Promise<void> {
   logger = new JsonLogger(userFile('logs/app.jsonl'));
+  const startupReport = await startupCacheSweep;
+  if (startupReport) await logCacheReport('startup', startupReport);
   settings = await readValidatedJson(userFile('settings.json'), defaultSettings, parseSettings);
   reminders = await readValidatedJson(userFile('reminders.json'), [] as Reminder[], parseReminders);
   quotes = await readValidatedJson(userFile('quotes.json'), initialQuotes(), parseQuotes);

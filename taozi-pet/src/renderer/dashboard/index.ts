@@ -434,6 +434,46 @@ scaleSlider.addEventListener('input', async () => {
   }
 });
 
+// 字节数转可读文本（B / KB / MB / GB）
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ['KB', 'MB', 'GB'];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value.toFixed(value >= 100 ? 0 : 1)} ${units[unit]}`;
+}
+
+// 清理缓存 → 释放浏览器缓存与写入残留，完成后提示各类释放量
+const clearCacheBtn = document.getElementById('clear-cache-btn') as HTMLButtonElement;
+clearCacheBtn.addEventListener('click', async () => {
+  if (clearCacheBtn.disabled) return;
+  clearCacheBtn.disabled = true;
+  clearCacheBtn.textContent = '清理中';
+  try {
+    const summary = await window.petAPI?.data.clearCache();
+    if (!summary) {
+      window.alert('缓存清理未完成，详情见日志。');
+      return;
+    }
+    window.alert([
+      `已释放 ${formatBytes(summary.freedBytes)}`,
+      `浏览器缓存：${formatBytes(summary.cacheBytes)}（${summary.cacheFiles} 个文件）`,
+      `写入残留：${formatBytes(summary.residueBytes)}（${summary.residueFiles} 个文件）`,
+      `日志截断：${formatBytes(summary.logTrimmedBytes)}`,
+    ].join('\n'));
+  } catch (error) {
+    console.error('Failed to clear cache:', error);
+    window.alert('缓存清理未完成，详情见日志。');
+  } finally {
+    clearCacheBtn.disabled = false;
+    clearCacheBtn.textContent = '清理';
+  }
+});
+
 // 重置所有数据 → 恢复到最初默认值
 const resetDataBtn = document.getElementById('reset-data-btn') as HTMLButtonElement;
 resetDataBtn.addEventListener('click', async () => {

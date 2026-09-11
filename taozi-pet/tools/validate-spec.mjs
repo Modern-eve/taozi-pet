@@ -86,6 +86,11 @@ checks.push(makeCheck({
     if (spec.build?.windows?.arch !== 'x64') problems.push('Windows 架构必须为 x64');
     if (!Number.isInteger(spec.build?.timeoutMinutes) || spec.build.timeoutMinutes < 5 || spec.build.timeoutMinutes > 60) problems.push('构建超时必须为 5-60 分钟');
     if (spec.storage?.userData !== 'app-user-data' || spec.storage?.filePocket !== 'documents-app-name') problems.push('存储路径必须使用跨平台策略');
+    const maintenance = spec.maintenance ?? {};
+    if (typeof maintenance.cacheSweepOnStartup !== 'boolean') problems.push('maintenance.cacheSweepOnStartup 必须为布尔值');
+    if (!Number.isInteger(maintenance.diskCacheLimitMb) || maintenance.diskCacheLimitMb < 0 || maintenance.diskCacheLimitMb > 512) problems.push('maintenance.diskCacheLimitMb 必须为 0-512 的整数');
+    if (!Number.isInteger(maintenance.keepCorruptFiles) || maintenance.keepCorruptFiles < 0 || maintenance.keepCorruptFiles > 20) problems.push('maintenance.keepCorruptFiles 必须为 0-20 的整数');
+    if (!Number.isInteger(maintenance.logMaxKb) || maintenance.logMaxKb < 64 || maintenance.logMaxKb > 10240) problems.push('maintenance.logMaxKb 必须为 64-10240 的整数');
     return { passed: problems.length === 0, detail: problems.length ? problems.join('; ') : '配置合法' };
   },
 }));

@@ -66,6 +66,16 @@ export interface PetSpec {
     userData: string;
     filePocket: string;
   };
+  maintenance: {
+    /** 启动时是否清理可重建缓存：Chromium 派生缓存目录、写入残留、超限日志。 */
+    cacheSweepOnStartup: boolean;
+    /** Chromium HTTP 磁盘缓存上限（MB），启动时作为 --disk-cache-size 生效。 */
+    diskCacheLimitMb: number;
+    /** 损坏隔离文件（*.corrupt）保留个数，按修改时间由新到旧计。 */
+    keepCorruptFiles: number;
+    /** 结构化日志体积上限（KB），超出后按行截断。 */
+    logMaxKb: number;
+  };
   build: {
     windows: { arch: string; installer: string; portable: string };
     macos: { arch: string; diskImage: string; portable: string };
@@ -177,6 +187,16 @@ export interface TypingStatus {
 // 小屋面板的视图：状态 / 语录 / 提醒，由桌宠右键或托盘右键三个选项分别进入
 export type DashboardView = 'status' | 'quotes' | 'reminders';
 
+/** 一次缓存清理的释放量明细，供数据管理页提示用户。 */
+export interface CacheSweepSummary {
+  freedBytes: number;
+  cacheBytes: number;
+  cacheFiles: number;
+  residueBytes: number;
+  residueFiles: number;
+  logTrimmedBytes: number;
+}
+
 export interface PetAPI {
   settings: {
     get: () => Promise<Settings>;
@@ -194,6 +214,8 @@ export interface PetAPI {
   };
   data: {
     reset: () => Promise<void>;
+    /** 清理可重建的缓存，返回各类释放量；失败时返回 undefined。 */
+    clearCache: () => Promise<CacheSweepSummary | undefined>;
   };
   dev: {
     triggerSleep: () => Promise<void>;

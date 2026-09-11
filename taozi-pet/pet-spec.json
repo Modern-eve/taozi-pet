@@ -694,6 +694,12 @@
     "userData": "app-user-data",
     "filePocket": "documents-app-name"
   },
+  "maintenance": {
+    "cacheSweepOnStartup": true,
+    "diskCacheLimitMb": 10,
+    "keepCorruptFiles": 3,
+    "logMaxKb": 512
+  },
   "build": {
     "windows": {
       "arch": "x64",

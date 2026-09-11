@@ -10,7 +10,7 @@
     "start": "node tools/run-dev.mjs",
     "check:quick": "tsc --noEmit && node tools/validate-dev-contract.mjs && node tools/validate-spec.mjs && node tools/validate-asset-links.mjs && node tools/qa-ui.mjs && node tools/qa-experience.mjs",
     "check": "npm run check:quick && node tools/qa-assets.mjs",
-    "test": "tsx --test tests/unit/state-machine.test.ts tests/unit/persistence.test.ts tests/unit/drag.test.ts tests/unit/typing-listener.test.ts tests/unit/experience.test.ts tests/unit/dev-ports.test.mjs",
+    "test": "tsx --test tests/unit/state-machine.test.ts tests/unit/persistence.test.ts tests/unit/cache-maintenance.test.ts tests/unit/drag.test.ts tests/unit/typing-listener.test.ts tests/unit/experience.test.ts tests/unit/dev-ports.test.mjs",
     "pretest:e2e": "node tools/run-build.mjs package-host",
     "test:e2e": "tsx tests/e2e/app.e2e.ts",
     "pretest:soak": "node tools/run-build.mjs package-host",

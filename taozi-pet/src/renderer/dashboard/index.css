@@ -224,6 +224,34 @@ html, body {
   box-shadow: 0 2px 6px rgba(255, 138, 36, 0.3);
 }
 
+/* 缓存清理：安全操作用次级样式，与橙色的「重置」区分开 */
+.cache-btn {
+  padding: 6px 16px;
+  font-size: 13px;
+  color: #6b4a30;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(168, 120, 80, 0.3);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.2s, background 0.15s;
+}
+
+.cache-btn:hover {
+  background: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(168, 120, 80, 0.2);
+}
+
+.cache-btn:active {
+  transform: translateY(0);
+}
+
+.cache-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+}
+
 .reset-btn {
   padding: 6px 16px;
   font-size: 13px;

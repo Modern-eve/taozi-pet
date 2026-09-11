@@ -127,6 +127,27 @@ npm run package:win / make:win / portable:win   # 打包 / 安装包 / 绿色版
 
 文件口袋目录：`<文档目录>/套子桌宠`。
 
+## 缓存治理
+
+`userData` 下除业务数据外还有三类可重建内容，启动时清理一次（`src/main/cache-maintenance.ts`，阈值读 `pet-spec.json` 的 `maintenance`）：
+
+| 对象 | 说明 |
+| --- | --- |
+| Chromium 派生缓存 | `Cache` / `Code Cache` / `GPUCache` / `DawnGraphiteCache` / `DawnWebGPUCache` / `Shared Dictionary` / `blob_storage`，删除后按需重建 |
+| 写入残留 | 原子写入中断留下的 `*.tmp` 全部清除；校验失败隔离出的 `*.corrupt` 按修改时间保留最近 `keepCorruptFiles` 个 |
+| 结构化日志 | 超过 `logMaxKb` 时按行截断，保留最近记录 |
+
+清理在 `app.whenReady()` 之前发起（此时 Chromium 尚未打开缓存目录），删除失败只记日志、不影响启动；`diskCacheLimitMb` 作为 `--disk-cache-size` 限制磁盘缓存上限。业务数据（`quotes.json` / `settings.json` / `pet-stats.json` / `reminders.json`、`Local State` / `Preferences`、`Local Storage` / `Session Storage` / `Network`）不参与清理。
+
+| 字段 | 默认 | 含义 |
+| --- | --- | --- |
+| `cacheSweepOnStartup` | `true` | 启动时是否清理 |
+| `diskCacheLimitMb` | `10` | Chromium 磁盘缓存上限（MB） |
+| `keepCorruptFiles` | `3` | 损坏隔离文件保留个数 |
+| `logMaxKb` | `512` | 日志体积上限（KB） |
+
+状态页「🔄 数据管理」下的「🧹 清理缓存」可随时手动触发（IPC `data:clear-cache`），完成后弹出各类释放量。
+
 ## QA 体系
 
 QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）：
