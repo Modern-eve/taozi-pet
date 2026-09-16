@@ -67,6 +67,7 @@ const api: PetAPI = {
     onStats: (listener) => subscribe<PetStats>('pet:stats', listener),
     onTypingStatus: (listener) => subscribe<TypingStatus>('typing:status', listener),
     onPetSizeApplied: (listener) => subscribe<void>('pet:size-applied', listener),
+    onSettingsChanged: (listener) => subscribe<Settings>('settings:changed', listener),
   },
 };
 

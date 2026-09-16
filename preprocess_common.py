@@ -167,6 +167,27 @@ def refine_alpha(arr, alpha, protected):
     return new_alpha
 
 
+def combine_hole_decisions(alpha_main, alpha_fallback):
+    """主权重为主，仅在被前景包住的透明区（内部孔洞）改用兜底权重的判断。
+
+    白色部件直接贴在白底上、又缺少轮廓线时，动漫微调权重会把整块判成背景，
+    在画面内部挖出一个四周都是前景的洞；同一位置原版权重能连上。这里只替换
+    内部孔洞的取值：外轮廓由主权重决定，发丝之间的真实透空在两个权重下都是
+    背景，取值一致，不受影响。
+
+    alpha_fallback 为 None（未启用兜底）时原样返回。
+    """
+    if alpha_fallback is None:
+        return alpha_main
+    fg = alpha_main > 16
+    holes = ndimage.binary_fill_holes(fg) & ~fg
+    if not holes.any():
+        return alpha_main
+    out = alpha_main.copy()
+    out[holes] = alpha_fallback[holes]
+    return out
+
+
 def flood_fill_from_edges(arr, alpha, protected=None):
     """删与四边连通的近背景像素（底边也发起）。
 

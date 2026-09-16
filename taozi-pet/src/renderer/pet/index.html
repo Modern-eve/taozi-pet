@@ -8,7 +8,10 @@
 </head>
 <body>
   <div id="pet-container">
-    <img id="pet-sprite" class="breathing" alt="桌宠" draggable="false">
+    <!-- 帧容器承载呼吸、精灵承载挤压回弹：两层元素各持一个 transform，互不覆盖 -->
+    <div id="pet-sprite-frame">
+      <img id="pet-sprite" alt="桌宠" draggable="false">
+    </div>
     <div id="feedback-bubble"></div>
   </div>
 </body>

@@ -11,7 +11,7 @@
 QA 分两档：
 
 - **快速 QA**（`npm run check:quick`）：轻量必查，随开发启动自动跑。依次执行 `tsc --noEmit` + 4 个契约/结构校验 + qa-ui + qa-experience，**亚秒级**。
-- **全量 QA**（`npm run check`）：在快速 QA 之上追加 `qa-assets` 逐帧像素级质检（133 张 base 帧，较重）。**素材变更或需出完整报告时主动运行。**
+- **全量 QA**（`npm run check`）：在快速 QA 之上追加 `qa-assets` 逐帧像素级质检（141 张 base 帧，较重）。**素材变更或需出完整报告时主动运行。**
 
 ```bash
 npm run check:quick   # 平时/开发启动
@@ -60,7 +60,7 @@ npm run check          # 素材变更 / 出完整 QA 报告
 
 ⚠ = warning，仅提示不阻断。
 
-### qa-experience.mjs（15 项，纯体验语义）
+### qa-experience.mjs（16 项，纯体验语义）
 
 > 结构类（trigger 唯一、每状态有 trigger、素材未用/缺失等）**不在此重复维护**，已收敛到 validate-spec / validate-asset-links。本文件只负责运行时体验正确性，避免同规则多处漂移。
 
@@ -68,11 +68,12 @@ npm run check          # 素材变更 / 出完整 QA 报告
 |---|---|---|
 | interrupt-matrix | caninterrupt-id-exists | canInterrupt 引用的 id 必须存在 |
 | interrupt-matrix | caninterrupt-live-lock ⚠ | loop + 全通配(*) 的永久卡死态（如 notify），warning |
-| interrupt-matrix | caninterrupt-idle-redundant ⚠ | 名单含 idle 属冗余（idle 本可被任意抢占），warning |
-| interrupt-matrix | caninterrupt-covering ⚠ | 每个非 idle 状态至少被一个其它状态可打断 |
+| interrupt-matrix | caninterrupt-standby-redundant ⚠ | 名单含待机基底（轮播动作或间歇）属冗余（待机本就可被任意抢占），warning |
+| interrupt-matrix | caninterrupt-covering ⚠ | 每个非待机状态至少被一个其它状态可打断 |
 | interaction | interaction-connected | 菜单 trigger 与互动状态 stateId 运行时连通 |
 | motion | interaction-frames-min | 互动状态去重帧数 ≥6 |
 | motion | motion-procedural | breathing / squashStretch 至少启用一项 |
+| motion | standby-gap-monotonic ⚠ | 待机间歇呼吸次数随挡位不反向变多（0 木头人最长） |
 | quotes | quote-sync | 状态语录与互动反馈语录均非空 |
 | quotes | quote-group-thin ⚠ | 语录组条数 ≥3，避免反馈单调 |
 | quotes | quotes-duplicate-in-group ⚠ | 同一语录组/互动反馈内无重复文本 |

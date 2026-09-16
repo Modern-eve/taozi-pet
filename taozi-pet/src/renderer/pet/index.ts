@@ -1,12 +1,15 @@
 import spec from '../../../pet-spec.json';
 import type { PetSpec, StateActivity } from '../../shared/contracts';
+import { STANDBY_SIGNAL } from '../../shared/contracts';
 import { exceedsDragThreshold } from '../../main/drag';
 import { PetStateMachine } from './state-machine';
+import type { StateFrame } from './state-machine';
 import './index.css';
 
 const petSpec = spec as PetSpec;
 
 const sprite = document.getElementById('pet-sprite') as HTMLImageElement;
+const spriteFrame = document.getElementById('pet-sprite-frame') as HTMLDivElement;
 const container = document.getElementById('pet-container') as HTMLDivElement;
 const feedbackBubble = document.getElementById('feedback-bubble') as HTMLDivElement;
 
@@ -30,18 +33,38 @@ for (const state of petSpec.states) {
   assetFrames.set(state.id, state.frames);
 }
 
-const stateMachine = new PetStateMachine(petSpec.states, performance.now());
+// 待机轮播池成员（含间歇期的 standby-gap）由 spec 的 idleRotation 声明，
+// 是否处于待机统一问状态机（轮播动作与间歇都算待机）。
+// 间歇长度以呼吸次数计，故把呼吸周期一并交给状态机换算（单一来源 spec.motion.breathing）。
+const stateMachine = new PetStateMachine(
+  petSpec.states,
+  petSpec.idleRotation,
+  performance.now(),
+  petSpec.motion.breathing.periodMs,
+);
 container.dataset.state = stateMachine.currentStateId();
-let blinkTimer: ReturnType<typeof setTimeout> | null = null;
 let animationFrame: number | null = null;
 
-// 设置呼吸动画
+// 呼吸动效：只服务待机间歇（单帧静态母版），间歇期间的全部动感来自这层缓慢缩放。
+// 动画挂在帧容器上、挤压回弹挂在精灵自身，两层元素各持一个 transform，互不覆盖，
+// 因此点击的挤压播完后不会顶掉呼吸，下一次进入间歇照常呼吸。
 const breathing = petSpec.motion.breathing;
+const breathStateId = petSpec.idleRotation.gap.stateId;
 if (breathing.enabled) {
   document.documentElement.style.setProperty('--breath-period', `${breathing.periodMs}ms`);
   document.documentElement.style.setProperty('--breath-scale-x', `${1 + breathing.scaleX}`);
   document.documentElement.style.setProperty('--breath-scale-y', `${1 + breathing.scaleY}`);
 }
+let breathingActive = false;
+
+function applyBreathing(stateId: string): void {
+  const on = breathing.enabled && stateId === breathStateId;
+  if (on === breathingActive) return; // 状态未变则不重挂，避免动画反复重头播放
+  breathingActive = on;
+  spriteFrame.classList.toggle('breathing', on);
+}
+
+applyBreathing(container.dataset.state ?? '');
 
 // 挤压回弹
 function playSquash(): void {
@@ -96,31 +119,43 @@ function showFeedback(text: string, persist = false, hideAfterMs = 5000): void {
 // 切换状态
 let currentMirror = false;
 
-function setState(stateId: string, durationMs?: number, mirror = false): void {
-  // 镜像应用到 container，避免与 sprite 的 breathing/squash 动画冲突
+// 镜像应用到 container，避免与帧容器的呼吸、精灵的挤压回弹争用 transform；
+// 气泡同步翻转，保证镜像播放时语录文字不被镜像
+function applyMirror(mirror: boolean): void {
   currentMirror = mirror;
   if (mirror) {
     container.style.transform = 'scaleX(-1)';
-    // 气泡反向翻转，保证镜像播放时语录文字不被镜像
     feedbackBubble.classList.add('mirrored');
   } else {
     container.style.transform = '';
     feedbackBubble.classList.remove('mirrored');
   }
-  if (!stateMachine.start(stateId, performance.now(), durationMs)) return;
-  const snapshot = stateMachine.tick(performance.now());
+}
+
+function showFrame(snapshot: StateFrame): void {
   container.dataset.state = snapshot.stateId;
   const frameUrl = assetMap.get(snapshot.frame);
   if (frameUrl) sprite.src = frameUrl;
+}
+
+function setState(stateId: string, durationMs?: number, mirror = false): void {
+  applyMirror(mirror);
+  if (!stateMachine.start(stateId, performance.now(), durationMs)) return;
+  showFrame(stateMachine.tick(performance.now()));
+}
+
+// 进入待机：'idle' 是调度信号而非可播放状态，实际播放哪个动作由状态机按权重随机决定
+function enterStandby(): void {
+  applyMirror(false);
+  stateMachine.startStandby(performance.now());
+  showFrame(stateMachine.tick(performance.now()));
 }
 
 // 动画循环：仅在帧/状态变化时更新 DOM，减少无变化帧的布局/绘制开销
 function animate(timestamp: number): void {
   const snapshot = stateMachine.tick(timestamp);
   if (snapshot.stateChanged) {
-    container.dataset.state = snapshot.stateId;
-    const frameUrl = assetMap.get(snapshot.frame);
-    if (frameUrl) sprite.src = frameUrl;
+    showFrame(snapshot);
     // peek 和 walk 状态保持镜像，切回其他状态时重置
     if (snapshot.stateId !== 'peek' && snapshot.stateId !== 'walk') {
       container.style.transform = '';
@@ -132,6 +167,7 @@ function animate(timestamp: number): void {
     }
   }
   ensureSleepQuoteTimer();
+  announceStandbyQuote(snapshot.stateId);
   animationFrame = requestAnimationFrame(animate);
 }
 
@@ -162,20 +198,19 @@ function scheduleSleepQuote(): void {
   }, delay);
 }
 
-// 调度空闲事件（眨眼）
-function scheduleIdleEvents(): void {
-  if (blinkTimer) clearTimeout(blinkTimer);
+// ---- 待机语录：进入待机动作时播报 ----
+// 间歇期间不发声；等挡位对应的间歇走完、进入下一个待机动作时，随机取该动作的一句语录，气泡 3s。
+// 播报节奏因此天然跟着随机行走挡位走（挡位越高间歇越短、说话越勤），无需独立定时器。
+const rotationStateIds = petSpec.idleRotation.states.map((entry) => entry.id);
+const STANDBY_QUOTE_HIDE_MS = 3000;
+let lastAnnouncedStateId = stateMachine.currentStateId();
 
-  // 随机眨眼
-  const blinkDelay = 5000 + Math.random() * 10000;
-  blinkTimer = setTimeout(() => {
-    if (stateMachine.currentStateId() === 'idle') {
-      setState('blink');
-      const quote = getQuote('blink');
-      if (quote) showFeedback(quote);
-    }
-    scheduleIdleEvents();
-  }, blinkDelay);
+function announceStandbyQuote(stateId: string): void {
+  if (stateId === lastAnnouncedStateId) return;
+  lastAnnouncedStateId = stateId;
+  if (!rotationStateIds.includes(stateId)) return; // 间歇与其它状态不发声
+  const quote = getQuote(stateId);
+  if (quote) showFeedback(quote, false, STANDBY_QUOTE_HIDE_MS);
 }
 
 // 点击语录
@@ -218,7 +253,6 @@ container.addEventListener('click', (event) => {
   }
   playSquash();
   setState('happy');
-  scheduleIdleEvents();
   // 点击桌宠即消费待处理提醒（notify 循环被 happy 打断，气泡被点击语录替换）
   void window.petAPI?.reminders.ack().catch(() => {});
   // 沮丧状态下 happy 压不过 sad（动画不切，仍是沮丧），点击不该弹兴奋语录——
@@ -290,17 +324,17 @@ container.addEventListener('contextmenu', (e) => {
 // 监听状态活动
 window.petAPI?.events.onStateActivity((activity: StateActivity) => {
   if (activity.stateId) {
-    const mirror = activity.mirror === true;
     // 互动语录由主进程从运行时语录（quotes.json）选词后随 activity.feedback 下发
     const feedback = activity.feedback;
-    setState(activity.stateId, activity.durationMs, mirror);
-    scheduleIdleEvents();
+    // 待机信号：由状态机随机挑一个待机动作播放，而不是切到某个固定状态
+    if (activity.stateId === STANDBY_SIGNAL) enterStandby();
+    else setState(activity.stateId, activity.durationMs, activity.mirror === true);
     // 提醒到点：notify 动作 + 气泡持续显示，直到用户点击其他动作
     if (activity.kind === 'notify' && feedback) {
       showFeedback(feedback, true);
     } else if (feedback) {
       showFeedback(feedback);
-    } else if (activity.stateId !== 'idle' && activity.stateId !== 'notify' && activity.kind !== 'interaction') {
+    } else if (activity.stateId !== STANDBY_SIGNAL && activity.stateId !== 'notify' && activity.kind !== 'interaction') {
       const quote = getQuote(activity.stateId);
       if (quote) showFeedback(quote, false, activity.stateId === 'peek' ? 3000 : 5000);
     }
@@ -323,29 +357,38 @@ async function init(): Promise<void> {
       applySpriteSize();
     });
 
-    // 先设置 idle 状态
-    setState('idle');
-    scheduleIdleEvents();
+    // 待机间歇时长由随机行走挡位决定（单一来源 userData/settings.json），改动后实时同步
+    stateMachine.setWalkLevel((await window.petAPI?.settings.get())?.randomWalk ?? 0);
+    window.petAPI?.events.onSettingsChanged((next) => stateMachine.setWalkLevel(next.randomWalk));
+
+    // 进入待机（由状态机按权重随机挑一个待机动作开播）
+    enterStandby();
     animationFrame = requestAnimationFrame(animate);
 
-    // 等待 idle 首帧图片加载（取 idle.frames[0] 预热，避免首帧闪烁）
-    const idleFrames = petSpec.states.find((s) => s.id === 'idle')?.frames ?? [];
-    const prewarmFrame = idleFrames[0];
-    const prewarmUrl = prewarmFrame ? assetMap.get(prewarmFrame) : undefined;
-    if (prewarmUrl) {
+    // 预热待机轮播的全部帧：轮播每 1.5~1.8s 换一个动作、动作之间夹着间歇，
+    // 未预热的帧首次出现会闪白，故间歇期的静态帧一并预热。
+    const standbyFrames = new Set([
+      ...petSpec.idleRotation.states.flatMap((entry) =>
+        petSpec.states.find((s) => s.id === entry.id)?.frames ?? []),
+      ...(petSpec.states.find((s) => s.id === petSpec.idleRotation.gap.stateId)?.frames ?? []),
+    ]);
+    await Promise.all([...standbyFrames].map((frame) => {
+      const url = assetMap.get(frame);
+      if (!url) return Promise.resolve();
       const img = new Image();
-      img.src = prewarmUrl;
-      await new Promise((resolve) => {
+      img.src = url;
+      return new Promise((resolve) => {
         img.onload = resolve;
         img.onerror = resolve;
       });
-    }
+    }));
 
-    // 报告就绪
+    // 报告就绪（stateId/frame 取当前实际播放的待机动作，主进程据此校验状态与帧的归属）
+    const currentStateId = stateMachine.currentStateId();
     await window.petAPI?.runtime.ready({
       status: 'ready',
-      stateId: 'idle',
-      frame: petSpec.states.find((s) => s.id === 'idle')?.frames[0] ?? '',
+      stateId: currentStateId,
+      frame: petSpec.states.find((s) => s.id === currentStateId)?.frames[0] ?? '',
       assetCount: assetMap.size,
       expectedAssetCount: assetMap.size,
       naturalWidth: 512,

@@ -28,7 +28,16 @@ html, body {
   -webkit-user-select: none;
 }
 
+#pet-sprite-frame {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  /* 呼吸缩放贴底生效；与精灵自身的挤压回弹分属两层，避免争用同一个 animation */
+  transform-origin: bottom center;
+}
+
 #pet-sprite {
+  display: block;
   width: auto;
   height: calc(100vh - var(--pet-bubble-zone));
   aspect-ratio: 1 / 1; /* 正方形；高度随 100vh 自动变化，无需 JS，缩小/放大都稳定生效 */
@@ -41,8 +50,9 @@ html, body {
   transition: transform 0.1s ease-out;
 }
 
+/* 仅待机间歇（单帧静态母版）挂载；其余状态不呼吸，由渲染层按状态增删该类 */
 .breathing {
-  animation: breathe var(--breath-period, 3.2s) ease-in-out infinite;
+  animation: breathe var(--breath-period, 2.6s) ease-in-out infinite;
 }
 
 @keyframes breathe {

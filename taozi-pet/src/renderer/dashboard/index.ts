@@ -1,5 +1,6 @@
 import spec from '../../../pet-spec.json';
 import type { PetSpec, PetStats, Settings, Reminder } from '../../shared/contracts';
+import { STANDBY_SIGNAL } from '../../shared/contracts';
 import './index.css';
 
 // 引入头像图片：正常/伤心/睡觉 三张头部特写，随人物状态切换
@@ -556,7 +557,7 @@ async function init(): Promise<void> {
   await loadSettings();
   await loadStats();
   // 首次拉取当前状态，让头像从打开瞬间就反映人物情绪
-  applyStateAvatar(await window.petAPI?.state.get() ?? 'idle');
+  applyStateAvatar(await window.petAPI?.state.get() ?? STANDBY_SIGNAL);
   await loadQuotes();
   renderQuotes();
   await loadReminders();

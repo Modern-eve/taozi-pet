@@ -7,7 +7,7 @@ const options = Object.fromEntries(process.argv.slice(2).map((entry) => entry.re
 const port = Number(options.port || 9223);
 const endpoint = `http://127.0.0.1:${port}`;
 
-// 合法动作清单取自 pet-spec.json：状态机只会落在这 12 个 id 上
+// 合法动作清单取自 pet-spec.json：状态机只会落在其中某个状态 id 上
 const spec = JSON.parse(await readFile(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'pet-spec.json'), 'utf8'));
 const declaredStates = new Set(spec.states.map((state) => state.id));
 
@@ -74,8 +74,9 @@ const interactions = await evaluate(pet, 'window.petAPI.interactions.list()');
 if (!Array.isArray(interactions) || interactions.length < 1) throw new Error('No interactions are available.');
 const interaction = await evaluate(pet, `window.petAPI.interactions.trigger(${JSON.stringify(interactions[0].id)})`);
 if (!interaction?.stats || interaction.stats.todayInteractions < 1) throw new Error('Interaction did not update stats.');
-// 互动结束后状态机自行流转：可能回到 idle，也可能进入眨眼 / 伤心 / 走路等其他动作，
-// 所以只要求「离开互动动作」并落在 pet-spec.json 声明的某个动作上，不限定具体是哪一个。
+// 互动结束后状态机自行流转：可能回到待机轮播（look / blink / belly-ok 之一），
+// 也可能进入伤心 / 走路等其他动作，所以只要求「离开互动动作」并落在
+// pet-spec.json 声明的某个动作上，不限定具体是哪一个。
 const recoveredState = await evaluate(pet, `new Promise((resolve)=>{
   const deadline = Date.now() + 3000;
   const check = () => {

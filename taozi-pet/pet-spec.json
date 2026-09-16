@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 6,
   "app": {
     "name": "套子桌宠",
     "appId": "com.taozi.pet",
@@ -81,6 +81,17 @@
           "嗯？在叫我吗？我在这儿~"
         ]
       },
+      "look": {
+        "label": "张望",
+        "emoji": "🧐",
+        "quotes": [
+          "咦，那边好像有动静？",
+          "东张张，西望望~",
+          "在忙什么呀？我看看",
+          "今天天气好像不错哦",
+          "嗯…闻到好吃的味道了！"
+        ]
+      },
       "blink": {
         "label": "眨眼",
         "emoji": "😉",
@@ -90,6 +101,17 @@
           "眼睛有点酸酸的",
           "呼~好舒服",
           "（眨眨眼，看看你）"
+        ]
+      },
+      "belly-ok": {
+        "label": "拍拍肚",
+        "emoji": "🤗",
+        "quotes": [
+          "拍拍小肚子，吃得饱饱的~",
+          "嘿嘿，肚子圆滚滚的",
+          "摸摸肚子，好满足呀",
+          "肚子软软的，要摸摸看吗？",
+          "吃饱喝足，最幸福啦~"
         ]
       },
       "peek": {
@@ -203,7 +225,7 @@
   "motion": {
     "breathing": {
       "enabled": true,
-      "periodMs": 3200,
+      "periodMs": 2600,
       "scaleX": 0.012,
       "scaleY": 0.022
     },
@@ -211,10 +233,47 @@
       "enabled": true,
       "durationMs": 320,
       "intensity": 0.08
-    },
-    "idleIntervalMs": {
-      "min": 7000,
-      "max": 13000
+    }
+  },
+  "idleRotation": {
+    "states": [
+      {
+        "id": "look",
+        "weight": 1
+      },
+      {
+        "id": "blink",
+        "weight": 1
+      },
+      {
+        "id": "belly-ok",
+        "weight": 1
+      }
+    ],
+    "gap": {
+      "stateId": "standby-gap",
+      "levels": [
+        {
+          "minBreaths": 3,
+          "maxBreaths": 4
+        },
+        {
+          "minBreaths": 2,
+          "maxBreaths": 4
+        },
+        {
+          "minBreaths": 2,
+          "maxBreaths": 3
+        },
+        {
+          "minBreaths": 1,
+          "maxBreaths": 3
+        },
+        {
+          "minBreaths": 1,
+          "maxBreaths": 2
+        }
+      ]
     }
   },
   "features": {
@@ -231,7 +290,7 @@
   },
   "states": [
     {
-      "id": "idle",
+      "id": "look",
       "triggers": [
         "app:start",
         "ambient:idle"
@@ -246,7 +305,7 @@
         "look-07.png"
       ],
       "frameDurationMs": 250,
-      "loop": true,
+      "loop": false,
       "canInterrupt": [],
       "interrupt": "resume",
       "cooldownMs": 0,
@@ -268,19 +327,59 @@
         "blink-03.png",
         "blink-04.png",
         "blink-05.png",
-        "blink-06.png",
-        "blink-01.png",
-        "blink-02.png",
-        "blink-03.png",
-        "blink-04.png",
-        "blink-05.png",
         "blink-06.png"
       ],
       "frameDurationMs": 250,
       "loop": false,
       "canInterrupt": [],
       "interrupt": "restart",
-      "cooldownMs": 2500,
+      "cooldownMs": 0,
+      "direction": "neutral",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.95
+      },
+      "mirrorSafe": true
+    },
+    {
+      "id": "belly-ok",
+      "triggers": [
+        "ambient:belly-ok"
+      ],
+      "frames": [
+        "belly-ok-01.png",
+        "belly-ok-02.png",
+        "belly-ok-03.png",
+        "belly-ok-04.png",
+        "belly-ok-05.png",
+        "belly-ok-06.png",
+        "belly-ok-07.png"
+      ],
+      "frameDurationMs": 250,
+      "loop": false,
+      "canInterrupt": [],
+      "interrupt": "restart",
+      "cooldownMs": 0,
+      "direction": "neutral",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.95
+      },
+      "mirrorSafe": true
+    },
+    {
+      "id": "standby-gap",
+      "triggers": [
+        "state:standby-gap"
+      ],
+      "frames": [
+        "core-ip.png"
+      ],
+      "frameDurationMs": 250,
+      "loop": false,
+      "canInterrupt": [],
+      "interrupt": "resume",
+      "cooldownMs": 0,
       "direction": "neutral",
       "anchor": {
         "x": 0.5,
@@ -322,7 +421,6 @@
       "frameDurationMs": 250,
       "loop": false,
       "canInterrupt": [
-        "blink",
         "walk",
         "sleep",
         "notify",
@@ -392,7 +490,6 @@
       "frameDurationMs": 250,
       "loop": false,
       "canInterrupt": [
-        "blink",
         "walk"
       ],
       "interrupt": "resume",
@@ -605,9 +702,7 @@
       ],
       "frameDurationMs": 250,
       "loop": true,
-      "canInterrupt": [
-        "blink"
-      ],
+      "canInterrupt": [],
       "interrupt": "resume",
       "cooldownMs": 500,
       "direction": "left",
@@ -639,7 +734,6 @@
       "frameDurationMs": 250,
       "loop": true,
       "canInterrupt": [
-        "blink",
         "walk",
         "peek",
         "sad"
@@ -675,7 +769,6 @@
       "frameDurationMs": 250,
       "loop": true,
       "canInterrupt": [
-        "blink",
         "walk",
         "peek",
         "happy"

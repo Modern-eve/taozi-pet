@@ -8,8 +8,12 @@ GPU 抠白底：assets-raw/ → taozi-pet/incoming-assets/（透明 PNG，默认
 都是必需项：非方形 / 缺 Normalize 会让输入分布偏离训练分布，诱发「贴边白底误判 /
 光环实心 / 手部半透」。
 
-抠图引擎用 ToonOut（BiRefNet 的动漫域微调版，MIT）在 CUDA 上推理生成基础 alpha，
-再叠加三步后处理保证 QA 兼容（实现见 preprocess_common.py）：
+抠图基础 alpha 由主权重与兜底权重共同决定：主权重是 ToonOut（BiRefNet 的动漫域
+微调版，MIT），兜底权重是原版 BiRefNet。兜底只作用于主权重挖出的「内部孔洞」——
+白色部件直接贴在白底上、又缺轮廓线时，主权重会把整块判成背景，在画面内部挖出
+一个四周都是前景的洞，同一位置原版权重能连上（实现见 preprocess_common.py）。
+
+基础 alpha 之上再叠加三步后处理保证 QA 兼容：
   1) 保护色：把肤色 / 南瓜色像素强判为前景，避免 happy/starfish-wave 等挥手状态的
      手颜色被模型“洗掉”；只取原像素、不向轮廓外扩张
   2) refine_alpha：保留主体 + 可信的分离部件（头顶光环），并清掉光环内部近背景
@@ -26,15 +30,16 @@ GPU 抠白底：assets-raw/ → taozi-pet/incoming-assets/（透明 PNG，默认
 
 环境变量:
   INFER_FP16=0   推理回到 fp32（默认 fp16 autocast，约快 1.5×）
-  USE_TOONOUT=0  回退原版 BiRefNet（A/B 用）
+  USE_TOONOUT=0  主权重回退原版 BiRefNet（A/B 用，此时无需兜底）
+  USE_FALLBACK=0 不加载兜底权重，只跑主权重（约省一半推理耗时）
   TOONOUT_CKPT   指定 ToonOut 权重路径
 
 速度: 瓶颈依次是 GPU 推理、连通域分析、PNG 编码，对应四条措施——
   推理走 fp16 autocast；「保留主体 + 清部件背景」合并为一次连通域分析且只对
   候选块做全图归约；PNG 以 compress_level=1 写出（中间产物不入库，用体积换速度）；
   三阶段流水线——预取线程备模型输入、主线程只跑推理、收尾线程后处理并写出。
-  流水线跑满后主线程只剩推理时间（约 0.39s/帧），GPU 与 CPU 并行工作；
-  此时瓶颈完全落在 GPU 推理上，再快需要动模型或输入分辨率。
+  流水线跑满后主线程只剩推理时间，GPU 与 CPU 并行工作；此时瓶颈完全落在 GPU
+  推理上，再快需要动模型或输入分辨率。
 
 环境: conda activate my_project（torch + CUDA）
 模型: ZhengPeng7/BiRefNet + ToonOut 微调权重（设 USE_TOONOUT=0 可回退原版做 A/B）
@@ -51,6 +56,7 @@ from preprocess_common import (
     INPUT_DIR,
     OUTPUT_DIR,
     clear_outer_border,
+    combine_hole_decisions,
     get_protected_mask,
     job_list,
     refine_alpha,
@@ -83,6 +89,10 @@ TOONOUT_CKPT = os.environ.get(
 )
 USE_TOONOUT = os.environ.get('USE_TOONOUT', '1') != '0'
 
+# 是否加载兜底权重（原版 BiRefNet）。开启时每帧多跑一次推理，用于修掉主权重
+# 在白色部件上挖出的内部孔洞；关掉可省约一半推理耗时（见 combine_hole_decisions）。
+USE_FALLBACK = os.environ.get('USE_FALLBACK', '1') != '0'
+
 # 推理精度：autocast 到 fp16，约快 1.5×（fp32 0.58s/帧 → fp16 0.39s/帧）。
 # 输出与 fp32 的差异只出现在边缘过渡带：前景 mask IoU 0.99998，逐像素最大差 13/255。
 # 若需要与 fp32 逐像素完全一致，设 INFER_FP16=0。
@@ -99,19 +109,19 @@ PIPELINE_DEPTH = 3
 _MODEL = None
 
 def _apply_toonout(model, torch):
-    """把 ToonOut 的动漫域微调权重灌进基础 BiRefNet。
+    """把 ToonOut 的动漫域微调权重灌进基础 BiRefNet；返回是否成功应用。
 
     ToonOut 发布的是 state_dict（birefnet_finetuned_toonout.pth），不是完整仓库，
     所以不能直接换 from_pretrained 的 repo id，只能在基础模型上 load_state_dict。
     训练时可能被 DDP / torch.compile 包过，键名带 module. / module._orig_mod. 前缀。
     """
     if not USE_TOONOUT:
-        print('  [model] USE_TOONOUT=0 → 使用原版 BiRefNet 权重')
-        return
+        print('  [model] USE_TOONOUT=0 → 主权重用原版 BiRefNet')
+        return False
     if not os.path.isfile(TOONOUT_CKPT):
         print(f'  [model] WARN 未找到 ToonOut 权重：{TOONOUT_CKPT}')
-        print('  [model] WARN → 回退原版 BiRefNet（下载命令见项目记忆 / _toonout 说明）')
-        return
+        print('  [model] WARN → 主权重回退原版 BiRefNet（下载命令见项目记忆 / _toonout 说明）')
+        return False
     try:
         sd = torch.load(TOONOUT_CKPT, map_location='cpu', weights_only=True)
     except Exception:
@@ -125,12 +135,19 @@ def _apply_toonout(model, torch):
           f' missing={len(missing)} unexpected={len(unexpected)}')
     if missing:
         print(f'  [model] WARN 缺失键示例：{list(missing)[:3]}')
+    return True
 
-def get_model():
-    """加载 BiRefNet 到 CUDA（无 GPU 自动退 CPU）。"""
+
+def get_models():
+    """加载主权重与兜底权重（进程内只加载一次），返回 (主, 兜底, device)。
+
+    主权重 = 基础 BiRefNet + ToonOut 微调权重；兜底权重 = 未微调的原版。
+    两份参数各约 0.9GB，启用兜底时同驻一张卡。
+    """
     global _MODEL
     if _MODEL is not None:
         return _MODEL
+    import copy
     import torch
     from transformers import AutoModelForImageSegmentation
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -142,11 +159,15 @@ def get_model():
     model = AutoModelForImageSegmentation.from_pretrained(
         'ZhengPeng7/BiRefNet', trust_remote_code=True
     )
-    _apply_toonout(model, torch)
-    model.to(device)
     model.float()  # 权重可能以 fp16 载入，统一转 fp32 避免 half/float 不匹配
     model.eval()
-    _MODEL = (model, device)
+    main = copy.deepcopy(model)         # 兜底权重保持原版，微调只灌进主权重
+    applied = _apply_toonout(main, torch)
+    main.to(device)
+    fallback = model.to(device) if (applied and USE_FALLBACK) else None
+    if fallback is None:
+        print('  [model] 未启用兜底权重（主权重为原版，或 USE_FALLBACK=0）')
+    _MODEL = (main, fallback, device)
     return _MODEL
 
 def prepare_input(rgba_pil):
@@ -175,10 +196,15 @@ def prepare_input(rgba_pil):
     return tensor, (w, h, tw, th, off_x, off_y)
 
 
-def run_model(tensor):
-    """在 GPU 上跑模型，返回 1024² 的前景概率（float32, 0~1）。"""
+def run_model(tensor, weights='main'):
+    """跑一次推理，返回 1024² 的前景概率（float32, 0~1）。
+
+    weights='main' 用主权重（ToonOut），'fallback' 用兜底权重（原版 BiRefNet，
+    未启用时等同主权重）。
+    """
     import torch
-    model, device = get_model()
+    main, fallback, device = get_models()
+    model = main if weights == 'main' else (fallback if fallback is not None else main)
     with torch.inference_mode():
         inp = tensor.unsqueeze(0).to(device)
         if INFER_FP16 and device == 'cuda':
@@ -193,6 +219,14 @@ def run_model(tensor):
     return torch.sigmoid(out).cpu().float().numpy().astype(np.float32)
 
 
+def run_both(tensor):
+    """跑主权重与兜底权重，返回 (主 prob, 兜底 prob)。未启用兜底时后者为 None。"""
+    _, fallback, _ = get_models()
+    prob_main = run_model(tensor, 'main')
+    prob_fallback = run_model(tensor, 'fallback') if fallback is not None else None
+    return prob_main, prob_fallback
+
+
 def restore_alpha(prob, meta):
     """裁掉补边 → 缩回原图尺寸，返回 uint8 alpha (0-255)。"""
     w, h, tw, th, off_x, off_y = meta
@@ -202,12 +236,16 @@ def restore_alpha(prob, meta):
 
 
 def rmbg_alpha(rgba_pil):
-    """同步跑完「准备 → 推理 → 还原」，返回与原图同尺寸的 uint8 alpha。
+    """同步跑完「准备 → 两个权重推理 → 还原合并」，返回与原图同尺寸的 uint8 alpha。
 
     单帧调用与 make-graphics.py 走这个入口；批量流水线则把三步分别放到不同线程。
     """
     tensor, meta = prepare_input(rgba_pil)
-    return restore_alpha(run_model(tensor), meta)
+    prob_main, prob_fallback = run_both(tensor)
+    return combine_hole_decisions(
+        restore_alpha(prob_main, meta),
+        restore_alpha(prob_fallback, meta) if prob_fallback is not None else None,
+    )
 
 
 def read_frame(input_path):
@@ -222,9 +260,10 @@ def read_frame(input_path):
 # 保护色、连通域后处理与贴边清理的实现见 preprocess_common.py。
 
 
-def finish_frame(arr, model_alpha, output_path):
+def finish_frame(arr, model_alpha, output_path, fallback_alpha=None):
     """后处理基础 alpha 并写出透明 png。纯 CPU，可放到后台线程与推理重叠。"""
-    alpha = model_alpha.copy()
+    # 0) 用兜底权重修掉主权重挖出的内部孔洞（白色部件贴白底时的常见失误）
+    alpha = combine_hole_decisions(model_alpha, fallback_alpha)
 
     # 1) 保护色：被保护的像素强制为前景（防止模型把肤色/南瓜色误删），
     # 让 happy/starfish-wave 等挥手状态的手指颜色不被“洗掉”。
@@ -242,9 +281,14 @@ def finish_frame(arr, model_alpha, output_path):
     Image.fromarray(arr).save(output_path, compress_level=PNG_COMPRESS_LEVEL)
 
 
-def finish_alpha(arr, prob, meta, output_path):
-    """还原 alpha → 后处理 → 写出。流水线收尾线程的入口。"""
-    finish_frame(arr, restore_alpha(prob, meta), output_path)
+def finish_alpha(arr, prob, meta, output_path, prob_fallback=None):
+    """还原 alpha → 合并兜底判断 → 后处理 → 写出。流水线收尾线程的入口。"""
+    finish_frame(
+        arr,
+        restore_alpha(prob, meta),
+        output_path,
+        restore_alpha(prob_fallback, meta) if prob_fallback is not None else None,
+    )
 
 
 def process_image(input_path, output_path):
@@ -252,7 +296,8 @@ def process_image(input_path, output_path):
     img = Image.open(input_path).convert('RGBA')
     arr = np.array(img)
     tensor, meta = prepare_input(img)
-    finish_frame(arr, restore_alpha(run_model(tensor), meta), output_path)
+    prob_main, prob_fallback = run_both(tensor)
+    finish_alpha(arr, prob_main, meta, output_path, prob_fallback)
 
 # 默认 --states 为 None → 处理 assets-raw 全部帧（GPU 全量扣图）。
 # 帧间尺寸漂移统一由下游 assemble 的有界非等比归一化收口，CPU 版仅作应急兜底。
@@ -334,9 +379,11 @@ def main():
                     n += 1
                     report(n, fname, e)
                     continue
-                prob = run_model(tensor)      # 主线程只做这一件事
+                # 主线程只做推理：同一份输入先跑主权重、再跑兜底权重
+                prob_main, prob_fallback = run_both(tensor)
                 pending_post.append(
-                    (pool_post.submit(finish_alpha, arr, prob, meta, out_path), fname))
+                    (pool_post.submit(finish_alpha, arr, prob_main, meta, out_path,
+                                      prob_fallback), fname))
                 drain_post()
             drain_post(force=True)
 

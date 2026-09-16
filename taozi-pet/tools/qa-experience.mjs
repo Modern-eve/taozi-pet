@@ -3,6 +3,11 @@ import { makeCheck, runChecks, loadSpec } from './qa-common.mjs';
 const spec = await loadSpec();
 
 const stateById = new Map(spec.states.map((state) => [state.id, state]));
+// 待机轮播池成员：待机时按权重随机单轮播放，播完进入间歇、再续接下一个
+const standbyIds = new Set((spec.idleRotation?.states ?? []).map((entry) => entry.id));
+// 待机基底 = 轮播动作 + 间歇状态：都由轮播调度直接进入，也都能被任意状态抢占
+const gapStateId = spec.idleRotation?.gap?.stateId;
+const standbyBaseIds = new Set(gapStateId ? [...standbyIds, gapStateId] : standbyIds);
 const triggerOwners = new Map();
 for (const state of spec.states) {
   for (const trigger of state.triggers ?? []) {
@@ -34,11 +39,12 @@ checks.push(makeCheck({
   severity: 'warning',
   describe: 'loop 状态无「逃生门」（不被任何其它状态能打断）才判定卡死',
   run: () => {
-    // 判定：一个有限/无限循环状态要能自拔回 idle，必须有另一个状态（含 * 通配）能打断它。
+    // 判定：一个有限/无限循环状态要能自拔出，必须有另一个状态（含 * 通配）能打断它。
     // 只凭自身 loop+'*' 并不构成死锁——能被 happy/互动等打断即可安全退出，需反向推演。
+    // 待机基底（轮播动作与间歇）由状态机自行调度，不依赖被谁打断，故不参与此判定。
     const stuck = [];
     for (const state of spec.states) {
-      if (state.id === 'idle' || !state.loop) continue;
+      if (standbyBaseIds.has(state.id) || !state.loop) continue;
       const escapedBy = spec.states.find((other) =>
         other.id !== state.id && ((other.canInterrupt ?? []).includes('*') || (other.canInterrupt ?? []).includes(state.id))
       );
@@ -47,20 +53,22 @@ checks.push(makeCheck({
     return {
       passed: stuck.length === 0,
       detail: stuck.length
-        ? `${stuck.join(', ')} 为 loop 且无任何状态能打断它：一旦进入将无法回 idle，请补充一个可打断它的状态，或改为有限时长`
-        : '所有 loop 状态都有逃生门（可被其它状态打断回 idle）',
+        ? `${stuck.join(', ')} 为 loop 且无任何状态能打断它：一旦进入将无法回待机，请补充一个可打断它的状态，或改为有限时长`
+        : '所有 loop 状态都有逃生门（可被其它状态打断回待机）',
     };
   },
 }));
 
 checks.push(makeCheck({
-  id: 'caninterrupt-idle-redundant',
+  id: 'caninterrupt-standby-redundant',
   gate: 'interrupt-matrix',
   severity: 'warning',
-  describe: '名单含 idle 属冗余（idle 本就可被任意状态抢占）',
+  describe: '名单含待机基底（轮播动作或间歇）属冗余（待机本就可被任意状态抢占）',
   run: () => {
-    const redundant = spec.states.filter((state) => state.id !== 'idle' && (state.canInterrupt ?? []).includes('idle')).map((state) => state.id);
-    return { passed: redundant.length === 0, detail: redundant.length ? `可移除 idle 的状态: ${redundant.join(', ')}` : '无冗余' };
+    const redundant = spec.states
+      .filter((state) => !standbyBaseIds.has(state.id) && (state.canInterrupt ?? []).some((target) => standbyBaseIds.has(target)))
+      .map((state) => state.id);
+    return { passed: redundant.length === 0, detail: redundant.length ? `可移除待机状态的状态: ${redundant.join(', ')}` : '无冗余' };
   },
 }));
 
@@ -68,10 +76,10 @@ checks.push(makeCheck({
   id: 'caninterrupt-covering',
   gate: 'interrupt-matrix',
   severity: 'warning',
-  describe: '每个非 idle 状态都至少被一个其它状态可打断（防被遗忘孤立）',
+  describe: '每个非待机状态都至少被一个其它状态可打断（防被遗忘孤立）',
   run: () => {
     const overlooked = spec.states
-      .filter((state) => state.id !== 'idle')
+      .filter((state) => !standbyBaseIds.has(state.id))
       .filter((state) => !spec.states.some((other) => other.id !== state.id && ((other.canInterrupt ?? []).includes('*') || (other.canInterrupt ?? []).includes(state.id))))
       .map((state) => state.id);
     return { passed: overlooked.length === 0, detail: overlooked.length ? `无人可打断: ${overlooked.join(', ')}` : '所有状态均有 back-reach' };
@@ -118,6 +126,22 @@ checks.push(makeCheck({
     const breathing = Boolean(spec.motion?.breathing?.enabled);
     const squash = Boolean(spec.motion?.squashStretch?.enabled);
     return { passed: breathing || squash, detail: `breathing:${breathing} squashStretch:${squash}` };
+  },
+}));
+
+// 待机间歇随挡位单向：挡位越高越活跃，间歇呼吸次数不应反向变多（0 木头人最长）
+checks.push(makeCheck({
+  id: 'standby-gap-monotonic',
+  gate: 'motion',
+  severity: 'warning',
+  describe: '待机间歇呼吸次数随挡位不反向变多',
+  run: () => {
+    const levels = spec.idleRotation?.gap?.levels ?? [];
+    const bad = [];
+    for (let index = 1; index < levels.length; index += 1) {
+      if (levels[index].minBreaths > levels[index - 1].minBreaths || levels[index].maxBreaths > levels[index - 1].maxBreaths) bad.push(`挡位 ${index - 1}→${index}`);
+    }
+    return { passed: bad.length === 0, detail: bad.length ? `间歇反向变长: ${bad.join(', ')}` : '间歇随挡位单调不变长' };
   },
 }));
 

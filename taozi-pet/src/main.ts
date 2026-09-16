@@ -4,7 +4,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import specData from '../pet-spec.json';
 import type { CacheSweepSummary, DashboardView, InteractionResult, PetSpec, PetStats, Reminder, RuntimeFailureReport, RuntimeReadyReport, Settings, StateActivity, TypingStatus } from './shared/contracts';
-import { assertInteractionId, assertReminderInput, assertRuntimeFailureReport, assertRuntimeReadyReport, assertSettingsPatch, assertStringArray } from './shared/contracts';
+import { assertInteractionId, assertReminderInput, assertRuntimeFailureReport, assertRuntimeReadyReport, assertSettingsPatch, assertStringArray, STANDBY_SIGNAL } from './shared/contracts';
 import { reportTotalBytes, runCacheMaintenance, type CacheMaintenanceReport } from './main/cache-maintenance';
 import { draggedBounds, snapBounds, type Point, type Rect } from './main/drag';
 import { JsonLogger } from './main/logger';
@@ -85,10 +85,11 @@ function movePetWindow(x: number, y: number): void {
 }
 
 let sleepTimer: ReturnType<typeof setTimeout> | undefined;
-// 一次性状态（loop=false）播完后，把主进程门控状态复位回 idle 的定时器
+// 一次性状态（loop=false）播完后，把主进程门控状态复位回待机的定时器
 let stateResetTimer: ReturnType<typeof setTimeout> | undefined;
 let lastActivityTime = Date.now();
-let currentStateId = 'idle';
+// 主进程门控状态：STANDBY_SIGNAL 表示「处于待机」，此时渲染层在轮播待机动作
+let currentStateId = STANDBY_SIGNAL;
 let runtimeRendererReport: RuntimeReadyReport | undefined;
 const runtimeReadyRenderers = new Set<Role>();
 let runtimeWindowReady = false;
@@ -353,7 +354,7 @@ function checkMoodState(): void {
     // durationMs:0 = 常驻（如同 notify），心情未回升前持续沮丧，仅被 sleep/互动/通知打断
     sendActivity({ kind: 'ambient', stateId: 'sad', durationMs: 0 });
   } else if (stats.mood >= MOOD_SAD_THRESHOLD && currentStateId === 'sad') {
-    sendActivity({ kind: 'ambient', stateId: 'idle' });
+    sendActivity({ kind: 'ambient', stateId: STANDBY_SIGNAL });
   }
 }
 
@@ -376,9 +377,9 @@ function randomWalkStep(): void {
   if (!petWindow || petWindow.isDestroyed()) return;
   if (isDraggingActive()) return;
   if (randomWalkAnimTimer) return; // 正在移动中，不触发新的移动
-  // 仅在待机基底状态（idle）下才随机行走；sleep/sad 等常驻状态时既不移动也不发 walk 语录，
-  // 更避免移动结束的回 idle 信号把常驻状态打断
-  if (currentStateId !== 'idle') return;
+  // 仅在待机时随机行走；sleep/sad 等常驻状态时既不移动也不发 walk 语录，
+  // 更避免移动结束的回待机信号把常驻状态打断
+  if (currentStateId !== STANDBY_SIGNAL) return;
   const cfg = RANDOM_WALK_LEVELS[settings.randomWalk];
   if (!cfg) return; // 0 木头人（关闭）
   if (!randomWalkCenter) {
@@ -427,7 +428,7 @@ function randomWalkStep(): void {
   // 触发 walk 动画：向右或向下移动时左右镜像
   const walkMirror = direction === 1 || direction === 3; // 下或右
   // durationMs:0 让渲染层把 walk 视为无限循环状态（见 PetStateMachine.durationFor 的 requested===0 分支），
-  // 在物理移动结束前持续循环播放 walk 动画，避免只播一轮（3s）就静止；移动结束时由下方发 idle 收尾。
+  // 在物理移动结束前持续循环播放 walk 动画，避免只播一轮（3s）就静止；移动结束时由下方发待机信号收尾。
   sendActivity({ kind: 'ambient', stateId: 'walk', mirror: walkMirror, durationMs: 0 });
   // 注意：此处【不】调用 resetActivityTimer()。睡觉计时只允许被用户主动动作重置
   // （互动 / 拖动 / 开发者面板点击）；随机行走是自动行为，不应推迟入睡。
@@ -442,10 +443,10 @@ function randomWalkStep(): void {
       if (petWindow && !petWindow.isDestroyed()) {
         movePetWindow(targetX, targetY);
       }
-      // 移动结束，回到 idle。仅当期间未被互动 / 提醒 / 贴边等状态接管时才复位：
-      // 无条件广播 idle 会把互动状态从主进程门控里冲掉，导致渲染层仍在播互动而主进程已回 idle。
+      // 移动结束，回到待机。仅当期间未被互动 / 提醒 / 贴边等状态接管时才复位：
+      // 无条件广播待机信号会把互动状态从主进程门控里冲掉，导致渲染层仍在播互动而主进程已回待机。
       if (currentStateId === 'walk') {
-        sendActivity({ kind: 'ambient', stateId: 'idle' });
+        sendActivity({ kind: 'ambient', stateId: STANDBY_SIGNAL });
       }
       return;
     }
@@ -595,10 +596,10 @@ function broadcastRemindersUpdated(): void {
   }
 }
 
-// 一次性状态（loop=false，如 peek / happy / 4 个互动）播完后，渲染层会自行回 idle，
+// 一次性状态（loop=false，如 peek / happy / 4 个互动）播完后，渲染层会自行转入待机轮播，
 // 但主进程的门控状态 currentStateId 不会自动复位，会一直停在那个一次性状态上，
-// 挡死依赖 `currentStateId === 'idle'` 的逻辑（如随机行走）。
-// 此处按状态时长同步复位主进程门控状态（不广播，避免打断渲染层已自行切好的 idle）。
+// 挡死依赖「currentStateId === STANDBY_SIGNAL」的逻辑（如随机行走）。
+// 此处按状态时长同步复位主进程门控状态（不广播，避免打断渲染层已自行切好的待机动作）。
 function scheduleStateReset(activity: StateActivity): void {
   if (stateResetTimer) {
     clearTimeout(stateResetTimer);
@@ -609,14 +610,14 @@ function scheduleStateReset(activity: StateActivity): void {
   // walk 由 randomWalkStep 的移动定时器自行收尾，避免重复复位
   if (activity.stateId === 'walk') return;
   const state = spec.states.find((item) => item.id === activity.stateId);
-  // 仅一次性状态需要复位；循环状态（idle/walk/sleep/sad/notify）由常驻或打断逻辑管理
+  // 仅一次性状态需要复位；循环状态（walk/sleep/sad/notify）由常驻或打断逻辑管理
   if (!state || state.loop) return;
   const ms = activity.durationMs ?? Math.max(1, state.frames.length * state.frameDurationMs);
   stateResetTimer = setTimeout(() => {
     stateResetTimer = undefined;
     // 期间若已被其它状态覆盖（如互动结束后转入 sad），放弃本次复位
     if (currentStateId !== activity.stateId) return;
-    currentStateId = 'idle';
+    currentStateId = STANDBY_SIGNAL;
     // 被一次性状态打断的随机行走调度在此恢复（如互动结束后继续走动）
     startRandomWalk();
   }, ms + 60);
@@ -736,6 +737,7 @@ async function saveSettings(next: Settings): Promise<Settings> {
   restartTypingListener();
   if (settings.randomWalk) startRandomWalk(); else stopRandomWalk();
   createTrayMenuRefresh();
+  broadcastSettings();
   return settings;
 }
 
@@ -747,6 +749,13 @@ function createTrayMenuRefresh(): void {
 function broadcastTypingStatus(): void {
   for (const window of [petWindow, dashboardWindow]) {
     if (window && !window.isDestroyed()) window.webContents.send('typing:status', typingStatus);
+  }
+}
+
+// 设置变更广播：待机间歇时长取决于随机行走挡位，桌宠窗口需实时同步
+function broadcastSettings(): void {
+  for (const window of [petWindow, dashboardWindow]) {
+    if (window && !window.isDestroyed()) window.webContents.send('settings:changed', settings);
   }
 }
 
@@ -763,7 +772,7 @@ function restartTypingListener(): void {
       void logger?.write('warn', 'typing-trigger-missing', { trigger: 'typing:activity' });
       return;
     }
-    // 时长由状态实际帧长派生，不硬编码，保证动画完整播完（blink 为 24 帧 × 250ms = 6000ms）
+    // 时长由状态实际帧长派生，不硬编码，保证动画完整播完
     const durationMs = state.frames.length * state.frameDurationMs;
     // 至少等上一次反应播完再响应，避免高频击键打断动画
     const now = Date.now();
@@ -1004,7 +1013,7 @@ function registerIpc(): void {
     randomWalkStep();
     return undefined;
   });
-  // 开发者模式：直接设置心情值（0/100），会随之触发 sad / 回 idle 的状态切换
+  // 开发者模式：直接设置心情值（0/100），会随之触发 sad / 回待机的状态切换
   ipcMain.handle('dev:set-mood', async (event, value: unknown) => {
     assertSender(event, ['dashboard']);
     const mood = value as number;

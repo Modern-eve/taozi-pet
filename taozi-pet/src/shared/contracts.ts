@@ -47,8 +47,9 @@ export interface PetSpec {
   motion: {
     breathing: { enabled: boolean; periodMs: number; scaleX: number; scaleY: number };
     squashStretch: { enabled: boolean; durationMs: number; intensity: number };
-    idleIntervalMs: { min: number; max: number };
   };
+  /** 待机轮播：待机时按权重随机挑一个动作单轮播放，播完续接下一个 */
+  idleRotation: IdleRotationSpec;
   features: {
     transparentWindow: boolean;
     drag: boolean;
@@ -90,6 +91,40 @@ export interface QuoteGroupSpec {
   quotes: string[];
 }
 
+/**
+ * 「回到待机」的调度信号：待机由 idleRotation 池中的动作轮播呈现，没有独立的待机状态，
+ * 因此用这个 id 表达「脱离当前动作、回到待机轮播」，不指向任何一个可播放状态。
+ */
+export const STANDBY_SIGNAL = 'idle';
+
+export interface IdleRotationEntrySpec {
+  /** 参与待机轮播的状态 id */
+  id: string;
+  /** 相对权重（正数），决定该动作被随机选中的概率 */
+  weight: number;
+}
+
+/** 待机间歇长度区间，以呼吸次数计；索引即随机行走挡位（0 木头人 / 1 散步 / 2 正常 / 3 活泼 / 4 多动症） */
+export interface IdleRotationGapLevelSpec {
+  /** 间歇呼吸次数下限（整数，1 次 = motion.breathing.periodMs） */
+  minBreaths: number;
+  /** 间歇呼吸次数上限（整数） */
+  maxBreaths: number;
+}
+
+/** 待机间歇：轮播动作播完后的停顿，期间展示 stateId 指向状态的静态帧 */
+export interface IdleRotationGapSpec {
+  /** 间歇期展示的状态 id（单帧静态帧，由待机轮播调度进入，无外部触发） */
+  stateId: string;
+  /** 每档呼吸次数区间，在该挡位区间内随机取一个整数次数 */
+  levels: IdleRotationGapLevelSpec[];
+}
+
+export interface IdleRotationSpec {
+  states: IdleRotationEntrySpec[];
+  gap: IdleRotationGapSpec;
+}
+
 export interface InteractionSpec {
   id: string;
   emoji: string;
@@ -105,8 +140,9 @@ export interface PetState {
   triggers: string[];
   frames: string[];
   frameDurationMs: number;
+  /** 是否循环播放；待机轮播成员一律单轮播放（每帧只出现一次，播完续接下一个待机动作） */
   loop: boolean;
-  /** 本状态可打断（压过）的状态 id 名单；'*' 表示可打断一切；待机(idle)默认可被任意状态打断，无需列入 */
+  /** 本状态可打断（压过）的状态 id 名单；'*' 表示可打断一切；待机轮播动作是抢占基底，默认可被任意状态打断，无需列入 */
   canInterrupt: string[];
   interrupt: string;
   cooldownMs: number;
@@ -258,6 +294,8 @@ export interface PetAPI {
     onStats: (listener: (stats: PetStats) => void) => () => void;
     onTypingStatus: (listener: (status: TypingStatus) => void) => () => void;
     onPetSizeApplied: (listener: () => void) => () => void;
+    /** 设置变更广播：供桌宠窗口同步依赖设置的呈现（如随机行走挡位决定待机间歇时长） */
+    onSettingsChanged: (listener: (settings: Settings) => void) => () => void;
   };
 }
 
