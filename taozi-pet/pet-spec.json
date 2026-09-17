@@ -301,7 +301,7 @@
     "edgeSnap": true,
     "reminders": true,
     "interactions": true,
-    "filePocket": false,
+    "filePocket": true,
     "dashboard": true,
     "typingReaction": false
   },
@@ -421,6 +421,34 @@
       "loop": false,
       "canInterrupt": [],
       "interrupt": "resume",
+      "cooldownMs": 0,
+      "direction": "neutral",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.95
+      },
+      "mirrorSafe": true
+    },
+    {
+      "id": "feed",
+      "triggers": [
+        "file:drop",
+        "file:drop-success",
+        "file:drop-fail"
+      ],
+      "frames": [
+        "feed-01.png",
+        "feed-02.png",
+        "feed-03.png",
+        "feed-04.png",
+        "feed-05.png"
+      ],
+      "frameDurationMs": 200,
+      "loop": false,
+      "canInterrupt": [
+        "*"
+      ],
+      "interrupt": "restart",
       "cooldownMs": 0,
       "direction": "neutral",
       "anchor": {

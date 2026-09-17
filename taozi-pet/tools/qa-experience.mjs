@@ -244,18 +244,20 @@ checks.push(makeCheck({
   },
 }));
 
-// 非互动状态越级全通配（*）：普通状态仅在确实需要绝对打断权时才该越级
+// 非互动状态越级全通配（*）：普通状态仅在确实需要绝对打断权时才该越级。
+// 系统级状态豁免：notify（提醒到点）与 feed（文件投喂收纳）按设计必须打断一切。
 checks.push(makeCheck({
   id: 'caninterrupt-star-broadcast',
   gate: 'interrupt-matrix',
   severity: 'warning',
-  describe: '非互动状态持有全通配(*) 的不超过 1 个（通常仅 notify）',
+  describe: '非互动状态持有全通配(*) 的不超过豁免的系统级状态（notify / feed）',
   run: () => {
     const interactionStateIds = new Set((spec.experience.interactions ?? []).map((it) => it.stateId));
+    const SYSTEM_WILDCARD = new Set(['notify', 'feed']);
     const wildcard = spec.states
-      .filter((state) => !interactionStateIds.has(state.id) && (state.canInterrupt ?? []).includes('*'))
+      .filter((state) => !interactionStateIds.has(state.id) && !SYSTEM_WILDCARD.has(state.id) && (state.canInterrupt ?? []).includes('*'))
       .map((state) => state.id);
-    return { passed: wildcard.length <= 1, detail: wildcard.length > 1 ? `普通状态越级全通配: ${wildcard.join(', ')}` : '全通配状态克制' };
+    return { passed: wildcard.length === 0, detail: wildcard.length ? `普通状态越级全通配: ${wildcard.join(', ')}` : '全通配状态克制' };
   },
 }));
 

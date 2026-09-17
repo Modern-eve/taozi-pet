@@ -194,3 +194,77 @@ test('权重为 0 的成员不参与轮播', () => {
 test('轮播池无有效成员时构造失败', () => {
   assert.throws(() => new PetStateMachine([look, gap], rotation([]), 0, BREATH_MS), /idleRotation/);
 });
+
+// ---- 文件口袋 feed：正向定格末帧 / 倒序回归 / 倒放中转正向 ----
+const feed = state('feed', {
+  triggers: ['file:drop'],
+  frames: ['feed-01.png', 'feed-02.png', 'feed-03.png'],
+  frameDurationMs: 200,
+  canInterrupt: ['*'],
+});
+
+function feedMachine(): PetStateMachine {
+  return new PetStateMachine([look, blink, gap, feed], rotation([['look', 1], ['blink', 1]]), 0, BREATH_MS);
+}
+
+test('feed 拖入正向播放，播完保持末帧、不循环', () => {
+  const machine = feedMachine();
+  assert.equal(machine.feedForward(0), true);
+  assert.equal(machine.currentStateId(), 'feed');
+  assert.equal(machine.tick(0).frameIndex, 0);
+  assert.equal(machine.tick(200).frameIndex, 1);
+  assert.equal(machine.tick(400).frameIndex, 2);
+  // 正向无限保持：末帧不再前进
+  assert.equal(machine.tick(20_000).frameIndex, 2);
+  assert.equal(machine.currentStateId(), 'feed');
+});
+
+test('feed 放手倒序播放，播完回待机轮播', () => {
+  const machine = feedMachine();
+  machine.feedForward(0);
+  machine.tick(600); // 正放已达到末帧
+  machine.feedReverse(600);
+  assert.equal(machine.tick(800).frameIndex, 1);   // 200ms/帧：倒放第一帧 = 末帧前一帧
+  assert.equal(machine.tick(1000).frameIndex, 0);  // 回到第 0 帧
+  machine.tick(1200); // 倒放一轮完成（3 帧 × 200ms）
+  machine.tick(1201);
+  assert.ok(machine.currentStateId() !== 'feed');
+  assert.ok(machine.isStandby());
+});
+
+test('feed 正放未结束就放手：先播完正向再倒放', () => {
+  const machine = feedMachine();
+  machine.feedForward(0);
+  machine.tick(200); // 只播到第 1 帧
+  machine.feedReverse(200); // 正放未结束 → 排队
+  assert.equal(machine.tick(400).frameIndex, 2); // 继续正向到末帧
+  // 正向足时长后在末帧保持中转倒放：tick(800) 为倒放第 1 帧（末帧）
+  assert.equal(machine.tick(800).frameIndex, 2);
+  assert.equal(machine.tick(1000).frameIndex, 1); // 200ms 后回退一帧
+  assert.equal(machine.tick(1200).frameIndex, 0);
+  machine.tick(1401); // 倒放一轮（3 帧 × 200ms）完成
+  assert.ok(machine.currentStateId() !== 'feed');
+});
+
+test('feed 倒放过程中再次拖入：以当前帧转回正向继续', () => {
+  const machine = feedMachine();
+  machine.feedForward(0);
+  machine.tick(600); // 末帧
+  machine.feedReverse(600);
+  machine.tick(800); // 倒放到第 1 帧
+  machine.feedForward(800); // 再次拖入
+  assert.equal(machine.tick(801).frameIndex, 1); // 从当前帧继续（不跳回 0）
+  assert.equal(machine.tick(1000).frameIndex, 2);
+  assert.equal(machine.tick(20_000).frameIndex, 2); // 重新正向保持末帧
+  assert.equal(machine.currentStateId(), 'feed');
+});
+
+test('feed 倒放结束恢复循环状态（sad/sleep/notify 常驻）', () => {
+  const sad = state('sad', { triggers: ['state:sad'], loop: true });
+  const machine = new PetStateMachine([look, blink, gap, feed, sad], rotation([['look', 1], ['blink', 1]]), 0, BREATH_MS);
+  machine.feedForward(0);
+  machine.tick(600);
+  machine.feedReverse(600, 'sad');
+  machine.tick(1201); // 倒放完成
+  assert.equal(machine.currentStateId(), 'sad');
+});

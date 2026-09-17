@@ -29,13 +29,14 @@ export async function uniqueDestination(directory: string, filename: string): Pr
   const ext = path.extname(filename);
   const base = path.basename(filename, ext);
   let candidate = path.join(directory, filename);
-  let counter = 1;
+  let counter = 2;
 
   while (true) {
     try {
       await readFile(candidate);
+      // Windows 重名规则：name (2).ext、name (3).ext …
+      candidate = path.join(directory, `${base} (${counter})${ext}`);
       counter += 1;
-      candidate = path.join(directory, `${base}-${counter}${ext}`);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         return candidate;

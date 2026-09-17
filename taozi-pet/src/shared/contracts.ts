@@ -232,6 +232,10 @@ export interface Settings {
   randomWalk: number;
   /** 开发者模式是否开启（版本号连点 6 次进入，持久化到 settings.json） */
   devMode: boolean;
+  /** 文件口袋是否开启（拖放文件收纳） */
+  filePocket: boolean;
+  /** 文件口袋目录（绝对路径；空字符串表示用默认目录） */
+  filePocketDir: string;
 }
 
 export interface Reminder {
@@ -332,8 +336,10 @@ export interface PetAPI {
   };
   files: {
     getPathForFile: (file: File) => string;
-    put: (paths: string[]) => Promise<{ copied: string[]; failed: Array<{ source: string; reason: string }> }>;
+    put: (paths: string[]) => Promise<{ moved: string[]; failed: Array<{ source: string; reason: string }> }>;
     openPocket: () => Promise<void>;
+    /** 弹出目录选择框让用户挑选文件口袋目录；取消返回 null */
+    chooseDir: () => Promise<string | null>;
   };
   window: {
     beginDrag: () => Promise<void>;
@@ -402,8 +408,8 @@ export function assertSettingsPatch(value: unknown): asserts value is Partial<Se
     throw new TypeError('Invalid settings patch');
   }
   const obj = value as Record<string, unknown>;
-  const booleanKeys = new Set(['edgeSnap', 'alwaysOnTop', 'typingReaction', 'clickThrough', 'autoStart', 'devMode']);
-  const allowedKeys = new Set([...booleanKeys, 'petScale', 'randomWalk']);
+  const booleanKeys = new Set(['edgeSnap', 'alwaysOnTop', 'typingReaction', 'clickThrough', 'autoStart', 'devMode', 'filePocket']);
+  const allowedKeys = new Set([...booleanKeys, 'petScale', 'randomWalk', 'filePocketDir']);
   for (const [key, item] of Object.entries(obj)) {
     if (!allowedKeys.has(key)) throw new TypeError(`Unknown settings field: ${key}`);
     if (booleanKeys.has(key) && typeof item !== 'boolean') throw new TypeError(`Invalid settings field: ${key}`);
@@ -412,6 +418,9 @@ export function assertSettingsPatch(value: unknown): asserts value is Partial<Se
     }
     if (key === 'randomWalk' && (!Number.isInteger(item) || (item as number) < 0 || (item as number) > 4)) {
       throw new TypeError('Invalid settings field: randomWalk');
+    }
+    if (key === 'filePocketDir' && (typeof item !== 'string' || item.length > 500)) {
+      throw new TypeError('Invalid settings field: filePocketDir');
     }
   }
 }

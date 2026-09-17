@@ -21,6 +21,8 @@ const validSettings: Settings = {
   autoStartInit: true,
   randomWalk: 2,
   devMode: false,
+  filePocket: true,
+  filePocketDir: '',
 };
 
 const validStats = {

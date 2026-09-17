@@ -29,7 +29,7 @@ export function localDateKey(date = new Date()): string {
 
 export function parseSettings(value: unknown): Settings {
   const obj = record(value, 'settings');
-  const expected = new Set(['edgeSnap', 'alwaysOnTop', 'typingReaction', 'clickThrough', 'petScale', 'autoStart', 'autoStartInit', 'randomWalk', 'devMode']);
+  const expected = new Set(['edgeSnap', 'alwaysOnTop', 'typingReaction', 'clickThrough', 'petScale', 'autoStart', 'autoStartInit', 'randomWalk', 'devMode', 'filePocket', 'filePocketDir']);
   for (const key of Object.keys(obj)) if (!expected.has(key)) throw new TypeError(`Unknown settings field: ${key}`);
   for (const key of ['edgeSnap', 'alwaysOnTop', 'typingReaction', 'clickThrough', 'autoStart'] as const) {
     if (typeof obj[key] !== 'boolean') throw new TypeError(`Invalid settings field: ${key}`);
@@ -38,6 +38,10 @@ export function parseSettings(value: unknown): Settings {
   if (obj.autoStartInit !== undefined && typeof obj.autoStartInit !== 'boolean') throw new TypeError('Invalid settings field: autoStartInit');
   // devMode 兼容旧数据：缺失视为未开启
   if (obj.devMode !== undefined && typeof obj.devMode !== 'boolean') throw new TypeError('Invalid settings field: devMode');
+  // filePocket 兼容旧数据：缺失视为开启（spec.features.filePocket 为默认值）
+  if (obj.filePocket !== undefined && typeof obj.filePocket !== 'boolean') throw new TypeError('Invalid settings field: filePocket');
+  // filePocketDir 兼容旧数据：缺失/空串视为未自定义（使用默认目录）
+  if (obj.filePocketDir !== undefined && (typeof obj.filePocketDir !== 'string' || obj.filePocketDir.length > 500)) throw new TypeError('Invalid settings field: filePocketDir');
   if (typeof obj.petScale !== 'number' || !Number.isFinite(obj.petScale) || obj.petScale < PET_SCALE_MIN || obj.petScale > PET_SCALE_MAX) {
     throw new TypeError('Invalid settings field: petScale');
   }
@@ -60,6 +64,8 @@ export function parseSettings(value: unknown): Settings {
     autoStartInit: obj.autoStartInit === undefined ? true : (obj.autoStartInit as boolean),
     randomWalk,
     devMode: obj.devMode === undefined ? false : (obj.devMode as boolean),
+    filePocket: obj.filePocket === undefined ? true : (obj.filePocket as boolean),
+    filePocketDir: typeof obj.filePocketDir === 'string' ? obj.filePocketDir : '',
   };
 }
 

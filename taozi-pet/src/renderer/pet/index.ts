@@ -313,6 +313,56 @@ container.addEventListener('contextmenu', (e) => {
   window.petAPI?.window.showContextMenu().catch(() => {});
 });
 
+// ---- 文件口袋拖放 ----
+// 文件拖入桌宠 → feed 正向播放（播完保持末帧）；放手（drop）→ 收纳文件并倒序播放 feed；
+// 拖离（dragleave 且未放下）→ 不收纳、同样倒序播放。倒序是「回到 feed 前状态的过渡」。
+// 倒放过程中再次拖入 → 以当前帧转回正向继续（见状态机 feedForward/feedReverse）。
+const FEED_RESUME_IDS = new Set(['idle', 'sad', 'sleep', 'notify']);
+let filePocketEnabled = true;
+let fileDragDepth = 0;
+let feedResumeId = STANDBY_SIGNAL;
+
+function isFileDrag(event: DragEvent): boolean {
+  return Array.from(event.dataTransfer?.types ?? []).includes('Files');
+}
+
+function enterFileDrag(event: DragEvent): void {
+  event.preventDefault();
+  if (!isFileDrag(event) || !filePocketEnabled) return;
+  fileDragDepth += 1;
+  if (fileDragDepth > 1) return;
+  // 记录进入 feed 前的状态：倒序播完回到 idle（待机）/ sad / sleep / notify
+  const before = stateMachine.currentStateId();
+  feedResumeId = FEED_RESUME_IDS.has(before) ? before : STANDBY_SIGNAL;
+  stateMachine.feedForward(performance.now());
+}
+
+function dropFiles(event: DragEvent): void {
+  if (!isFileDrag(event) || !filePocketEnabled) return;
+  event.preventDefault();
+  const dropped = fileDragDepth > 0;
+  fileDragDepth = 0;
+  const paths = Array.from(event.dataTransfer?.files ?? [])
+    .map((file) => {
+      try { return window.petAPI?.files.getPathForFile(file) ?? ''; } catch { return ''; }
+    })
+    .filter((item): item is string => item.length > 0);
+  if (paths.length) void window.petAPI?.files.put(paths).catch(() => {});
+  // 放手即倒序播放（若正放未播完，状态机先继续播完正向再倒放）
+  if (dropped) stateMachine.feedReverse(performance.now(), feedResumeId);
+}
+
+window.addEventListener('dragenter', enterFileDrag);
+window.addEventListener('dragover', (event) => {
+  if (isFileDrag(event) && filePocketEnabled) event.preventDefault();
+});
+window.addEventListener('dragleave', (event) => {
+  if (!isFileDrag(event)) return;
+  fileDragDepth = Math.max(0, fileDragDepth - 1);
+  if (fileDragDepth === 0) stateMachine.feedReverse(performance.now(), feedResumeId);
+});
+window.addEventListener('drop', dropFiles);
+
 // 监听状态活动
 window.petAPI?.events.onStateActivity((activity: StateActivity) => {
   if (activity.stateId) {
@@ -350,8 +400,13 @@ async function init(): Promise<void> {
     });
 
     // 待机间歇时长由随机行走挡位决定（单一来源 userData/settings.json），改动后实时同步
-    stateMachine.setWalkLevel((await window.petAPI?.settings.get())?.randomWalk ?? 0);
-    window.petAPI?.events.onSettingsChanged((next) => stateMachine.setWalkLevel(next.randomWalk));
+    const settings = await window.petAPI?.settings.get();
+    stateMachine.setWalkLevel(settings?.randomWalk ?? 0);
+    filePocketEnabled = settings?.filePocket !== false;
+    window.petAPI?.events.onSettingsChanged((next) => {
+      stateMachine.setWalkLevel(next.randomWalk);
+      filePocketEnabled = next.filePocket !== false;
+    });
 
     // 进入待机（由状态机按权重随机挑一个待机动作开播）
     enterStandby();

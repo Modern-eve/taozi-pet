@@ -38,7 +38,9 @@ export function movePetWindow(ctx: MainContext, x: number, y: number): void {
 }
 
 export function filePocket(ctx: MainContext): string {
-  return path.join(app.getPath('documents'), ctx.spec.app.name);
+  const custom = ctx.settings.filePocketDir.trim();
+  if (custom) return custom;
+  return path.join(app.getPath('documents'), 'taozi-pet');
 }
 
 export function stateForTrigger(ctx: MainContext, trigger: string): PetState | undefined {
@@ -131,7 +133,7 @@ export function showDashboard(ctx: MainContext, view: DashboardView = 'status'):
 }
 
 export async function openPocket(ctx: MainContext): Promise<void> {
-  if (!ctx.spec.features.filePocket) throw new Error('File pocket is disabled');
+  if (!ctx.spec.features.filePocket || !ctx.settings.filePocket) throw new Error('File pocket is disabled');
   const directory = filePocket(ctx);
   await mkdir(directory, { recursive: true });
   const failure = await shell.openPath(directory);

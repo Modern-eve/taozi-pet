@@ -51,6 +51,10 @@ const companionMinutesEl = document.getElementById('companion-minutes') as HTMLD
 const toggleAlwaysOnTop = document.getElementById('toggle-always-on-top') as HTMLDivElement;
 const toggleClickThrough = document.getElementById('toggle-click-through') as HTMLDivElement;
 const toggleAutoStart = document.getElementById('toggle-auto-start') as HTMLDivElement;
+const toggleFilePocket = document.getElementById('toggle-file-pocket') as HTMLDivElement;
+const filePocketDirEl = document.getElementById('file-pocket-dir') as HTMLDivElement;
+const filePocketChooseBtn = document.getElementById('file-pocket-choose') as HTMLButtonElement;
+const filePocketOpenBtn = document.getElementById('file-pocket-open') as HTMLButtonElement;
 const randomWalkButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('#random-walk-level button[data-level]'));
 const scaleSlider = document.getElementById('scale-slider') as HTMLInputElement;
 const scaleValue = document.getElementById('scale-value') as HTMLSpanElement;
@@ -292,6 +296,10 @@ async function loadReminders(): Promise<void> {
   }
 }
 
+function updatePocketDirDisplay(dir: string): void {
+  filePocketDirEl.textContent = dir.trim() ? `位置：${dir}` : '默认：文档/taozi-pet';
+}
+
 // 加载设置
 async function loadSettings(): Promise<void> {
   try {
@@ -317,6 +325,13 @@ async function loadSettings(): Promise<void> {
     } else {
       toggleAutoStart.classList.remove('active');
     }
+
+    if (settings.filePocket) {
+      toggleFilePocket.classList.add('active');
+    } else {
+      toggleFilePocket.classList.remove('active');
+    }
+    updatePocketDirDisplay(settings.filePocketDir);
 
     for (const btn of randomWalkButtons) {
       btn.classList.toggle('active', Number(btn.dataset.level) === settings.randomWalk);
@@ -404,6 +419,41 @@ toggleAutoStart.addEventListener('click', async () => {
   } catch (error) {
     console.error('Failed to update setting:', error);
   }
+});
+
+// 文件口袋开关
+toggleFilePocket.addEventListener('click', async () => {
+  if (!currentSettings) return;
+  const newVal = !currentSettings.filePocket;
+  try {
+    await window.petAPI?.settings.update({ filePocket: newVal });
+    currentSettings.filePocket = newVal;
+    if (newVal) {
+      toggleFilePocket.classList.add('active');
+    } else {
+      toggleFilePocket.classList.remove('active');
+    }
+  } catch (error) {
+    console.error('Failed to update setting:', error);
+  }
+});
+
+// 选择文件口袋目录
+filePocketChooseBtn.addEventListener('click', async () => {
+  const dir = await window.petAPI?.files.chooseDir();
+  if (!dir || !currentSettings) return;
+  try {
+    await window.petAPI?.settings.update({ filePocketDir: dir });
+    currentSettings.filePocketDir = dir;
+    updatePocketDirDisplay(dir);
+  } catch (error) {
+    console.error('Failed to update file pocket dir:', error);
+  }
+});
+
+// 打开文件口袋目录
+filePocketOpenBtn.addEventListener('click', () => {
+  void window.petAPI?.files.openPocket().catch((error) => console.error('Failed to open pocket:', error));
 });
 
 // 随机行走挡位：0 木头人 / 1 散步 / 2 正常 / 3 活泼 / 4 多动症

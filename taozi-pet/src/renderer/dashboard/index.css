@@ -279,6 +279,34 @@ html, body {
   transform: none;
 }
 
+/* 文件口袋：目录选择与打开口袋按钮 */
+.pocket-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.pocket-btn {
+  padding: 6px 14px;
+  font-size: 13px;
+  color: #6b4a30;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(168, 120, 80, 0.3);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.pocket-btn:hover {
+  background: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(168, 120, 80, 0.2);
+}
+
+.pocket-btn:active {
+  transform: translateY(0);
+}
+
 /* 版本号：状态页末尾的一行小字，连续快速点击 6 次可进入开发者模式（调试入口） */
 /* 悬停/点击热区只落在文字本身，#version-text 内联于 flex 容器，移出文字即不触发 */
 .version-line {

@@ -1,5 +1,5 @@
-import { app, ipcMain, Menu, screen } from 'electron';
-import { copyFile, lstat, mkdir } from 'node:fs/promises';
+import { app, dialog, ipcMain, Menu, screen } from 'electron';
+import { copyFile, lstat, mkdir, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { CacheSweepSummary, DashboardView, Reminder, WalkConfig } from '../shared/contracts';
@@ -250,16 +250,24 @@ export function registerIpc(ctx: MainContext): void {
   ipcMain.handle('files:put', async (event, paths: unknown) => {
     assertSender(ctx, event, ['pet']);
     if (!spec.features.filePocket) throw new Error('File pocket is disabled');
+    if (!ctx.settings.filePocket) throw new Error('File pocket is turned off in settings');
     assertStringArray(paths);
     const destination = filePocket(ctx);
     await mkdir(destination, { recursive: true });
-    const result = { copied: [] as string[], failed: [] as Array<{ source: string; reason: string }> };
+    const result = { moved: [] as string[], failed: [] as Array<{ source: string; reason: string }> };
     for (const source of paths) {
       try {
         if (!(await lstat(source)).isFile()) throw new Error('Only regular files are accepted');
         const target = await uniqueDestination(destination, path.basename(source));
-        await copyFile(source, target);
-        result.copied.push(target);
+        try {
+          // 文件口袋是「收纳」：优先同盘 rename（移动）；跨盘时回退 copy+删源，语义仍是移动
+          await rename(source, target);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'EXDEV') throw error;
+          await copyFile(source, target);
+          await rm(source, { force: true });
+        }
+        result.moved.push(target);
       } catch (error) {
         result.failed.push({ source, reason: error instanceof Error ? error.message : String(error) });
       }
@@ -267,6 +275,14 @@ export function registerIpc(ctx: MainContext): void {
     return result;
   });
   ipcMain.handle('files:open-pocket', async (event) => { assertSender(ctx, event, ['pet', 'dashboard']); await openPocket(ctx); });
+  ipcMain.handle('files:choose-dir', async (event) => {
+    assertSender(ctx, event, ['dashboard']);
+    if (ctx.dashboardWindow) {
+      const picked = await dialog.showOpenDialog(ctx.dashboardWindow, { properties: ['openDirectory', 'createDirectory'] });
+      return picked.canceled ? null : picked.filePaths[0] ?? null;
+    }
+    return null;
+  });
   ipcMain.handle('window:drag-begin', (event) => {
     assertSender(ctx, event, ['pet']);
     if (!ctx.petWindow || !spec.features.drag) return;

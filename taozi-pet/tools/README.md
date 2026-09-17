@@ -11,7 +11,7 @@
 QA 分两档：
 
 - **快速 QA**（`npm run check:quick`）：轻量必查，随开发启动自动跑。依次执行 `validate-dev-contract` + `validate-spec` + `validate-asset-links` + `qa-ui` + `qa-experience` 五个校验，**亚秒级**（不含 tsc；类型检查由两个 webpack 配置的 fork-ts-checker 在生产构建把关，`npm test` 前置亦会跑 `tsc --noEmit`）。
-- **全量 QA**（`npm run check`）：在快速 QA 之上追加 `qa-assets` 逐帧像素级质检（147 张 base 帧，较重）。**素材变更或需出完整报告时主动运行。**
+- **全量 QA**（`npm run check`）：在快速 QA 之上追加 `qa-assets` 逐帧像素级质检（152 张 base 帧，较重）。**素材变更或需出完整报告时主动运行。**
 
 ```bash
 npm run check:quick   # 平时/开发启动
@@ -88,7 +88,7 @@ npm run check          # 素材变更 / 出完整 QA 报告
 | motion | interaction-duration-excess ⚠ | 互动时长不超过 3 个完整动画周期 |
 | motion | frame-duration-flicker ⚠ | 帧时长(frameDurationMs) ≥80ms，避免闪烁 |
 | motion | loop-cycle-brisk ⚠ | loop 状态单轮周期 ≥1500ms，避免循环显急促 |
-| interrupt-matrix | caninterrupt-star-broadcast ⚠ | 非互动状态持全通配(*) 的不超过 1 个 |
+| interrupt-matrix | caninterrupt-star-broadcast ⚠ | 非互动状态持全通配(*) 的不超过系统级豁免（notify / feed） |
 | interrupt-matrix | caninterrupt-self ⚠ | canInterrupt 名单不含自身 id（防自引用成环） |
 
 ⚠ = warning，仅提示不阻断。

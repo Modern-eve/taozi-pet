@@ -46,6 +46,7 @@ const api: PetAPI = {
     getPathForFile: (file) => webUtils.getPathForFile(file),
     put: (paths) => ipcRenderer.invoke('files:put', paths),
     openPocket: () => ipcRenderer.invoke('files:open-pocket') as Promise<void>,
+    chooseDir: () => ipcRenderer.invoke('files:choose-dir') as Promise<string | null>,
   },
   window: {
     beginDrag: () => ipcRenderer.invoke('window:drag-begin') as Promise<void>,

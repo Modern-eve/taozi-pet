@@ -13,6 +13,12 @@ interface ActiveState {
   frameIndex: number;
   startedAt: number;
   durationMs: number;
+  /** 播放方向：1 正向 / -1 倒序（文件口袋 feed 专用） */
+  direction: 1 | -1;
+  /** 倒序播放结束后回到的状态 id（STANDBY_SIGNAL 表示待机轮播） */
+  resumeId?: string;
+  /** 正向播放中已收到倒放请求：待正向播到末帧后自动转入倒放 */
+  pendingReverse?: boolean;
 }
 
 interface RotationEntry {
@@ -110,6 +116,7 @@ export class PetStateMachine {
       frameIndex: 0,
       startedAt: now,
       durationMs: this.durationFor(state, durationMs),
+      direction: 1,
     };
   }
 
@@ -148,9 +155,87 @@ export class PetStateMachine {
     return state.id;
   }
 
+  /**
+   * 文件拖入桌宠：进入 feed 正向播放（播放完保持末帧）。
+   * - 非 feed 状态 → 从第 0 帧开始正向播放（feed 可打断一切，直接接管）;
+   * - 正在倒放中 → 以当前帧为起点转回正向继续；
+   * - 已在正向（播放中或保持末帧）→ 保持现状，并撤销已排队的倒放请求（用户重新拖入）。
+   */
+  feedForward(now: number): boolean {
+    const feed = this.states.get('feed');
+    if (!feed) return false;
+    const active = this.active;
+    if (active.state.id === 'feed') {
+      if (active.direction === -1) {
+        const frameMs = Math.max(1, feed.frameDurationMs);
+        this.active = {
+          ...active,
+          direction: 1,
+          startedAt: now - active.frameIndex * frameMs,
+          durationMs: 0,
+          pendingReverse: false,
+          resumeId: undefined,
+        };
+      } else {
+        this.active.pendingReverse = false;
+      }
+      return true;
+    }
+    this.active = { ...this.makeActive(feed, now, 0), pendingReverse: false };
+    return true;
+  }
+
+  /**
+   * 放手 / 拖离桌宠：倒序播放 feed，播完（回到第 0 帧）后恢复 resumeId 指定的状态。
+   * 若正向播放尚未播完，先继续播完正向（到末帧）再自动转入倒放。
+   */
+  feedReverse(now: number, resumeId?: string): void {
+    const active = this.active;
+    if (active.state.id !== 'feed') return;
+    if (active.direction === -1) {
+      // 已在倒放：更新恢复目标即可
+      this.active.resumeId = resumeId;
+      return;
+    }
+    const frameCount = Math.max(1, active.state.frames.length);
+    const frameMs = Math.max(1, active.state.frameDurationMs);
+    if (this.completedPositive(active, now, frameCount, frameMs)) {
+      // 正向已播完、正保持末帧：立即转入倒放
+      this.active.direction = -1;
+      this.active.startedAt = now;
+      this.active.durationMs = frameCount * frameMs;
+      this.active.resumeId = resumeId;
+      this.active.pendingReverse = false;
+      return;
+    }
+    // 正向未播完：排队，等 tick 推进到末帧（保持末帧）后转倒放
+    this.active.pendingReverse = true;
+    this.active.resumeId = resumeId;
+  }
+
+  private completedPositive(active: ActiveState, now: number, frameCount: number, frameMs: number): boolean {
+    return active.frameIndex >= frameCount - 1 && now - active.startedAt >= frameCount * frameMs;
+  }
+
+  /** 倒序播放结束后的恢复目标：循环状态（sad/sleep/notify/walk）按常驻无限循环恢复，其余回到待机轮播。 */
+  private resumeAfterFeed(resumeId: string | undefined, now: number): ActiveState {
+    const state = resumeId ? this.states.get(resumeId) : undefined;
+    if (state && state.loop) return this.makeActive(state, now, 0);
+    return this.makeActive(this.pick(), now);
+  }
+
   tick(now: number): StateFrame {
     let stateChanged = false;
     let elapsed = Math.max(0, now - this.active.startedAt);
+
+    // 倒序播放完成：回到恢复目标（feed 前被接管的状态或待机轮播）
+    if (this.active.direction === -1 && this.active.durationMs > 0 && elapsed >= this.active.durationMs) {
+      const resumeId = this.active.resumeId;
+      this.active = this.resumeAfterFeed(resumeId, now);
+      elapsed = 0;
+      stateChanged = true;
+    }
+
     if (this.active.durationMs > 0 && elapsed >= this.active.durationMs) {
       const completedId = this.active.state.id;
       this.completedAt.set(completedId, now);
@@ -165,10 +250,23 @@ export class PetStateMachine {
 
     const { state } = this.active;
     const frameCount = Math.max(1, state.frames.length);
-    const rawIndex = Math.floor(elapsed / Math.max(1, state.frameDurationMs));
-    const frameIndex = state.loop
-      ? rawIndex % frameCount
-      : Math.min(frameCount - 1, rawIndex);
+    const frameMs = Math.max(1, state.frameDurationMs);
+    const rawIndex = Math.floor(elapsed / frameMs);
+    let frameIndex: number;
+    if (this.active.direction === -1) {
+      frameIndex = Math.max(0, frameCount - 1 - rawIndex);
+    } else {
+      frameIndex = state.loop ? rawIndex % frameCount : Math.min(frameCount - 1, rawIndex);
+      // 正向播放中收到倒放请求：到达末帧（保持末帧）即转入倒放
+      if (this.active.pendingReverse && this.completedPositive(this.active, now, frameCount, frameMs)) {
+        this.active.direction = -1;
+        this.active.startedAt = now;
+        this.active.durationMs = frameCount * frameMs;
+        this.active.pendingReverse = false;
+        elapsed = 0;
+        stateChanged = true;
+      }
+    }
     const frameChanged = frameIndex !== this.active.frameIndex;
     this.active.frameIndex = frameIndex;
 
