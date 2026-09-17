@@ -2,7 +2,7 @@ import { app, ipcMain, Menu, screen } from 'electron';
 import { copyFile, lstat, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { CacheSweepSummary, DashboardView, Reminder } from '../shared/contracts';
+import type { CacheSweepSummary, DashboardView, Reminder, WalkConfig } from '../shared/contracts';
 import {
   assertInteractionId,
   assertReminderInput,
@@ -18,13 +18,14 @@ import { draggedBounds, snapBounds } from './drag';
 import { checkMoodState } from './mood';
 import { publicStats, broadcastStats, normalizeStatsDay, persistStats } from './stats';
 import { initialQuotes, notifyQuotesChanged, persistQuotes } from './quotes';
-import { randomWalkStep } from './random-walk';
+import { randomWalkStep, startRandomWalk, stopRandomWalk } from './random-walk';
 import { ackPendingReminder, broadcastRemindersUpdated, clearAllReminders, clearReminderTimer, persistReminders, scheduleReminder } from './reminders';
 import { assertSender, commitRuntimeReady, fatalExit, sweepCaches } from './runtime';
 import { reportTotalBytes } from './cache-maintenance';
 import { saveSettings } from './settings';
 import { resetActivityTimer } from './sleep';
 import { buildPetMenu } from './tray';
+import { resetWalkOverride, saveWalkOverride, walkTuningSnapshot } from './walk-tuning';
 import { filePocket, openPocket, petCharacterWidth, sendActivity, showDashboard, stateForTrigger } from './windows';
 import { uniqueDestination } from './persistence';
 
@@ -152,6 +153,8 @@ export function registerIpc(ctx: MainContext): void {
     broadcastRemindersUpdated(ctx);
     // 设置 → 默认值
     await saveSettings(ctx, { ...ctx.defaultSettings });
+    // 随机行走调参 → 回到 spec 默认（清掉 userData/tuning.json 的覆盖）
+    await resetWalkOverride(ctx);
     // 重置为未配置状态后 applyAutoStart 不再管注册表，这里显式清除系统自启动项，避免残留仍自启
     app.setLoginItemSettings({ openAtLogin: false, openAsHidden: true });
     return undefined;
@@ -212,8 +215,33 @@ export function registerIpc(ctx: MainContext): void {
     checkMoodState(ctx);
     return publicStats(ctx);
   });
-  ipcMain.handle('interactions:list', (event) => { assertSender(ctx, event, ['pet', 'dashboard']); return spec.experience.interactions; });
-  ipcMain.handle('interactions:stats', (event) => { assertSender(ctx, event, ['pet', 'dashboard']); normalizeStatsDay(ctx); return publicStats(ctx); });
+  // 随机行走调参（开发者模式）：默认值在 spec.motion.walk，覆盖整体写 userData/tuning.json
+  ipcMain.handle('walk:tuning', (event) => {
+    assertSender(ctx, event, ['dashboard']);
+    return walkTuningSnapshot(ctx);
+  });
+  ipcMain.handle('walk:update', async (event, config: unknown) => {
+    assertSender(ctx, event, ['dashboard']);
+    if (!ctx.settings.devMode) throw new Error('Walk tuning requires developer mode');
+    const snapshot = await saveWalkOverride(ctx, config as WalkConfig);
+    // 新间隔要立刻生效：重建调度（正在移动的那一趟不打断）
+    if (ctx.settings.randomWalk) {
+      stopRandomWalk(ctx);
+      startRandomWalk(ctx);
+    }
+    return snapshot;
+  });
+  ipcMain.handle('walk:reset', async (event) => {
+    assertSender(ctx, event, ['dashboard']);
+    if (!ctx.settings.devMode) throw new Error('Walk tuning requires developer mode');
+    const snapshot = await resetWalkOverride(ctx);
+    if (ctx.settings.randomWalk) {
+      stopRandomWalk(ctx);
+      startRandomWalk(ctx);
+    }
+    return snapshot;
+  });
+  ipcMain.handle('interactions:list', (event) => { assertSender(ctx, event, ['pet', 'dashboard']); return spec.experience.interactions; });  ipcMain.handle('interactions:stats', (event) => { assertSender(ctx, event, ['pet', 'dashboard']); normalizeStatsDay(ctx); return publicStats(ctx); });
   ipcMain.handle('interactions:trigger', async (event, id: unknown) => {
     assertSender(ctx, event, ['pet', 'dashboard']);
     assertInteractionId(id);

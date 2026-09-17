@@ -662,6 +662,41 @@ html, body {
   margin-bottom: 8px;
 }
 
+/* 随机行走调参：挡位 × 5 个数值一行的紧凑网格（开发者模式） */
+.walk-grid {
+  display: grid;
+  grid-template-columns: 68px repeat(5, minmax(0, 1fr));
+  gap: 6px 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.walk-grid .walk-head {
+  font-size: 11px;
+  color: #b08657;
+}
+
+.walk-grid .walk-level {
+  font-size: 12px;
+  color: var(--text, #4a3225);
+  white-space: nowrap;
+}
+
+.walk-grid input {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid #ffd8ad;
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--text, #4a3225);
+  background: #fffdf9;
+}
+
+.walk-grid input:focus {
+  outline: none;
+  border-color: #f5a623;
+}
+
 .reminder-form {
   display: flex;
   flex-wrap: wrap;

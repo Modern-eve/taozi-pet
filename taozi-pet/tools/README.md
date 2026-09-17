@@ -51,9 +51,9 @@ npm run check          # 素材变更 / 出完整 QA 报告
 | spec | default-pet-size | 默认可见主体 120–175px |
 | spec | minimum-pet-size | 最小可见主体 ≤150px |
 | spec+asset | content-width-fit | 素材人物横向占比 ≤ `petSizing.contentWidthRatio` 且水平居中（窗口据此收窄） |
-| spec+src | pet-window-width | 窗口宽度 = max(人物可见宽, 气泡区最小宽) |
-| spec | window-width-capped | 0.5–1.5 各档位：窗口容得下人物、且不宽于旧口径 |
+| spec+src | window-width-capped | 窗口宽度以人物可见宽度为下限（各档位都裁不到人物） |
 | window | sprite-not-compressed | 精灵与帧容器 `flex:none`，窗口窄于精灵时不被压缩变形 |
+| src | ipc-channels-declared | preload 调用的每个 IPC 通道名在主进程都有声明（防通道名漂移） |
 | src | png-tray-runtime | 托盘加载打包 PNG、拒绝空图 |
 | asset | tray-icon-file | 托盘图标 32×32、可见率 ≥8% |
 | src | menu-emoji | 系统与互动菜单使用语义 emoji |
@@ -64,9 +64,9 @@ npm run check          # 素材变更 / 出完整 QA 报告
 
 ⚠ = warning，仅提示不阻断。
 
-> 涉及主进程的检查（`png-tray-runtime`、`menu-emoji`、`pet-window-width`）按 `src/main.ts` + `src/main/*.ts` 的合并文本判定，不绑定具体模块划分。
+> 涉及主进程的检查（`png-tray-runtime`、`menu-emoji`、`window-width-capped`）按 `src/main.ts` + `src/main/*.ts` 的合并文本判定，不绑定具体模块划分。
 
-### qa-experience.mjs（16 项，纯体验语义）
+### qa-experience.mjs（18 项，纯体验语义）
 
 > 结构类（trigger 唯一、每状态有 trigger、素材未用/缺失等）**不在此重复维护**，已收敛到 validate-spec / validate-asset-links。本文件只负责运行时体验正确性，避免同规则多处漂移。
 
@@ -80,6 +80,8 @@ npm run check          # 素材变更 / 出完整 QA 报告
 | motion | interaction-frames-min | 互动状态去重帧数 ≥6 |
 | motion | motion-procedural | breathing / squashStretch 至少启用一项 |
 | motion | standby-gap-monotonic ⚠ | 待机间歇呼吸次数随挡位不反向变多（0 木头人最长） |
+| motion | walk-levels-shape | `motion.walk` 为 5 档、0 档木头人，各档间隔/位移区间不倒置且位移不超过游走半径 |
+| motion | walk-levels-monotonic ⚠ | 挡位越高：间隔不变长、半径与单次位移不变小 |
 | quotes | quote-sync | 状态语录与互动反馈语录均非空 |
 | quotes | quote-group-thin ⚠ | 语录组条数 ≥3，避免反馈单调 |
 | quotes | quotes-duplicate-in-group ⚠ | 同一语录组/互动反馈内无重复文本 |

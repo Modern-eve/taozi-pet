@@ -18,12 +18,16 @@ const feather = Number(spec.assetPipeline?.edgeFeather);
 const safeMargin = Number(spec.assetPipeline?.safeMargin);
 const targetOccupancy = Number(spec.assetPipeline?.targetOccupancy);
 const occupancyTolerance = Number(spec.assetPipeline?.occupancyTolerance);
+// 交付帧的调色板颜色数：0 关闭量化（写 PNG-32）；--palette-colours 可临时覆盖，便于 A/B 对比编码
+const paletteColours = Number(args['palette-colours'] ?? spec.assetPipeline?.paletteColours);
 const generationBackground = spec.assetPipeline?.generationBackground;
 // 单帧所需缩放校正的上限。全部状态共用同一阈值，取自 pet-spec.json assetPipeline.processMaxCorrection。
 const maximumCorrection = Number(spec.assetPipeline?.processMaxCorrection);
 if (spec.assetPipeline?.backgroundMode !== 'adaptive-flood') throw new Error('pet-spec assetPipeline.backgroundMode must be adaptive-flood');
 if (!['transparent-grid', 'solid-chroma'].includes(generationBackground)) throw new Error('pet-spec generationBackground must be transparent-grid or solid-chroma');
 if (![threshold, feather, safeMargin, targetOccupancy, occupancyTolerance, maximumCorrection].every(Number.isFinite)) throw new Error('pet-spec assetPipeline values must be numbers');
+// 调色板颜色数：0 = 关闭；>0 时须在 PNG 索引色上限 256 以内
+if (!Number.isInteger(paletteColours) || paletteColours < 0 || paletteColours > 256) throw new Error('pet-spec paletteColours must be an integer in 0..256 (0 disables quantization)');
 
 const selectedStateId = args.state;
 const states = selectedStateId ? spec.states.filter((state) => state.id === selectedStateId) : spec.states;
@@ -297,8 +301,13 @@ if (!failures.length) {
         if (left < 0 || top < 0 || left + targetWidth > 512 || top + targetHeight > 512) throw new Error(`${asset.name}: normalized frame exceeds canvas; regenerate with consistent framing`);
         const destination = path.join(outputDir, asset.name);
         await mkdir(path.dirname(destination), { recursive: true });
+        // 交付编码：paletteColours > 0 时写索引色 PNG（256 色 + tRNS 透明度），
+        // 512×512 的卡通帧在 1:1 与显示尺寸下肉眼看不出差别，体积约为 PNG-32 的 3 成。
+        const pngOptions = paletteColours > 0
+          ? { palette: true, colours: paletteColours, effort: 10, compressionLevel: 9 }
+          : { compressionLevel: 9, adaptiveFiltering: true };
         await sharp({ create: { width: 512, height: 512, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
-          .composite([{ input: cropped, left, top }]).png({ compressionLevel: 9, adaptiveFiltering: true }).toFile(destination);
+          .composite([{ input: cropped, left, top }]).png(pngOptions).toFile(destination);
         reports.push({
           ok: true,
           name: asset.name,
@@ -315,6 +324,7 @@ if (!failures.length) {
           referenceVisibleSize: [referenceWidth, referenceHeight],
           groupSourceMaximum: [groupWidth, groupHeight],
           outputBounds: [left, top, left + targetWidth - 1, top + targetHeight - 1],
+          paletteColours,
         });
       } catch (error) {
         failures.push({ ok: false, name: asset.name, ...diagnosticFrom(error) });

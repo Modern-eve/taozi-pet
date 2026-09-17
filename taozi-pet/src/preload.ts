@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
-import type { CacheSweepSummary, DashboardView, InteractionResult, InteractionSpec, PetAPI, PetStats, Reminder, RuntimeFailureReport, RuntimeReadyReport, Settings, StateActivity, TypingStatus } from './shared/contracts';
+import type { CacheSweepSummary, DashboardView, InteractionResult, InteractionSpec, PetAPI, PetStats, Reminder, RuntimeFailureReport, RuntimeReadyReport, Settings, StateActivity, TypingStatus, WalkTuningSnapshot } from './shared/contracts';
 
 function subscribe<T>(channel: string, listener: (value: T) => void): () => void {
   const wrapped = (_event: Electron.IpcRendererEvent, value: T) => listener(value);
@@ -25,6 +25,11 @@ const api: PetAPI = {
   data: {
     reset: () => ipcRenderer.invoke('data:reset') as Promise<void>,
     clearCache: () => ipcRenderer.invoke('data:clear-cache') as Promise<CacheSweepSummary | undefined>,
+  },
+  walk: {
+    get: () => ipcRenderer.invoke('walk:tuning') as Promise<WalkTuningSnapshot>,
+    update: (config) => ipcRenderer.invoke('walk:update', config) as Promise<WalkTuningSnapshot>,
+    reset: () => ipcRenderer.invoke('walk:reset') as Promise<WalkTuningSnapshot>,
   },
   dev: {
     triggerSleep: () => ipcRenderer.invoke('dev:trigger-sleep') as Promise<void>,

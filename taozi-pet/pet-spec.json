@@ -35,6 +35,7 @@
     "safeMargin": 24,
     "targetOccupancy": 0.78,
     "occupancyTolerance": 0.025,
+    "paletteColours": 256,
     "sourceCanvas": 1280,
     "sourceMargin": 48,
     "sourceOccupancy": 0.62,
@@ -225,6 +226,17 @@
     ]
   },
   "motion": {
+    "walk": {
+      "speed": 2,
+      "frameMs": 16,
+      "levels": [
+        null,
+        { "range": 220, "intervalMin": 14000, "intervalMax": 30000, "distMin": 60, "distMax": 140 },
+        { "range": 320, "intervalMin": 10000, "intervalMax": 20000, "distMin": 120, "distMax": 260 },
+        { "range": 400, "intervalMin": 6000, "intervalMax": 14000, "distMin": 200, "distMax": 320 },
+        { "range": 480, "intervalMin": 4000, "intervalMax": 12000, "distMin": 300, "distMax": 400 }
+      ]
+    },
     "breathing": {
       "enabled": true,
       "periodMs": 2600,
@@ -457,7 +469,7 @@
         "peek"
       ],
       "interrupt": "restart",
-      "cooldownMs": 300,
+      "cooldownMs": 0,
       "direction": "neutral",
       "anchor": {
         "x": 0.5,
@@ -490,7 +502,7 @@
         "*"
       ],
       "interrupt": "restart",
-      "cooldownMs": 800,
+      "cooldownMs": 0,
       "direction": "neutral",
       "anchor": {
         "x": 0.5,
@@ -523,7 +535,7 @@
         "walk"
       ],
       "interrupt": "resume",
-      "cooldownMs": 1800,
+      "cooldownMs": 0,
       "direction": "neutral",
       "anchor": {
         "x": 0.5,
@@ -568,7 +580,7 @@
         "*"
       ],
       "interrupt": "restart",
-      "cooldownMs": 250,
+      "cooldownMs": 0,
       "direction": "neutral",
       "anchor": {
         "x": 0.5,
@@ -613,7 +625,7 @@
         "*"
       ],
       "interrupt": "restart",
-      "cooldownMs": 300,
+      "cooldownMs": 0,
       "direction": "neutral",
       "anchor": {
         "x": 0.5,
@@ -658,7 +670,7 @@
         "*"
       ],
       "interrupt": "restart",
-      "cooldownMs": 300,
+      "cooldownMs": 0,
       "direction": "neutral",
       "anchor": {
         "x": 0.5,
@@ -703,7 +715,7 @@
         "*"
       ],
       "interrupt": "restart",
-      "cooldownMs": 300,
+      "cooldownMs": 0,
       "direction": "neutral",
       "anchor": {
         "x": 0.5,
@@ -734,7 +746,7 @@
       "loop": true,
       "canInterrupt": [],
       "interrupt": "resume",
-      "cooldownMs": 500,
+      "cooldownMs": 0,
       "direction": "left",
       "anchor": {
         "x": 0.5,
@@ -761,7 +773,7 @@
         "sleep-11.png",
         "sleep-12.png"
       ],
-      "frameDurationMs": 250,
+      "frameDurationMs": 333,
       "loop": true,
       "canInterrupt": [
         "walk",
@@ -769,7 +781,7 @@
         "sad"
       ],
       "interrupt": "resume",
-      "cooldownMs": 1000,
+      "cooldownMs": 0,
       "direction": "neutral",
       "anchor": {
         "x": 0.5,
@@ -796,7 +808,7 @@
         "sad-11.png",
         "sad-12.png"
       ],
-      "frameDurationMs": 250,
+      "frameDurationMs": 333,
       "loop": true,
       "canInterrupt": [
         "walk",
@@ -804,7 +816,7 @@
         "happy"
       ],
       "interrupt": "resume",
-      "cooldownMs": 1000,
+      "cooldownMs": 0,
       "direction": "neutral",
       "anchor": {
         "x": 0.5,

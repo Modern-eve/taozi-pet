@@ -1,5 +1,5 @@
 import type { BrowserWindow, Tray } from 'electron';
-import type { PetSpec, Reminder, RuntimeReadyReport, Settings, TypingStatus } from '../shared/contracts';
+import type { PetSpec, Reminder, RuntimeReadyReport, Settings, TypingStatus, WalkConfig } from '../shared/contracts';
 import { STANDBY_SIGNAL } from '../shared/contracts';
 import type { CacheMaintenanceReport } from './cache-maintenance';
 import { runCacheMaintenance } from './cache-maintenance';
@@ -40,6 +40,10 @@ export interface MainContext {
   tray?: Tray;
   logger?: JsonLogger;
   settings: Settings;
+  /** 当前生效的随机行走配置：默认来自 spec.motion.walk，被 userData/tuning.json 覆盖后取覆盖值 */
+  walk: WalkConfig;
+  /** 随机行走是否处于运行时覆盖状态（面板据此显示"已覆盖/恢复默认"） */
+  walkOverridden: boolean;
   reminders: Reminder[];
   quotes: Record<string, string[]>;
   stats: PersistedStats;
@@ -101,6 +105,8 @@ export function createMainContext(options: {
     defaultSettings: options.defaultSettings,
     defaultStats: options.defaultStats,
     settings: options.defaultSettings,
+    walk: spec.motion.walk,
+    walkOverridden: false,
     reminders: [],
     quotes: {},
     stats: { ...options.defaultStats },

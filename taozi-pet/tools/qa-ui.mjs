@@ -6,6 +6,7 @@ import { makeCheck, blockDecl, hasProps, runChecks, loadSpec, PROJECT_ROOT } fro
 const spec = await loadSpec();
 const files = {
   main: await readFile(path.join(PROJECT_ROOT, 'src', 'main.ts'), 'utf8'),
+  preload: await readFile(path.join(PROJECT_ROOT, 'src', 'preload.ts'), 'utf8'),
   contracts: await readFile(path.join(PROJECT_ROOT, 'src', 'shared', 'contracts.ts'), 'utf8'),
   dashboardCss: await readFile(path.join(PROJECT_ROOT, 'src', 'renderer', 'dashboard', 'index.css'), 'utf8'),
   dashboardHtml: await readFile(path.join(PROJECT_ROOT, 'src', 'renderer', 'dashboard', 'index.html'), 'utf8'),
@@ -178,32 +179,24 @@ checks.push(makeCheck({
 }));
 
 checks.push(makeCheck({
-  id: 'pet-window-width',
-  gate: 'spec+src',
-  describe: '窗口宽度按人物可见宽度派生，不随方形精灵一起变宽',
-  run: () => {
-    const ok = mainProcess.includes('petCharacterWidth(ctx)') && mainProcess.includes('PET_BUBBLE_ZONE_WIDTH');
-    return { passed: ok, detail: ok ? '窗口宽度 = max(人物可见宽, 气泡区最小宽)' : '未按人物可见宽度派生窗口宽度' };
-  },
-}));
-
-checks.push(makeCheck({
   id: 'window-width-capped',
-  gate: 'spec',
-  describe: '各缩放档位：窗口宽度足以容下人物，且不超过「精灵边长与气泡区最小宽度取大」',
+  gate: 'spec+src',
+  describe: '窗口宽度以人物可见宽度为下限，各档位都裁不到人物',
   run: () => {
     const base = Number(spec.experience?.petSizing?.baseWindowPx);
     const ratio = Number(spec.experience?.petSizing?.contentWidthRatio);
     const bubbleMin = Number(mainProcess.match(/PET_BUBBLE_ZONE_WIDTH\s*=\s*(\d+)/)?.[1] ?? 240);
-    const problems = [];
-    for (let scale = 0.5; scale <= 1.5001; scale += 0.1) {
+    // 判据落在实现上：窗口宽度必须由「人物可见宽度」与气泡区最小宽度取大得到，少掉前者就会裁人
+    const ok = mainProcess.includes('Math.max(petCharacterWidth(ctx), PET_BUBBLE_ZONE_WIDTH)');
+    const samples = [0.5, 1, 1.5].map((scale) => {
       const size = Math.round(base * scale);
       const content = Math.round(size * ratio);
-      const width = Math.max(content, bubbleMin);
-      if (width < content) problems.push(`scale=${scale.toFixed(1)} 窗口裁到人物`);
-      if (width > Math.max(size, bubbleMin) + 1) problems.push(`scale=${scale.toFixed(1)} 窗口宽于旧口径`);
-    }
-    return { passed: problems.length === 0, detail: problems.length ? problems.join('; ') : '0.5–1.5 档位全部满足（人物不裁、死区不增）' };
+      return `${scale}× (${Math.max(content, bubbleMin)}≥${content})`;
+    });
+    return {
+      passed: ok,
+      detail: ok ? `人物可见宽为窗口下限：${samples.join(' ')}` : '窗口宽度未把人物可见宽度作为下限',
+    };
   },
 }));
 
@@ -215,6 +208,23 @@ checks.push(makeCheck({
     const hasFlexNone = (selector) => new RegExp(`${selector.replace(/([#-])/g, '\\$1')}\\s*\\{[^}]*flex:\\s*none`).test(files.petCss);
     const ok = hasFlexNone('#pet-sprite-frame') && hasFlexNone('#pet-sprite');
     return { passed: ok, detail: ok ? '精灵与帧容器均 flex:none' : '缺少 flex:none，精灵可能被压缩变形' };
+  },
+}));
+
+// ---- 主进程契约 ----
+// 通道名是 preload 与主进程之间的字符串弱链：写错任一侧只有运行到该功能才暴露
+checks.push(makeCheck({
+  id: 'ipc-channels-declared',
+  gate: 'src',
+  describe: '预加载调用的每个 IPC 通道在主进程都有声明',
+  run: () => {
+    const used = [...files.preload.matchAll(/ipcRenderer\.(?:invoke|send)\('([^']+)'/g)].map((match) => match[1]);
+    const unique = [...new Set(used)];
+    const missing = unique.filter((channel) => !mainProcess.includes(`'${channel}'`));
+    return {
+      passed: missing.length === 0,
+      detail: missing.length ? `主进程未声明: ${missing.join(', ')}` : `${unique.length} 个通道均在主进程声明`,
+    };
   },
 }));
 

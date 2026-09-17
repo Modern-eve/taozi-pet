@@ -4,21 +4,6 @@ import type { MainContext } from './context';
 import { isDraggingActive } from './sleep';
 import { movePetWindow, sendActivity } from './windows';
 
-/** 每帧移动像素（匀速） */
-export const RANDOM_WALK_SPEED = 2;
-/** 约 60fps */
-export const RANDOM_WALK_FRAME_MS = 16;
-
-// 随机行走挡位配置（索引=挡位）：0 木头人(关闭) / 1 散步 / 2 正常 / 3 活泼 / 4 多动症
-// range=移动范围，interval=两次游走间隔，distance=单次位移；挡位越高走得越频、越远
-export const RANDOM_WALK_LEVELS: Array<{ range: number; intervalMin: number; intervalMax: number; distMin: number; distMax: number } | null> = [
-  null,
-  { range: 220, intervalMin: 14000, intervalMax: 30000, distMin: 60, distMax: 140 }, // 1 散步
-  { range: 320, intervalMin: 10000, intervalMax: 20000, distMin: 120, distMax: 260 }, // 2 正常
-  { range: 400, intervalMin: 6000, intervalMax: 14000, distMin: 200, distMax: 320 },  // 3 活泼
-  { range: 480, intervalMin: 4000, intervalMax: 12000, distMin: 300, distMax: 400 },  // 4 多动症
-];
-
 export function randomWalkStep(ctx: MainContext): void {
   if (!ctx.petWindow || ctx.petWindow.isDestroyed()) return;
   if (isDraggingActive(ctx)) return;
@@ -26,7 +11,7 @@ export function randomWalkStep(ctx: MainContext): void {
   // 仅在待机时随机行走；sleep/sad 等常驻状态时既不移动也不发 walk 语录，
   // 更避免移动结束的回待机信号把常驻状态打断
   if (!isIdlePresentation(ctx.spec.idleRotation, ctx.currentStateId)) return;
-  const cfg = RANDOM_WALK_LEVELS[ctx.settings.randomWalk];
+  const cfg = ctx.walk.levels[ctx.settings.randomWalk];
   if (!cfg) return; // 0 木头人（关闭）
   if (!ctx.randomWalkCenter) {
     const b = ctx.petWindow.getBounds();
@@ -69,7 +54,7 @@ export function randomWalkStep(ctx: MainContext): void {
   const startY = bounds.y;
   const totalDx = targetX - startX;
   const totalDy = targetY - startY;
-  const totalSteps = Math.max(1, Math.ceil(Math.max(Math.abs(totalDx), Math.abs(totalDy)) / RANDOM_WALK_SPEED));
+  const totalSteps = Math.max(1, Math.ceil(Math.max(Math.abs(totalDx), Math.abs(totalDy)) / ctx.walk.speed));
   let step = 0;
 
   // 触发 walk 动画：向右或向下移动时左右镜像
@@ -100,12 +85,12 @@ export function randomWalkStep(ctx: MainContext): void {
     const curX = Math.round(startX + (totalDx * step / totalSteps));
     const curY = Math.round(startY + (totalDy * step / totalSteps));
     movePetWindow(ctx, curX, curY);
-  }, RANDOM_WALK_FRAME_MS);
+  }, ctx.walk.frameMs);
 }
 
 export function scheduleNextRandomWalk(ctx: MainContext): void {
   if (ctx.randomWalkTimer) clearTimeout(ctx.randomWalkTimer);
-  const cfg = RANDOM_WALK_LEVELS[ctx.settings.randomWalk];
+  const cfg = ctx.walk.levels[ctx.settings.randomWalk];
   if (!cfg) return; // 0 木头人（关闭）
   const delay = cfg.intervalMin + Math.random() * (cfg.intervalMax - cfg.intervalMin);
   ctx.randomWalkTimer = setTimeout(() => {
@@ -124,7 +109,7 @@ export function startRandomWalk(ctx: MainContext): void {
     clearInterval(ctx.randomWalkAnimTimer);
     ctx.randomWalkAnimTimer = undefined;
   }
-  if (!RANDOM_WALK_LEVELS[ctx.settings.randomWalk]) return;
+  if (!ctx.walk.levels[ctx.settings.randomWalk]) return;
   scheduleNextRandomWalk(ctx);
 }
 

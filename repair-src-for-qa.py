@@ -8,6 +8,9 @@ repair-src-for-qa.py — 按 qa/assets-report.json 自动修复失败帧
   - SUBJECT_TOUCHES_BORDER    : 带 MARGIN 重新居中
 报告说坏修什么；无失败则无改动。
 
+写出编码与 process-assets 保持一致：pet-spec.json 的 assetPipeline.paletteColours > 0 时
+写索引色 PNG（tRNS 透明度），否则写 PNG-32——否则修复帧会与其余帧编码不一致。
+
 ⚠️ 修复目标是**产物层** taozi-pet/src/assets/pet/，不是上游 incoming-assets/。
 全量 `node tools/process-assets.mjs` 会重写产物层，故本脚本须在 process-assets
 之后、qa-assets 之前运行。
@@ -26,9 +29,23 @@ from PIL import Image
 ROOT = os.path.dirname(os.path.abspath(__file__))
 ASSET = os.path.join(ROOT, "taozi-pet", "src", "assets", "pet")
 QA_DIR = os.path.join(ROOT, "taozi-pet", "qa")
+SPEC = os.path.join(ROOT, "taozi-pet", "pet-spec.json")
 MAX_DIM = 409          # OCCUPANCY_TOO_LARGE 阈值 412 之下的安全值
 MARGIN = 8             # SUBJECT_TOUCHES_BORDER 重新居中的留白
 GROUND_ROWS = 2        # GROUND_RESIDUE 清除的最底行数
+
+
+def palette_colours():
+    """交付帧的调色板颜色数（0 = PNG-32），取自 pet-spec.json。"""
+    try:
+        spec = json.load(open(SPEC, encoding="utf-8"))
+        value = int(spec.get("assetPipeline", {}).get("paletteColours", 0))
+    except (OSError, ValueError, TypeError):
+        return 0
+    return value if 0 <= value <= 256 else 0
+
+
+PALETTE_COLOURS = palette_colours()
 
 
 def load_report(path):
@@ -44,7 +61,11 @@ def bbox(arr):
 
 
 def save(arr, path):
-    Image.fromarray(arr).save(path)
+    image = Image.fromarray(arr).convert("RGBA")
+    if PALETTE_COLOURS > 0:
+        image.quantize(colors=PALETTE_COLOURS, method=Image.FASTOCTREE).save(path, optimize=True)
+    else:
+        image.save(path)
 
 
 def fix_scale_drift(records, assets_dir):

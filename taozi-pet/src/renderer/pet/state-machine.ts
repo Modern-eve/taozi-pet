@@ -113,6 +113,14 @@ export class PetStateMachine {
     };
   }
 
+  /** 冷却统一规则：显式 cooldownMs（spec 一般为 0）优先；缺省时 happy / peek / 互动动作派生为自身动画周期一半，其余动画无冷却。 */
+  private cooldownMsFor(state: PetState): number {
+    if (Number.isFinite(state.cooldownMs) && state.cooldownMs > 0) return state.cooldownMs;
+    const halfCycle = state.triggers.some((trigger) =>
+      trigger.startsWith('interaction:') || trigger === 'pointer:tap' || trigger === 'window:edge-snap');
+    return halfCycle ? Math.max(0, Math.round((state.frames.length * state.frameDurationMs) / 2)) : 0;
+  }
+
   start(stateId: string, now: number, durationMs?: number): boolean {
     const next = this.states.get(stateId);
     if (!next) return false;
@@ -126,8 +134,9 @@ export class PetStateMachine {
       // 待机（轮播动作或间歇）是抢占基底：任何状态都能打断它
       if (!this.isStandby() && !stateCanInterrupt(next, activeId)) return false;
     }
+    const cooldownMs = this.cooldownMsFor(next);
     const lastCompleted = this.completedAt.get(next.id);
-    if (lastCompleted !== undefined && now - lastCompleted < next.cooldownMs) return false;
+    if (lastCompleted !== undefined && now - lastCompleted < cooldownMs) return false;
     this.active = this.makeActive(next, now, durationMs);
     return true;
   }

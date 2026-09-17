@@ -1,3 +1,26 @@
+/** 随机行走的单档参数：以起点为圆心 range 像素内游走，间隔 interval、单次位移 dist */
+export interface WalkLevel {
+  range: number;
+  intervalMin: number;
+  intervalMax: number;
+  distMin: number;
+  distMax: number;
+}
+
+/** 随机行走配置：levels 索引即挡位（0 = 木头人，不移动），speed 为每帧位移、frameMs 为帧间隔 */
+export interface WalkConfig {
+  speed: number;
+  frameMs: number;
+  levels: Array<WalkLevel | null>;
+}
+
+/** 随机行走调参快照：config 为当前生效值，defaults 为 spec 默认值，overridden 表示是否被运行时覆盖 */
+export interface WalkTuningSnapshot {
+  config: WalkConfig;
+  defaults: WalkConfig;
+  overridden: boolean;
+}
+
 export interface PetSpec {
   schemaVersion: number;
   app: {
@@ -23,6 +46,8 @@ export interface PetSpec {
     safeMargin: number;
     targetOccupancy: number;
     occupancyTolerance: number;
+    /** 交付帧的调色板颜色数（0 = 关闭量化，写 PNG-32） */
+    paletteColours: number;
     sourceCanvas: number;
     sourceMargin: number;
     sourceOccupancy: number;
@@ -53,6 +78,8 @@ export interface PetSpec {
     interactions: InteractionSpec[];
   };
   motion: {
+    /** 随机行走：spec 里存的是默认值，运行时可由 userData/tuning.json 整体覆盖（开发者模式可调） */
+    walk: WalkConfig;
     breathing: { enabled: boolean; periodMs: number; scaleX: number; scaleY: number };
     squashStretch: { enabled: boolean; durationMs: number; intensity: number };
   };
@@ -270,6 +297,12 @@ export interface PetAPI {
   settings: {
     get: () => Promise<Settings>;
     update: (patch: Partial<Settings>) => Promise<Settings>;
+  };
+  /** 随机行走调参：默认值来自 spec.motion.walk，整体覆盖存 userData/tuning.json */
+  walk: {
+    get: () => Promise<WalkTuningSnapshot>;
+    update: (config: WalkConfig) => Promise<WalkTuningSnapshot>;
+    reset: () => Promise<WalkTuningSnapshot>;
   };
   reminders: {
     list: () => Promise<Reminder[]>;

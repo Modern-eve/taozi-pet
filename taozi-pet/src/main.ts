@@ -16,6 +16,7 @@ import { restartTypingListener } from './main/settings';
 import { scheduleSleep } from './main/sleep';
 import { normalizeStatsDay, persistStats } from './main/stats';
 import { createTray, refreshTrayMenu } from './main/tray';
+import { loadWalkOverride } from './main/walk-tuning';
 import { applyAutoStart, createWindows } from './main/windows';
 
 const spec = specData as PetSpec;
@@ -103,6 +104,10 @@ async function initialize(): Promise<void> {
   ctx.quotes = await readValidatedJson(userFile('quotes.json'), initialQuotes(ctx), parseQuotes);
   ctx.stats = await readValidatedJson(userFile('pet-stats.json'), defaultStats, parsePersistedStats);
   ctx.statsReady = true;
+  // 随机行走：spec 存默认值，userData/tuning.json 若有覆盖则整体取覆盖值
+  const walkOverride = await loadWalkOverride();
+  ctx.walk = walkOverride ?? spec.motion.walk;
+  ctx.walkOverridden = walkOverride !== undefined;
   normalizeStatsDay(ctx);
   ctx.sessionStartedAt = Date.now();
   registerIpc(ctx);

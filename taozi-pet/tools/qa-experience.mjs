@@ -145,6 +145,48 @@ checks.push(makeCheck({
   },
 }));
 
+// ---- walk（随机行走挡位：spec 默认值的内部一致性） ----
+checks.push(makeCheck({
+  id: 'walk-levels-shape',
+  gate: 'motion',
+  describe: 'walk.levels 为 5 档、0 档木头人、各档区间/位移/半径自洽',
+  run: () => {
+    const walk = spec.motion?.walk ?? {};
+    const levels = walk.levels ?? [];
+    const problems = [];
+    if (levels.length !== 5) problems.push(`levels 长度 ${levels.length}≠5`);
+    if (levels[0] !== null) problems.push('0 档应为木头人（null）');
+    for (let index = 1; index < levels.length; index += 1) {
+      const level = levels[index] ?? {};
+      if (!(level.intervalMin <= level.intervalMax)) problems.push(`挡位 ${index} 间隔区间倒置`);
+      if (!(level.distMin <= level.distMax)) problems.push(`挡位 ${index} 位移区间倒置`);
+      if (!(level.distMax <= level.range)) problems.push(`挡位 ${index} 位移超过游走半径`);
+    }
+    return { passed: problems.length === 0, detail: problems.length ? problems.join('; ') : '5 档结构自洽' };
+  },
+}));
+
+// 挡位越高越勤、越远（用户可感知的排序语义，不应被调参调反）
+checks.push(makeCheck({
+  id: 'walk-levels-monotonic',
+  gate: 'motion',
+  severity: 'warning',
+  describe: '挡位越高：游走间隔不变长、半径与单次位移不变小',
+  run: () => {
+    const levels = spec.motion?.walk?.levels ?? [];
+    const bad = [];
+    for (let index = 2; index < levels.length; index += 1) {
+      const previous = levels[index - 1];
+      const current = levels[index];
+      if (!previous || !current) continue;
+      if (current.intervalMax > previous.intervalMax) bad.push(`挡位 ${index - 1}→${index} 间隔变长`);
+      if (current.distMax < previous.distMax) bad.push(`挡位 ${index - 1}→${index} 位移变小`);
+      if (current.range < previous.range) bad.push(`挡位 ${index - 1}→${index} 半径变小`);
+    }
+    return { passed: bad.length === 0, detail: bad.length ? bad.join('; ') : '挡位越高越勤越远' };
+  },
+}));
+
 // ---- quotes（语录一致性） ----
 checks.push(makeCheck({
   id: 'quote-sync',

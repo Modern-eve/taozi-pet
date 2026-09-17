@@ -50,7 +50,7 @@ Python 脚本在**仓库根目录**运行，Node 工具在 `taozi-pet/` 内运�
 | `preprocess-v7-gpu.py` | `assets-raw/` → `incoming-assets/` | GPU 抠白底（BiRefNet + CUDA），**默认全量**。输入 png/jpg/jpeg/webp/bmp（按内容解码，扩展名不可信），**输出统一为透明 png**；`--states` 可限定部分状态，`--cpu` 强制 CPU 推理，`--serial` 关闭三阶段流水线（默认开启）。`INFER_FP16=0` 可让推理回到 fp32；`USE_FALLBACK=0` 关闭兜底权重（约省一半推理耗时）。基础 alpha 由**主权重（ToonOut）与兜底权重（原版 BiRefNet）**共同决定，兜底只替换主权重挖出的**内部孔洞**——白色部件贴在白底上且缺轮廓线时，主权重会把整块判成背景，在画面内部挖出一个四周都是前景的洞，同一位置原版权重能连上。后处理见 `preprocess_common.py` |
 | `preprocess-v7-cpu.py` | `assets-raw/` → `incoming-assets/` | CPU 抠白底（洪水填充）。**应急兜底**，默认全量处理全部状态，`--states` 可限定部分状态；输入格式、输出规则与后处理口径均同 GPU 版（共用 `preprocess_common.py`） |
 | `assemble-incoming-assets.py` | `incoming-assets/` 原地归一化 | 全部状态按 `sourceOccupancy` 缩放 + 居中 + 底部对齐到 `sourceCanvas`，**同一套有界非等比规则**（不区分状态） |
-| `tools/process-assets.mjs` | `incoming-assets/` → `src/assets/pet/` | 渲染为最终 512×512 桌宠素材（去背景、羽化、按状态统一尺寸、按 anchor 落位）。先按状态内公共比例缩放，再按帧面积校正到状态中位面积（上限 `processMaxCorrection`），最后把最长边夹在 `targetOccupancy + occupancyTolerance` 之内 |
+| `tools/process-assets.mjs` | `incoming-assets/` → `src/assets/pet/` | 渲染为最终 512×512 桌宠素材（去背景、羽化、按状态统一尺寸、按 anchor 落位）。先按状态内公共比例缩放，再按帧面积校正到状态中位面积（上限 `processMaxCorrection`），最后把最长边夹在 `targetOccupancy + occupancyTolerance` 之内。交付编码由 `assetPipeline.paletteColours` 决定（>0 写索引色 PNG，0 写 PNG-32）；`--palette-colours <n>` 可临时覆盖，便于 A/B 对比编码 |
 | `tools/validate-spec.mjs` / `tools/qa-assets.mjs` | — | 校验 pet-spec 结构与素材像素质量，目标 `PASS (147/147)` |
 | `repair-src-for-qa.py` | `qa/assets-report.json` → `src/assets/pet/` | 按 QA 报告自动修复失败帧（`SCALE_DRIFT` / `OCCUPANCY_TOO_LARGE` / `GROUND_RESIDUE` / `SUBJECT_TOUCHES_BORDER`），`--dry-run` 可预览 |
 | `make-graphics.py` | `core-ip.jpg`(+`sad-ip.jpg`/`sleep-ip.jpg`) → 托盘图标 / 状态头像 | 复用 `preprocess-v7-gpu.py`（BiRefNet GPU）抠图，从母版头部生成 32×32 透明托盘图标 + 三张页面状态头像，**与动画帧流水线解耦**；后处理共用 `preprocess_common.py`，与动画帧同口径 |
@@ -62,7 +62,7 @@ Python 脚本在**仓库根目录**运行，Node 工具在 `taozi-pet/` 内运�
 - **`preprocess` 的输入与输出**：输入支持 png/jpg/jpeg/webp/bmp（PIL 按内容解码，扩展名仅用于筛选文件），输出统一为透明 png（需 alpha 通道）。同名不同格式（如 `walk-01.jpg` 与 `walk-01.png`）会输出成同一个 png、后者覆盖前者——上游 `rename-assets.py` 已做格式正名 + 编号收拢（冲突按最新覆盖），正常流程不会出现同名不同格式。
 - **抠图后处理的单一真源**：`preprocess_common.py` 是源/产物路径、帧名工具、保护色、连通域保留判据、内部孔洞合并、洪水填充与贴边宽度的唯一实现，`preprocess-v7-gpu.py`、`preprocess-v7-cpu.py`、`make-graphics.py` 三方共用，调整只改这一处。保护色种子限定在 `alpha > 16` 内，只对模型已判为前景的像素生效，不向轮廓外扩张。
 - **内部孔洞合并**（`combine_hole_decisions`）：主权重判出的、被前景完全包住的透明区改用兜底权重的取值。它只改画面内部的孔洞，外轮廓仍由主权重决定；发丝之间的真实透空在两个权重下都是背景、取值一致，不受影响。代价是每帧多跑一次推理（`USE_FALLBACK=0` 可关）。
-- **`repair-src-for-qa.py` 修的是产物层** `src/assets/pet/`，不修上游 `incoming-assets/`。全量 `process-assets` 会重写产物层，故本脚本须在 `process-assets` 之后、`qa-assets` 之前运行。
+- **`repair-src-for-qa.py` 修的是产物层** `src/assets/pet/`，不修上游 `incoming-assets/`。全量 `process-assets` 会重写产物层，故本脚本须在 `process-assets` 之后、`qa-assets` 之前运行；它按 `assetPipeline.paletteColours` 写出同款编码，修复帧不会与其余帧编码不一致。
 
 ### 标准命令
 
@@ -80,6 +80,7 @@ cd D:\Documents\Doubao\chats\2026-08-12\new-chat
 C:\PYTHON312\python.exe assemble-incoming-assets.py
 cd taozi-pet
 <node> tools/process-assets.mjs          # 全状态；也可 --state <id> 单状态
+#   --palette-colours 0 可临时关掉调色板量化（A/B 对比交付编码用）
 
 # 4) 校验
 <node> tools/validate-spec.mjs
@@ -132,7 +133,8 @@ python make-graphics.py --inner 28
 - **素材共 147 张 base 帧**：待机轮播四个动作的素材是 `look-01..07.png`（7 帧，承载 `app:start` / `ambient:idle` 触发语义）、`blink-01..06.png`（6 帧）、`belly-ok-01..06.png`（6 帧）、`kick-01..07.png`（7 帧），待机间歇状态 `standby-gap` 用 `core-ip.png`（1 帧，母版全身静态帧），其余 10 状态各 12 帧；无 `-r2`。待机轮播动作**单轮播放**（每帧只出现一次，frames 直接列一遍），其余非循环状态的「播两遍」通过 `pet-spec.json` 的 frames 重复引用 base 文件名实现（如 happy 24 项 = 12 帧 × 2）。
 - **待机间歇帧走同一条流水线**：`standby-gap` 是 `states` 里的普通单帧状态（帧名 `core-ip.png`，源图 `assets-raw/core-ip.jpg`），由 `idleRotation.gap.stateId` 引用。因此它与其他状态共用同一套抠图/归一化/质检规则，工具链无需特判：`preprocess-v7-gpu.py core-ip.jpg`（文件名直传，母版无帧号故不用 `--states`）→ `assemble-incoming-assets.py --states standby-gap` → `node tools/process-assets.mjs --state standby-gap`。间歇长度由 `idleRotation.gap.levels`（按随机行走挡位给**呼吸次数**区间）决定，时长 = 次数 × `motion.breathing.periodMs`，与帧的 `frameDurationMs` 无关。间歇的动感来自 `motion.breathing`（周期 `periodMs`），渲染层按状态挂载该动效，**只有 `standby-gap` 会呼吸**；因为时长恒为呼吸周期的整数倍，间歇结束时呼吸正好走完整数个周期，摘下时不会出现半相位回落。
 - **`pet-spec.json`（`taozi-pet/pet-spec.json`）是帧清单唯一权威**：新增帧时在 spec 的 frames 里加文件名即可。
-- **资产阈值唯一权威**：归一化/边距/占用率/漂移阈值等全部参数都收敛在 `pet-spec.json` 的 `assetPipeline`——`sourceCanvas` / `sourceMargin` / `sourceOccupancy` / `sourcePad` / `sourceScaleAxisCap`（py 上游预处理层），`processMaxCorrection`（process-assets 的面积校正上限），`targetOccupancy` / `occupancyTolerance` / `safeMargin`（输出层占用率及其上限容差），`qaMaxScaleRatio` / `qaMaxCenterDrift` / `qaMaxBottomDrift`（qa-assets）。所有脚本（py + mjs）读取同一份配置，改一处即全局生效，避免阈值漂移。
+- **资产阈值唯一权威**：归一化/边距/占用率/漂移阈值等全部参数都收敛在 `pet-spec.json` 的 `assetPipeline`——`sourceCanvas` / `sourceMargin` / `sourceOccupancy` / `sourcePad` / `sourceScaleAxisCap`（py 上游预处理层），`processMaxCorrection`（process-assets 的面积校正上限），`targetOccupancy` / `occupancyTolerance` / `safeMargin` / `paletteColours`（输出层占用率、上限容差与交付编码颜色数），`qaMaxScaleRatio` / `qaMaxCenterDrift` / `qaMaxBottomDrift`（qa-assets）。所有脚本（py + mjs）读取同一份配置，改一处即全局生效，避免阈值漂移。
+- **交付帧写索引色 PNG**：`paletteColours: 256` 时 process-assets 与 `repair-src-for-qa.py` 都用索引色 PNG（256 色 + `tRNS` 透明度）落盘，实测全量 **21.9 MiB → 6.1 MiB（-72%）**；1:1 与显示尺寸下肉眼无差别（可见像素通道差平均 5~6/255、p99 19、峰值 40，差异覆盖整个人物而非局部崩坏），且应用内精灵为降采样显示（512 → 最多 330px）会再平滑一层。设 `paletteColours: 0` 即回到 PNG-32；`qa-assets` 全量质检不区分编码（解码后一律按 RGBA 判定），故切换编码不会绕过任何像素判据。
 - **占用率上限双端一致**：`targetOccupancy` 是目标值，`targetOccupancy + occupancyTolerance` 是硬上限。qa-assets 用它判 `OCCUPANCY_TOO_LARGE`，process-assets 用同一个和夹住帧的最长边——面积校正需要把长宽比偏窄的帧按面积放大，最长边会因此超过目标值，夹到上限即止（占用是硬约束，帧间面积一致性让位于 `qaMaxScaleRatio`）。
 - **人物横向占比是窗口收窄的依据**：`experience.petSizing.contentWidthRatio`（当前 0.62）声明人物在帧内最多占多大横向比例，桌宠窗口宽度据此派生，两侧透明留白由窗口裁掉。`qa-ui` 的 `content-width-fit` 会用**全部 147 帧实测的包围盒并集**校验实际占比不超过该值且人物水平居中——换素材后若人物横向变宽，会在 QA 阶段直接报出来。
 - **GPU 抠图为默认全量**（`preprocess-v7-gpu.py` 不加 `--states` 即处理全部状态）。GPU 图若触发 QA 问题优先由下流解决：扩展 `assemble` 归一化覆盖范围（消除 `SCALE_DRIFT`），而非退回 `CPU` 版——CPU 版仅作应急兜底。

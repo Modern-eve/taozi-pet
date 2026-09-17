@@ -9,7 +9,7 @@ import path from 'node:path';
  *   2. 原子写入残留（`atomicWriteJson` 中断留下的 *.tmp）与校验隔离出的损坏文件（*.corrupt）
  *   3. 结构化日志（logs/app.jsonl）超限时按行截断
  *
- * 业务数据 settings.json / pet-stats.json / quotes.json / reminders.json /
+ * 业务数据 settings.json / pet-stats.json / quotes.json / reminders.json / tuning.json /
  * Local State / Preferences / Local Storage / Session Storage / Network 不在治理范围内。
  */
 

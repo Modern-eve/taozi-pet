@@ -1,5 +1,5 @@
 import spec from '../../../pet-spec.json';
-import type { PetSpec, PetStats, Settings } from '../../shared/contracts';
+import type { PetSpec, PetStats, Settings, WalkLevel, WalkTuningSnapshot } from '../../shared/contracts';
 import { STANDBY_SIGNAL } from '../../shared/contracts';
 import './index.css';
 
@@ -589,6 +589,81 @@ function showDevPopup(text: string, durationMs = 2000): void {
   }, durationMs);
 }
 
+// ---- 随机行走调参（开发者模式）----
+// 默认值来自 pet-spec.json 的 motion.walk；改这里写的是 userData/tuning.json 的运行时覆盖，
+// 不动机库里的 spec。「恢复默认」清掉覆盖。挡位表整体提交，避免半新半旧的中间状态。
+const WALK_LEVEL_NAMES = ['木头人', '散步', '正常', '活泼', '多动症'];
+const WALK_FIELDS: Array<{ key: keyof WalkLevel; head: string }> = [
+  { key: 'range', head: '范围' },
+  { key: 'intervalMin', head: '间隔≥' },
+  { key: 'intervalMax', head: '间隔≤' },
+  { key: 'distMin', head: '位移≥' },
+  { key: 'distMax', head: '位移≤' },
+];
+
+const walkGrid = document.getElementById('walk-tuning-container') as HTMLDivElement;
+const walkHint = document.getElementById('walk-tuning-hint') as HTMLDivElement;
+let walkSnapshot: WalkTuningSnapshot | null = null;
+
+function renderWalkTuning(): void {
+  if (!walkSnapshot) return;
+  walkHint.textContent = walkSnapshot.overridden
+    ? '已用运行时覆盖值（userData/tuning.json）；「恢复默认」或重置数据可清除'
+    : '当前使用 pet-spec.json 默认值';
+  const head = WALK_FIELDS.map((field) => `<div class="walk-head">${field.head}</div>`).join('');
+  const rows = [1, 2, 3, 4].map((level) => {
+    const values = walkSnapshot?.config.levels[level];
+    if (!values) return '';
+    const inputs = WALK_FIELDS
+      .map((field) => `<input type="number" data-level="${level}" data-key="${field.key}" value="${values[field.key]}">`)
+      .join('');
+    return `<div class="walk-level">${level} ${WALK_LEVEL_NAMES[level]}</div>${inputs}`;
+  }).join('');
+  walkGrid.innerHTML = `<div></div>${head}${rows}`;
+  for (const input of walkGrid.querySelectorAll('input')) {
+    input.addEventListener('change', () => void submitWalkTuning());
+  }
+}
+
+async function submitWalkTuning(): Promise<void> {
+  if (!walkSnapshot) return;
+  const levels = walkSnapshot.config.levels.map((level) => (level ? { ...level } : null));
+  for (const input of walkGrid.querySelectorAll('input')) {
+    const level = Number(input.dataset.level);
+    const key = input.dataset.key as keyof WalkLevel | undefined;
+    const value = Number(input.value);
+    const target = levels[level];
+    if (!target || !key || !Number.isFinite(value)) continue;
+    target[key] = value;
+  }
+  try {
+    walkSnapshot = (await window.petAPI?.walk.update({ ...walkSnapshot.config, levels })) ?? walkSnapshot;
+  } catch (error) {
+    // 主进程按范围与单调性校验，非法值在这里提示并回显原值
+    showDevPopup(error instanceof Error ? error.message.replace(/^Error invoking remote method '[^']*': (Error: )?/, '') : '参数不合法', 3500);
+  }
+  renderWalkTuning();
+}
+
+async function refreshWalkTuning(): Promise<void> {
+  try {
+    walkSnapshot = (await window.petAPI?.walk.get()) ?? null;
+  } catch {
+    walkSnapshot = null;
+  }
+  renderWalkTuning();
+}
+
+document.getElementById('walk-tuning-reset')?.addEventListener('click', async () => {
+  try {
+    walkSnapshot = (await window.petAPI?.walk.reset()) ?? walkSnapshot;
+    showDevPopup('已恢复默认参数');
+  } catch (error) {
+    showDevPopup(error instanceof Error ? error.message : '恢复默认失败');
+  }
+  renderWalkTuning();
+});
+
 // 关闭开发者模式（退出并隐藏开发者页，回状态页）
 function disableDevMode(): void {
   devModeActive = false;
@@ -692,6 +767,9 @@ function initDevMode(): void {
       console.error('Dev: set mood 0 failed', error);
     }
   });
+
+  // 🚶 随机行走参数（默认值来自 spec，改动写 userData/tuning.json 覆盖）
+  void refreshWalkTuning();
 }
 
 init();

@@ -74,7 +74,7 @@ src/
       hit-area.ts       气泡区点击判定（纯函数，有单测）
     dashboard/          小屋面板（状态、语录、提醒、设置、重置）
   assets/
-    pet/                运行时精灵 PNG（512×512 逐帧）
+    pet/                运行时精灵 PNG（512×512 逐帧，256 色索引）
     tray/               托盘图标
 pet-spec.json           角色 / 状态机 / 语录 / 主题 / 素材管线的唯一配置源
 tools/                  QA、校验、素材管线、启动/打包脚本（见 tools/README.md）
@@ -112,7 +112,7 @@ npm run doctor         # 环境诊断
 npm run package:win / make:win / portable:win   # 打包 / 安装包 / 绿色版
 ```
 
-> 打包产物自带瘦身：`package` 后自动清理 Electron 冗余运行时文件（除 `en-US.pak` 外的语言包、SwiftShader 软件渲染、Chromium LICENSE），绿色版体积约 138MB（未瘦身约 153MB）。
+> 打包产物自带瘦身：`package` 后自动清理 Electron 冗余运行时文件（除 `en-US.pak` 外的语言包、SwiftShader 软件渲染、Chromium LICENSE），比未瘦身小约 15MB。运行时 147 帧为索引色 PNG，合计 **6.1 MiB**（PNG-32 为 21.9 MiB）。
 
 ## 配置（pet-spec.json）
 
@@ -128,7 +128,9 @@ npm run package:win / make:win / portable:win   # 打包 / 安装包 / 绿色版
 
 - `experience.theme`：主题色（小屋面板）。
 
-- `assetPipeline`：素材处理阈值（背景抠除、占用率、画布等唯一权威配置）。
+- `motion.walk`：随机行走 5 档的**默认**参数（游走半径、间隔区间、单次位移区间、每帧位移与帧间隔）；运行时可在开发者面板覆盖，覆盖值存 `userData/tuning.json`，不写回 spec。`motion.breathing` / `motion.squashStretch` 同段。
+
+- `assetPipeline`：素材处理阈值（背景抠除、占用率、画布、交付编码颜色数等唯一权威配置）。
 
 > 全部语录的默认文本来自这里，首次启动据此生成 `userData/quotes.json`，之后语录页与桌宠都读写这份运行时文件。
 
@@ -142,6 +144,7 @@ npm run package:win / make:win / portable:win   # 打包 / 安装包 / 绿色版
 | `settings.json`  | 设置（含`autoStartInit` 自启标记）  |
 | `pet-stats.json` | 状态（好感度 / 心情 / 今日互动 / 陪伴时长） |
 | `reminders.json` | 提醒列表                       |
+| `tuning.json`    | 运行时调参覆盖（目前只有随机行走参数，见开发者面板） |
 | `logs/app.jsonl` | 结构化日志                      |
 
 文件口袋目录：`<文档目录>/套子桌宠`。
@@ -156,7 +159,7 @@ npm run package:win / make:win / portable:win   # 打包 / 安装包 / 绿色版
 | 写入残留 | 原子写入中断留下的 `*.tmp` 全部清除；校验失败隔离出的 `*.corrupt` 按修改时间保留最近 `keepCorruptFiles` 个 |
 | 结构化日志 | 超过 `logMaxKb` 时按行截断，保留最近记录 |
 
-清理在 `app.whenReady()` 之前发起（此时 Chromium 尚未打开缓存目录），删除失败只记日志、不影响启动；`diskCacheLimitMb` 作为 `--disk-cache-size` 限制磁盘缓存上限。业务数据（`quotes.json` / `settings.json` / `pet-stats.json` / `reminders.json`、`Local State` / `Preferences`、`Local Storage` / `Session Storage` / `Network`）不参与清理。
+清理在 `app.whenReady()` 之前发起（此时 Chromium 尚未打开缓存目录），删除失败只记日志、不影响启动；`diskCacheLimitMb` 作为 `--disk-cache-size` 限制磁盘缓存上限。业务数据（`quotes.json` / `settings.json` / `pet-stats.json` / `reminders.json` / `tuning.json`、`Local State` / `Preferences`、`Local Storage` / `Session Storage` / `Network`）不参与清理。
 
 | 字段 | 默认 | 含义 |
 | --- | --- | --- |
@@ -179,7 +182,7 @@ QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）�
 
 ## 状态机行为（帧数 / 帧率 / 打断优先级）
 
-15 个状态每帧 `frameDurationMs: 250ms`（即 **4 FPS**）；待机轮播动作（look / blink / belly-ok / kick）**单轮播放**、每帧只出现一次，其余非循环动作把独立帧按序**播两遍**构成完整单次动画（如 happy 12 张 → 播放帧 24），素材共 **147 张 base 帧**（look 7 帧、blink 6 帧、belly-ok 6 帧、kick 7 帧、standby-gap 1 帧、其余 10 个状态各 12 帧）、无 `-r2` 副本。
+15 个状态默认每帧 `frameDurationMs: 250ms`（即 **4 FPS**），唯 `sleep` / `sad` 用 **333ms（3 FPS）**；待机轮播动作（look / blink / belly-ok / kick）**单轮播放**、每帧只出现一次，其余非循环动作把独立帧按序**播两遍**构成完整单次动画（如 happy 12 张 → 播放帧 24），素材共 **147 张 base 帧**（look 7 帧、blink 6 帧、belly-ok 6 帧、kick 7 帧、standby-gap 1 帧、其余 10 个状态各 12 帧）、无 `-r2` 副本。
 
 | 状态            | 动作    | 独立帧 | 播放帧 | 类型   | 单周期  | 触发器                       | 冷却    |
 | ------------- | ----- | --- | --- | ---- | ---- | ------------------------- | ----- |
@@ -188,18 +191,18 @@ QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）�
 | belly-ok      | 待机-拍拍肚 | 6   | 6   | 待机轮播 | 1.5s | ambient:belly-ok          | —     |
 | kick          | 待机-踢腿 | 7   | 7   | 待机轮播 | 1.75s | ambient:kick              | —     |
 | standby-gap   | 待机-间歇 | 1   | 1   | 待机间歇 | 按挡位  | 轮播调度（无外部触发）               | —     |
-| happy         | 开心    | 12  | 24  | 单次   | 6.0s | pointer:tap（单击）           | 0.3s  |
-| notify        | 提醒    | 12  | 12  | 循环   | 3.0s | reminder:due              | 0.8s  |
-| peek          | 贴边窥视  | 12  | 12  | 单次   | 3.0s | window:edge-snap（吸附）      | 1.8s  |
-| pet-head      | 摸头    | 12  | 24  | 单次   | 6.0s | interaction:pet-head      | 0.25s |
-| pumpkin-bag   | 掏南瓜包  | 12  | 24  | 单次   | 6.0s | interaction:pumpkin-bag   | 0.3s  |
-| petal-spin    | 花瓣转圈  | 12  | 24  | 单次   | 6.0s | interaction:petal-spin    | 0.3s  |
-| starfish-wave | 海星招手  | 12  | 24  | 单次   | 6.0s | interaction:starfish-wave | 0.3s  |
-| walk          | 走路    | 12  | 12  | 循环   | 3.0s | state:walk                | 0.5s  |
-| sleep         | 睡觉    | 12  | 12  | 循环   | 3.0s | state:sleep（3 分钟无互动）      | 1.0s  |
-| sad           | 沮丧    | 12  | 12  | 循环   | 3.0s | state:sad（心情↓25）          | 1.0s  |
+| happy         | 开心    | 12  | 24  | 单次   | 6.0s | pointer:tap（单击）           | ½周期 |
+| notify        | 提醒    | 12  | 12  | 循环   | 3.0s | reminder:due              | —    |
+| peek          | 贴边窥视  | 12  | 12  | 单次   | 3.0s | window:edge-snap（吸附）      | ½周期 |
+| pet-head      | 摸头    | 12  | 24  | 单次   | 6.0s | interaction:pet-head      | ½周期 |
+| pumpkin-bag   | 掏南瓜包  | 12  | 24  | 单次   | 6.0s | interaction:pumpkin-bag   | ½周期 |
+| petal-spin    | 花瓣转圈  | 12  | 24  | 单次   | 6.0s | interaction:petal-spin    | ½周期 |
+| starfish-wave | 海星招手  | 12  | 24  | 单次   | 6.0s | interaction:starfish-wave | ½周期 |
+| walk          | 走路    | 12  | 12  | 循环   | 3.0s | state:walk                | —    |
+| sleep         | 睡觉    | 12  | 12  | 循环   | 4.0s | state:sleep（3 分钟无互动）      | —    |
+| sad           | 沮丧    | 12  | 12  | 循环   | 4.0s | state:sad（心情↓25）          | —    |
 
-> 待机不是单一状态，而是 `idleRotation` 池中四个动作的随机轮播 + 每轮之后的间歇：一个动作播完先进入间歇（展示单帧静态母版 `core-ip`、按挡位停顿整数个呼吸周期——时长 = 呼吸次数 × `motion.breathing.periodMs`，期间叠一层缓慢呼吸，该呼吸只在此状态启用），再按权重随机续接下一个动作（允许连续两次是同一动作）。池成员与间歇都可被任意其它状态打断；池成员之间互不打断，动作之间的切换一律由状态机自行推进。每个状态还带 `anchor`（锚点）、`mirrorSafe`、`interrupt`（resume/restart）等配置，全部收敛在 `pet-spec.json`。周期 = 播放帧数 × 250ms。
+> 待机不是单一状态，而是 `idleRotation` 池中四个动作的随机轮播 + 每轮之后的间歇：一个动作播完先进入间歇（展示单帧静态母版 `core-ip`、按挡位停顿整数个呼吸周期——时长 = 呼吸次数 × `motion.breathing.periodMs`，期间叠一层缓慢呼吸，该呼吸只在此状态启用），再按权重随机续接下一个动作（允许连续两次是同一动作）。池成员与间歇都可被任意其它状态打断；池成员之间互不打断，动作之间的切换一律由状态机自行推进。每个状态还带 `anchor`（锚点）、`mirrorSafe`、`interrupt`（resume/restart）等配置，全部收敛在 `pet-spec.json`。周期 = 播放帧数 × 对应 `frameDurationMs`（默认 250ms / 4FPS；`sleep`、`sad` 为 333ms / 3FPS）。
 
 ### 打断优先级（canInterrupt 名单）
 
@@ -243,6 +246,8 @@ QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）�
 | 4 多动症    | 480px | 4–12s  | 300–400px | 1–2 次（2.6–5.2s） | 高频大步快走      |
 
 - 移动速度固定 **2 px/帧**（约 60fps 匀速）。
+
+> 这张表是 `pet-spec.json` 的 `motion.walk` **默认值**。开发者模式下的「🚶 随机行走参数」面板可以运行时改这些数值：改动作为**整体覆盖**写入 `userData/tuning.json`（不动机库里的 spec），主进程立即重建游走调度生效；「恢复默认」或**重置数据**即清掉覆盖回到 spec 默认值。参数在写入前校验范围与自洽性（间隔/位移区间不倒置、单次位移不超过游走半径），非法值会被拒绝并在面板上提示；`qa-experience` 的 `walk-levels-shape` / `walk-levels-monotonic` 则守住 spec 默认值本身的形状与"挡位越高越勤越远"的排序语义。
 
 - **待机间歇随挡位联动**：间歇长度以呼吸次数计，时长 = 次数 × `motion.breathing.periodMs`（表内秒数按 2.6s/次折算），在当前挡位区间内随机取整数次；调挡位后桌宠窗口实时生效（无需重启）。木头人挡不走动，但待机轮播与间歇照常运行。待机语录在间歇走完、进入下一个待机动作时播报，节奏同样随挡位走。
 
@@ -313,9 +318,9 @@ QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）�
 
 - **小屋面板**：
 
-  - **状态页**：查看好感度 / 心情 / 今日互动 / 陪伴时长；开关置顶显示、鼠标穿透、开机自启；**随机行走 5 挡**（木头人/散步/正常/活泼/多动症）；**滑块自由调整桌宠大小（50%–150%）**；底部**一键重置**（语录 / 状态 / 提醒 / 设置恢复默认）。
+  - **状态页**：查看好感度 / 心情 / 今日互动 / 陪伴时长；开关置顶显示、鼠标穿透、开机自启；**随机行走 5 挡**（木头人/散步/正常/活泼/多动症）；**滑块自由调整桌宠大小（50%–150%）**；底部**一键重置**（语录 / 状态 / 提醒 / 设置 / 行走参数恢复正常）。
 
-  - **开发者模式（隐藏调试入口）**：在状态页末尾的**版本号**上 2 秒内**连点 6 次**进入（第 4、5 下会弹出倒计时气泡，第 6 下弹出「已进入开发者模式」并解锁「🧪 开发者」页签）。开发者页提供：**关闭开发者模式开关**、**💊 喂安眠药**（立即触发睡觉、遵守打断逻辑）、**🏃 奔跑**（走路开关「抽一次/一直抽」：抽一次=按随机行走挡位立即走一趟，一直抽=不产生位移、循环播放走路动画与语录）、**🍃 飞叶子**（心情置 100）、**👊 轻抚脸颊**（心情置 0）。开启状态持久化到 `settings.json`（`devMode`），重启仍保持；关闭后可再次连点版本号进入。
+  - **开发者模式（隐藏调试入口）**：在状态页末尾的**版本号**上 2 秒内**连点 6 次**进入（第 4、5 下会弹出倒计时气泡，第 6 下弹出「已进入开发者模式」并解锁「🧪 开发者」页签）。开发者页提供：**关闭开发者模式开关**、**💊 喂安眠药**（立即触发睡觉、遵守打断逻辑）、**🏃 奔跑**（走路开关「抽一次/一直抽」：抽一次=按随机行走挡位立即走一趟，一直抽=不产生位移、循环播放走路动画与语录）、**🍃 飞叶子**（心情置 100）、**👊 轻抚脸颊**（心情置 0）、**🚶 随机行走参数**（调 5 档的游走半径/间隔/位移与速度；改动写入 `userData/tuning.json` 覆盖 spec 默认值，可「恢复默认」）。开启状态持久化到 `settings.json`（`devMode`），重启仍保持；关闭后可再次连点版本号进入。
 
   - **语录页**：状态语录与互动语录均可在线编辑，编辑即生效、重启保留（唯一数据源 `userData/quotes.json`）。
 
