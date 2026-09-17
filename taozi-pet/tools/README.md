@@ -10,7 +10,7 @@
 
 QA 分两档：
 
-- **快速 QA**（`npm run check:quick`）：轻量必查，随开发启动自动跑。依次执行 `tsc --noEmit` + 4 个契约/结构校验 + qa-ui + qa-experience，**亚秒级**。
+- **快速 QA**（`npm run check:quick`）：轻量必查，随开发启动自动跑。依次执行 `validate-dev-contract` + `validate-spec` + `validate-asset-links` + `qa-ui` + `qa-experience` 五个校验，**亚秒级**（不含 tsc；类型检查由两个 webpack 配置的 fork-ts-checker 在生产构建把关，`npm test` 前置亦会跑 `tsc --noEmit`）。
 - **全量 QA**（`npm run check`）：在快速 QA 之上追加 `qa-assets` 逐帧像素级质检（147 张 base 帧，较重）。**素材变更或需出完整报告时主动运行。**
 
 ```bash
@@ -37,7 +37,7 @@ npm run check          # 素材变更 / 出完整 QA 报告
 
 ## 三、三个 QA 详解
 
-### qa-ui.mjs（17 项）
+### qa-ui.mjs（21 项）
 
 | 关卡 | 检查 | 说明 |
 |---|---|---|
@@ -47,9 +47,13 @@ npm run check          # 素材变更 / 出完整 QA 报告
 | window | drag-bar-full | 拖拽条 `-webkit-app-region:drag`，碰撞区内可点元素 `no-drag` |
 | src+spec | scale-slider-range | 桌宠缩放滑块范围 50%–150% |
 | window | bubble-fixed-size | 气泡用固定 px，不随桌宠缩放 |
-| window | bubble-zone-height | CSS 气泡区高度与主进程 `PET_BUBBLE_ZONE` 一致 |
+| window | bubble-zone-height | 气泡区高度三处同源：`shared/contracts.ts` 的 `PET_BUBBLE_ZONE` = CSS 初值 = 渲染层 import（并禁止渲染层本地重声明） |
 | spec | default-pet-size | 默认可见主体 120–175px |
 | spec | minimum-pet-size | 最小可见主体 ≤150px |
+| spec+asset | content-width-fit | 素材人物横向占比 ≤ `petSizing.contentWidthRatio` 且水平居中（窗口据此收窄） |
+| spec+src | pet-window-width | 窗口宽度 = max(人物可见宽, 气泡区最小宽) |
+| spec | window-width-capped | 0.5–1.5 各档位：窗口容得下人物、且不宽于旧口径 |
+| window | sprite-not-compressed | 精灵与帧容器 `flex:none`，窗口窄于精灵时不被压缩变形 |
 | src | png-tray-runtime | 托盘加载打包 PNG、拒绝空图 |
 | asset | tray-icon-file | 托盘图标 32×32、可见率 ≥8% |
 | src | menu-emoji | 系统与互动菜单使用语义 emoji |
@@ -59,6 +63,8 @@ npm run check          # 素材变更 / 出完整 QA 报告
 | spec | theme-accent-contrast ⚠ | 主题主色(primary)与表面(surface)亮度差 ≥50，保证强调层级 |
 
 ⚠ = warning，仅提示不阻断。
+
+> 涉及主进程的检查（`png-tray-runtime`、`menu-emoji`、`pet-window-width`）按 `src/main.ts` + `src/main/*.ts` 的合并文本判定，不绑定具体模块划分。
 
 ### qa-experience.mjs（16 项，纯体验语义）
 

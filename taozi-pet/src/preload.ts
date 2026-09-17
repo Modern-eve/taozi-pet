@@ -57,6 +57,7 @@ const api: PetAPI = {
   },
   state: {
     get: () => ipcRenderer.invoke('state:get') as Promise<string>,
+    report: (stateId) => ipcRenderer.invoke('state:actual', stateId) as Promise<void>,
   },
   events: {
     onStateActivity: (listener) => subscribe<StateActivity>('state:activity', listener),

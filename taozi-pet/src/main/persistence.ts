@@ -10,18 +10,6 @@ export async function atomicWriteJson(file: string, value: unknown): Promise<voi
   await rename(tmpFile, file);
 }
 
-export async function readJson<T>(file: string, defaultValue: T): Promise<T> {
-  try {
-    const content = await readFile(file, 'utf8');
-    return JSON.parse(content) as T;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return defaultValue;
-    }
-    throw error;
-  }
-}
-
 export async function readValidatedJson<T>(file: string, defaultValue: T, parse: (value: unknown) => T): Promise<T> {
   try {
     return parse(JSON.parse(await readFile(file, 'utf8')));

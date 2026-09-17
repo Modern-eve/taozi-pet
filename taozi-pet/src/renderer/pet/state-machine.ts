@@ -1,4 +1,5 @@
 import type { IdleRotationGapLevelSpec, IdleRotationSpec, PetState } from '../../shared/contracts';
+import { isIdlePresentation, stateCanInterrupt } from '../../shared/contracts';
 
 export interface StateFrame {
   stateId: string;
@@ -30,6 +31,7 @@ export class PetStateMachine {
   private readonly states: Map<string, PetState>;
   private readonly rotation: RotationEntry[];
   private readonly rotationIds: Set<string>;
+  private readonly rotationSpec: IdleRotationSpec;
   private readonly gapState: PetState | undefined;
   private readonly gapLevels: IdleRotationGapLevelSpec[];
   private readonly breathPeriodMs: number;
@@ -48,6 +50,7 @@ export class PetStateMachine {
     if (!entries.length) throw new Error('idleRotation 至少需要一个有效状态');
     this.rotation = entries;
     this.rotationIds = new Set(entries.map((entry) => entry.state.id));
+    this.rotationSpec = rotation;
     this.gapState = rotation.gap ? this.states.get(rotation.gap.stateId) : undefined;
     this.gapLevels = rotation.gap?.levels ?? [];
     this.breathPeriodMs = Number.isFinite(breathPeriodMs) && breathPeriodMs > 0 ? breathPeriodMs : 0;
@@ -75,7 +78,7 @@ export class PetStateMachine {
 
   /** 当前是否处于待机（轮播动作或间歇）。待机是抢占基底，任何状态都能打断它。 */
   isStandby(): boolean {
-    return this.isRotation(this.active.state.id) || this.gapState?.id === this.active.state.id;
+    return isIdlePresentation(this.rotationSpec, this.active.state.id);
   }
 
   /**
@@ -121,7 +124,7 @@ export class PetStateMachine {
       // 池内互斥：待机轮播动作之间互不打断，动作之间的切换由 tick 的完成分支推进
       if (this.isRotation(next.id) && this.isRotation(activeId)) return false;
       // 待机（轮播动作或间歇）是抢占基底：任何状态都能打断它
-      if (!this.isStandby() && !this.canInterrupt(next, activeId)) return false;
+      if (!this.isStandby() && !stateCanInterrupt(next, activeId)) return false;
     }
     const lastCompleted = this.completedAt.get(next.id);
     if (lastCompleted !== undefined && now - lastCompleted < next.cooldownMs) return false;
@@ -134,12 +137,6 @@ export class PetStateMachine {
     const state = this.pick();
     this.active = this.makeActive(state, now);
     return state.id;
-  }
-
-  /** 目标状态能否压过当前状态：看目标的在案名单是否包含当前状态 */
-  private canInterrupt(next: PetState, activeId: string): boolean {
-    const allowed = next.canInterrupt;
-    return allowed.includes('*') || allowed.includes(activeId);
   }
 
   tick(now: number): StateFrame {

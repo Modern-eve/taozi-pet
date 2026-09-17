@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
 import { makeCheck, blockDecl, hasProps, runChecks, loadSpec, PROJECT_ROOT } from './qa-common.mjs';
@@ -6,10 +6,22 @@ import { makeCheck, blockDecl, hasProps, runChecks, loadSpec, PROJECT_ROOT } fro
 const spec = await loadSpec();
 const files = {
   main: await readFile(path.join(PROJECT_ROOT, 'src', 'main.ts'), 'utf8'),
+  contracts: await readFile(path.join(PROJECT_ROOT, 'src', 'shared', 'contracts.ts'), 'utf8'),
   dashboardCss: await readFile(path.join(PROJECT_ROOT, 'src', 'renderer', 'dashboard', 'index.css'), 'utf8'),
   dashboardHtml: await readFile(path.join(PROJECT_ROOT, 'src', 'renderer', 'dashboard', 'index.html'), 'utf8'),
   petCss: await readFile(path.join(PROJECT_ROOT, 'src', 'renderer', 'pet', 'index.css'), 'utf8'),
+  petTs: await readFile(path.join(PROJECT_ROOT, 'src', 'renderer', 'pet', 'index.ts'), 'utf8'),
 };
+
+// 主进程被拆成 src/main.ts + src/main/*.ts，涉及主进程的检查按整体文本判定
+const mainDirFiles = await readdir(path.join(PROJECT_ROOT, 'src', 'main')).catch(() => []);
+const mainProcess = [
+  files.main,
+  ...(await Promise.all(
+    mainDirFiles.filter((name) => name.endsWith('.ts')).sort()
+      .map((name) => readFile(path.join(PROJECT_ROOT, 'src', 'main', name), 'utf8').catch(() => '')),
+  )),
+].join('\n');
 
 const checks = [];
 
@@ -95,12 +107,17 @@ checks.push(makeCheck({
 checks.push(makeCheck({
   id: 'bubble-zone-height',
   gate: 'spec+src',
-  describe: 'CSS 气泡区高度与主进程 PET_BUBBLE_ZONE 一致',
+  describe: '气泡区高度三处同源：shared 常量 = CSS 初值 = 渲染层引用',
   run: () => {
     const cssMatch = files.petCss.match(/--pet-bubble-zone:\s*(\d+)px/);
-    const mainMatch = files.main.match(/PET_BUBBLE_ZONE\s*=\s*(\d+)/);
-    const ok = Boolean(cssMatch && mainMatch) && cssMatch[1] === mainMatch[1] && cssMatch[1] === '110';
-    return { passed: ok, detail: ok ? `CSS=${cssMatch[1]}px 主进程=${mainMatch[1]}` : `CSS=${cssMatch?.[1]}px 主进程=${mainMatch?.[1]}px 不一致` };
+    const constMatch = files.contracts.match(/export const PET_BUBBLE_ZONE\s*=\s*(\d+)/);
+    const imported = /import\s*\{[^}]*\bPET_BUBBLE_ZONE\b[^}]*\}\s*from\s*'\.\.\/\.\.\/shared\/contracts'/.test(files.petTs);
+    const redeclared = /\bconst\s+PET_BUBBLE_ZONE\s*=/.test(files.petTs);
+    const ok = Boolean(cssMatch && constMatch) && cssMatch[1] === constMatch[1] && imported && !redeclared;
+    const detail = ok
+      ? `CSS=${cssMatch[1]}px 常量=${constMatch[1]} 渲染层引用 shared`
+      : `CSS=${cssMatch?.[1]}px 常量=${constMatch?.[1]} 渲染层导入=${imported} 本地重声明=${redeclared}`;
+    return { passed: ok, detail };
   },
 }));
 
@@ -132,13 +149,82 @@ checks.push(makeCheck({
   },
 }));
 
+checks.push(makeCheck({
+  id: 'content-width-fit',
+  gate: 'spec+asset',
+  describe: '素材人物横向占比不超过 petSizing.contentWidthRatio，且水平居中',
+  run: async () => {
+    const ratio = Number(spec.experience?.petSizing?.contentWidthRatio);
+    const directory = path.join(PROJECT_ROOT, 'src', 'assets', 'pet');
+    const names = (await readdir(directory).catch(() => [])).filter((name) => name.endsWith('.png'));
+    if (names.length === 0) return { passed: false, detail: '未找到素材帧（先运行 process:assets）' };
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = -1;
+    for (const name of names) {
+      const { data, info } = await sharp(path.join(directory, name)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      for (let y = 0; y < info.height; y++) {
+        for (let x = 0; x < info.width; x++) {
+          if (data[(y * info.width + x) * 4 + 3] < 16) continue;
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+        }
+      }
+    }
+    const used = (maxX - minX + 1) / 512;
+    const centered = Math.abs((minX + maxX) / 2 - 255.5) <= 2;
+    const ok = Number.isFinite(ratio) && used <= ratio && centered;
+    return { passed: ok, detail: `人物横向占比 ${used.toFixed(3)}（上限 ${ratio}），水平居中 ${centered}` };
+  },
+}));
+
+checks.push(makeCheck({
+  id: 'pet-window-width',
+  gate: 'spec+src',
+  describe: '窗口宽度按人物可见宽度派生，不随方形精灵一起变宽',
+  run: () => {
+    const ok = mainProcess.includes('petCharacterWidth(ctx)') && mainProcess.includes('PET_BUBBLE_ZONE_WIDTH');
+    return { passed: ok, detail: ok ? '窗口宽度 = max(人物可见宽, 气泡区最小宽)' : '未按人物可见宽度派生窗口宽度' };
+  },
+}));
+
+checks.push(makeCheck({
+  id: 'window-width-capped',
+  gate: 'spec',
+  describe: '各缩放档位：窗口宽度足以容下人物，且不超过「精灵边长与气泡区最小宽度取大」',
+  run: () => {
+    const base = Number(spec.experience?.petSizing?.baseWindowPx);
+    const ratio = Number(spec.experience?.petSizing?.contentWidthRatio);
+    const bubbleMin = Number(mainProcess.match(/PET_BUBBLE_ZONE_WIDTH\s*=\s*(\d+)/)?.[1] ?? 240);
+    const problems = [];
+    for (let scale = 0.5; scale <= 1.5001; scale += 0.1) {
+      const size = Math.round(base * scale);
+      const content = Math.round(size * ratio);
+      const width = Math.max(content, bubbleMin);
+      if (width < content) problems.push(`scale=${scale.toFixed(1)} 窗口裁到人物`);
+      if (width > Math.max(size, bubbleMin) + 1) problems.push(`scale=${scale.toFixed(1)} 窗口宽于旧口径`);
+    }
+    return { passed: problems.length === 0, detail: problems.length ? problems.join('; ') : '0.5–1.5 档位全部满足（人物不裁、死区不增）' };
+  },
+}));
+
+checks.push(makeCheck({
+  id: 'sprite-not-compressed',
+  gate: 'window',
+  describe: '窗口窄于精灵时精灵保持原尺寸居中溢出，不被 flex 压缩',
+  run: () => {
+    const hasFlexNone = (selector) => new RegExp(`${selector.replace(/([#-])/g, '\\$1')}\\s*\\{[^}]*flex:\\s*none`).test(files.petCss);
+    const ok = hasFlexNone('#pet-sprite-frame') && hasFlexNone('#pet-sprite');
+    return { passed: ok, detail: ok ? '精灵与帧容器均 flex:none' : '缺少 flex:none，精灵可能被压缩变形' };
+  },
+}));
+
 // ---- tray ----
 checks.push(makeCheck({
   id: 'png-tray-runtime',
   gate: 'src',
   describe: '托盘加载打包 PNG、拒绝空图',
   run: () => {
-    const ok = files.main.includes('path.resolve(__dirname, trayIconPath)') && files.main.includes('nativeImage.createFromPath') && files.main.includes('.isEmpty()') && !files.main.includes('createFromDataURL');
+    const ok = mainProcess.includes('path.resolve(__dirname, trayIconPath)') && mainProcess.includes('nativeImage.createFromPath') && mainProcess.includes('.isEmpty()') && !mainProcess.includes('createFromDataURL');
     return { passed: ok, detail: ok ? '托盘 PNG 运行时加载就位' : '托盘 PNG 加载逻辑缺失' };
   },
 }));
@@ -163,7 +249,7 @@ checks.push(makeCheck({
   gate: 'src+spec',
   describe: '系统与互动菜单使用语义 emoji',
   run: () => {
-    const systemEmojis = ['⏰', '🏠', '🖱️', '🙈', '🐾', '🚪'].every((emoji) => files.main.includes(emoji));
+    const systemEmojis = ['⏰', '🏠', '🖱️', '🙈', '🐾', '🚪'].every((emoji) => mainProcess.includes(emoji));
     const interactionEmojis = (spec.experience?.interactions ?? []).every((it) => typeof it.emoji === 'string' && it.emoji.length > 0);
     const ok = systemEmojis && interactionEmojis;
     return { passed: ok, detail: ok ? '菜单 emoji 齐全' : '缺少系统或互动菜单 emoji' };

@@ -1,5 +1,5 @@
 import spec from '../../../pet-spec.json';
-import type { PetSpec, PetStats, Settings, Reminder } from '../../shared/contracts';
+import type { PetSpec, PetStats, Settings } from '../../shared/contracts';
 import { STANDBY_SIGNAL } from '../../shared/contracts';
 import './index.css';
 

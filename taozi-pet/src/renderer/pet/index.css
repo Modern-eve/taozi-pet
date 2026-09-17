@@ -12,7 +12,7 @@ html, body {
 }
 
 :root {
-  /* 顶部气泡区高度(px)，与主进程 PET_BUBBLE_ZONE 保持一致 */
+  /* 顶部气泡区高度(px)：运行时由渲染层按 shared/contracts.ts 的 PET_BUBBLE_ZONE 注入同名变量，此值仅作脚本执行前的回退 */
   --pet-bubble-zone: 110px;
 }
 
@@ -34,6 +34,9 @@ html, body {
   justify-content: center;
   /* 呼吸缩放贴底生效；与精灵自身的挤压回弹分属两层，避免争用同一个 animation */
   transform-origin: bottom center;
+  /* 窗口宽度只按人物可见范围给（见 petWindowSize）：精灵比窗口宽时保持原尺寸居中溢出，
+     由 body 的 overflow:hidden 对称裁掉两侧透明留白，绝不压缩精灵本身 */
+  flex: none;
 }
 
 #pet-sprite {
@@ -43,6 +46,7 @@ html, body {
   aspect-ratio: 1 / 1; /* 正方形；高度随 100vh 自动变化，无需 JS，缩小/放大都稳定生效 */
   /* 精灵贴底为正方形，与固定宽度/高度的气泡区解耦，桌宠大小变化不影响气泡 */
   object-fit: contain;
+  flex: none;
   pointer-events: none;
   -webkit-user-drag: none;
   cursor: pointer;

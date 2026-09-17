@@ -14,7 +14,7 @@
 
 - **4 个角色专属互动**：摸头、掏南瓜包、裙子转圈、海星挥手，触发后播放动画并回复语录、增长好感度。
 
-- **自由尺寸**：气泡区与精灵解耦，桌宠可在 50%–150% 间**滑块自由缩放**，气泡尺寸不随桌宠变化。
+- **自由尺寸**：气泡区与精灵解耦，桌宠可在 50%–150% 间**滑块自由缩放**，气泡尺寸不随桌宠变化。窗口宽度按人物可见宽度收窄（下限为气泡区最小宽度 240px），精灵帧两侧的透明留白由窗口裁掉，不白占桌面点击区域。
 
 - **语录小屋**：状态语录与互动语录均可在线编辑，单一数据源，编辑即生效、重启保留。
 
@@ -28,7 +28,7 @@
 
 ## 技术架构
 
-- **主进程** `src/main.ts`：窗口/托盘/IPC 控制、数据持久化、状态分发。
+- **主进程** `src/main.ts` + `src/main/`：入口装配与生命周期（`main.ts`）＋ 按职责拆分的模块（窗口几何、状态回报、随机行走、提醒、托盘、IPC 等）。模块之间不互相 import，共享的可变状态集中在 `src/main/context.ts`。
 
 - **渲染进程** `src/renderer/`：
 
@@ -44,10 +44,24 @@
 
 ```
 src/
-  main.ts              主进程（IPC、窗口、托盘、状态调度）
+  main.ts              主进程入口：装配共享上下文、生命周期、单实例与退出落盘
   preload.ts           预加载（安全暴露 petAPI，CSP 严格）
   shared/contracts.ts  类型契约与数据校验
   main/
+    context.ts         主进程共享运行时状态（模块只依赖它，彼此不互相 import）
+    runtime.ts         缓存治理、运行时证据文件、致命退出、IPC 来源校验
+    windows.ts         窗口几何/创建、气泡区常量、广播、小屋面板与文件口袋
+    stats.ts           好感/心情/陪伴时长的对外口径与落盘
+    mood.ts            心情衰减与 sad 判定
+    sleep.ts           入睡计时（无互动触发 sleep）
+    random-walk.ts     随机行走挡位、位移与镜像调度
+    activity.ts        状态接管判定、渲染层状态回报镜像、互动结算
+    reminders.ts       提醒定时器与到点队列
+    settings.ts        设置落盘生效、打字反应监听
+    tray.ts            托盘图标与菜单（桌宠右键 / 托盘）
+    quotes.ts          语录种子生成与落盘
+    broadcast.ts       向两个窗口广播的通用出口
+    ipc.ts             全部 IPC 处理器
     data-validation.ts  settings/quotes/stats/reminders 数据解析与阈值
     persistence.ts      原子化 JSON 读写
     drag.ts             拖拽阈值、吸附计算
@@ -55,6 +69,9 @@ src/
     typing-listener.ts  输入监听（占位，需原生库）
   renderer/
     pet/                桌宠窗口（状态机、动画、气泡、拖拽、互动）
+      state-machine.ts  状态机与轮播/间歇调度
+      quotes.ts         语录选取（纯函数，有单测）
+      hit-area.ts       气泡区点击判定（纯函数，有单测）
     dashboard/          小屋面板（状态、语录、提醒、设置、重置）
   assets/
     pet/                运行时精灵 PNG（512×512 逐帧）
@@ -85,8 +102,8 @@ npm run dev
 npm run dev / start    # 开发运行（自动跑 check:quick）
 npm run check:quick    # 快速 QA（dev-contract + spec + asset-links + ui + experience，亚秒级）
 npm run check          # 全量 QA（快速 QA + 素材像素级质检）
-npm run test           # 单元测试
-npm run test:e2e       # 端到端测试（自动打包 host）
+npm run test           # 单元测试（含 tsc 类型检查）
+npm run test:e2e       # 端到端测试（应用 + 提醒到点触发，自动打包 host）
 npm run test:dev-smoke # 开发冒烟测试（隔离 userData）
 npm run qa:*           # 单项 QA（qa:ui / qa:experience / qa:assets）
 npm run process:assets # 素材处理（incoming-assets/ -> src/assets/pet/）
@@ -199,7 +216,7 @@ QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）�
 | 7         | walk 走路                 | 待机轮播                         | 偷看、睡觉、伤心、开心、4 个互动、通知    |
 | **8（最低）** | look / blink / belly-ok / kick 待机轮播 / standby-gap 间歇 | 无（池成员之间互不打断）                | 一切                      |
 
-> ① "能打断"里的**待机**由状态机特判：当前为 look / blink / belly-ok / kick（轮播动作）或 standby-gap（间歇）时任意其它状态直接接管，因此 `pet-spec.json` 各状态的可打断名单里**无需也不能**显式写出它们。② 待机轮播动作单轮播完由状态机自行进入间歇、间歇走完再续接下一个轮播动作；轮播动作之间因此互不打断（池内互斥），切换全靠状态机自身推进。③ `canInterrupt` 含自身 id 属冗余。
+> ① "能打断"里的**待机**由状态机特判：当前为 look / blink / belly-ok / kick（轮播动作）或 standby-gap（间歇）时任意其它状态直接接管，因此 `pet-spec.json` 各状态的可打断名单里**无需也不能**显式写出它们。② 待机轮播动作单轮播完由状态机自行进入间歇、间歇走完再续接下一个轮播动作；轮播动作之间因此互不打断（池内互斥），切换全靠状态机自身推进。③ `canInterrupt` 含自身 id 属冗余。④ 主进程在下发活动前用同一判据（`stateCanInterrupt`）预判渲染层是否采纳：待机视作抢占基底，常驻状态按名单判定；贴边吸附的 peek 因此只在允许接管时下发，贴边本身不受影响。
 
 ## 数值规则
 
@@ -286,7 +303,7 @@ QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）�
 
 ## 使用说明
 
-- **拖动**：按住桌宠任意拖动，松手自动吸附屏幕边缘（可在面板调整贴边吸附/随机行走挡位）。
+- **拖动**：按住桌宠任意拖动，松手自动吸附屏幕边缘（可在面板调整贴边吸附/随机行走挡位）。吸附恒生效；「贴边窥视」动画只在当前状态允许被它接管时才播——睡觉 / 沮丧 / 提醒等名单不含 peek 的状态下只吸附、不播动画。
 
 - **单击**：桌宠播放「开心」并随机讲一句点击语录。
 

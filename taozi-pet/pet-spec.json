@@ -6,16 +6,6 @@
     "version": "4.2.2",
     "language": "zh-CN"
   },
-  "targets": {
-    "windows": {
-      "enabled": true,
-      "arch": "x64"
-    },
-    "macos": {
-      "enabled": false,
-      "arch": "current"
-    }
-  },
   "character": {
     "inputType": "single-image",
     "displayName": "套子",
@@ -67,7 +57,8 @@
     },
     "petSizing": {
       "baseWindowPx": 220,
-      "defaultScale": 0.8
+      "defaultScale": 0.8,
+      "contentWidthRatio": 0.62
     },
     "quotes": {
       "__click__": {
@@ -237,8 +228,8 @@
     "breathing": {
       "enabled": true,
       "periodMs": 2600,
-      "scaleX": 0.012,
-      "scaleY": 0.022
+      "scaleX": 0.035,
+      "scaleY": 0.06
     },
     "squashStretch": {
       "enabled": true,
@@ -298,7 +289,6 @@
     "edgeSnap": true,
     "reminders": true,
     "interactions": true,
-    "relationship": true,
     "filePocket": false,
     "dashboard": true,
     "typingReaction": false

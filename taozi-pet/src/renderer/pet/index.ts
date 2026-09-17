@@ -1,7 +1,9 @@
 import spec from '../../../pet-spec.json';
 import type { PetSpec, StateActivity } from '../../shared/contracts';
-import { STANDBY_SIGNAL } from '../../shared/contracts';
+import { PET_BUBBLE_ZONE, STANDBY_SIGNAL } from '../../shared/contracts';
 import { exceedsDragThreshold } from '../../main/drag';
+import { inBubbleZone } from './hit-area';
+import { pickQuote } from './quotes';
 import { PetStateMachine } from './state-machine';
 import type { StateFrame } from './state-machine';
 import './index.css';
@@ -13,9 +15,9 @@ const spriteFrame = document.getElementById('pet-sprite-frame') as HTMLDivElemen
 const container = document.getElementById('pet-container') as HTMLDivElement;
 const feedbackBubble = document.getElementById('feedback-bubble') as HTMLDivElement;
 
-// 与主进程保持一致：顶部气泡区高度(px)。精灵贴底为正方形，高度 = 100vh - 气泡区高（见 CSS），
-// 气泡固定在该区内浮动；精灵尺寸由 CSS 100vh 自动随窗口同步，缩小/放大均稳定生效，且不影响气泡尺寸。
-const PET_BUBBLE_ZONE = 110;
+// 顶部气泡区高度(px)取自 shared/contracts（主进程据同一常量派生窗口高度）。
+// 精灵贴底为正方形，高度 = 100vh - 气泡区高（见 CSS），气泡固定在该区内浮动；
+// 精灵尺寸由 CSS 100vh 自动随窗口同步，缩小/放大均稳定生效，且不影响气泡尺寸。
 
 // Chromium 会默认把 img 当作可拖拽内容；桌宠只允许窗口拖拽。
 container.addEventListener('dragstart', (event) => event.preventDefault());
@@ -42,14 +44,14 @@ const stateMachine = new PetStateMachine(
   performance.now(),
   petSpec.motion.breathing.periodMs,
 );
-container.dataset.state = stateMachine.currentStateId();
-let animationFrame: number | null = null;
 
 // 呼吸动效：只服务待机间歇（单帧静态母版），间歇期间的全部动感来自这层缓慢缩放。
 // 动画挂在帧容器上、挤压回弹挂在精灵自身，两层元素各持一个 transform，互不覆盖，
 // 因此点击的挤压播完后不会顶掉呼吸，下一次进入间歇照常呼吸。
 const breathing = petSpec.motion.breathing;
 const breathStateId = petSpec.idleRotation.gap.stateId;
+// 气泡区高度由 shared 常量注入 CSS 变量；CSS 里的初值只是脚本执行前的回退
+document.documentElement.style.setProperty('--pet-bubble-zone', `${PET_BUBBLE_ZONE}px`);
 if (breathing.enabled) {
   document.documentElement.style.setProperty('--breath-period', `${breathing.periodMs}ms`);
   document.documentElement.style.setProperty('--breath-scale-x', `${1 + breathing.scaleX}`);
@@ -64,7 +66,7 @@ function applyBreathing(stateId: string): void {
   spriteFrame.classList.toggle('breathing', on);
 }
 
-applyBreathing(container.dataset.state ?? '');
+applyBreathing(stateMachine.currentStateId());
 
 // 挤压回弹
 function playSquash(): void {
@@ -132,8 +134,19 @@ function applyMirror(mirror: boolean): void {
   }
 }
 
+// 已回报给主进程的状态 id。showFrame 同时承担帧变化（每帧都会进这里），故按状态 id 去重，
+// 只在状态真正切换时回报一次。
+let reportedStateId: string | null = null;
+
 function showFrame(snapshot: StateFrame): void {
+  // dataset.state 是对外暴露的状态观测点（dev-smoke 探针按它读当前动作，见 tools/dev-smoke-client.mjs）。
   container.dataset.state = snapshot.stateId;
+  // 状态落地即回报事实：渲染层掌握帧推进与轮播选择，是状态的真源；
+  // 主进程据此镜像当前状态，不再靠「自己发过什么」自持副本。
+  if (snapshot.stateId !== reportedStateId) {
+    reportedStateId = snapshot.stateId;
+    void window.petAPI?.state.report(snapshot.stateId).catch(() => {});
+  }
   const frameUrl = assetMap.get(snapshot.frame);
   if (frameUrl) sprite.src = frameUrl;
 }
@@ -156,6 +169,7 @@ function animate(timestamp: number): void {
   const snapshot = stateMachine.tick(timestamp);
   if (snapshot.stateChanged) {
     showFrame(snapshot);
+    applyBreathing(snapshot.stateId);
     // peek 和 walk 状态保持镜像，切回其他状态时重置
     if (snapshot.stateId !== 'peek' && snapshot.stateId !== 'walk') {
       container.style.transform = '';
@@ -168,7 +182,7 @@ function animate(timestamp: number): void {
   }
   ensureSleepQuoteTimer();
   announceStandbyQuote(snapshot.stateId);
-  animationFrame = requestAnimationFrame(animate);
+  requestAnimationFrame(animate);
 }
 
 // ---- 睡眠常驻时随机补弹睡觉语录 ----
@@ -217,36 +231,14 @@ function announceStandbyQuote(stateId: string): void {
 // 全部语录文本统一定义在 pet-spec.json，运行时持久化到 userData/quotes.json；
 // 本窗口通过 IPC 拉取并缓存（init 时加载，dashboard 修改后经 quotes:changed 事件刷新）。
 let customQuotesCache: Record<string, string[]> | null = null;
-function loadCustomQuotes(): Record<string, string[]> {
-  if (customQuotesCache) return customQuotesCache;
-  return {};
-}
 
 function getQuote(stateId: string): string {
-  try {
-    const custom = loadCustomQuotes();
-    if (Array.isArray(custom[stateId]) && custom[stateId].length > 0) {
-      const quotes = custom[stateId] as string[];
-      const pick = quotes[Math.floor(Math.random() * quotes.length)];
-      if (pick) return pick;
-    }
-  } catch { /* ignore */ }
-  const defaults = petSpec.experience.quotes?.[stateId]?.quotes;
-  if (defaults && defaults.length > 0) {
-    return defaults[Math.floor(Math.random() * defaults.length)] || '';
-  }
-  return '';
+  return pickQuote(petSpec, customQuotesCache, stateId);
 }
 
-// 点击事件
-// 顶部气泡区（0 ~ PET_BUBBLE_ZONE）是留给气泡的透明留白：真实用户点那里不触发桌宠互动
-// （程序化 click 事件 isTrusted=false，不在此限制内，e2e 测试仍可正常点击）
-function inBubbleZone(event: MouseEvent | PointerEvent): boolean {
-  return event.isTrusted && event.clientY < PET_BUBBLE_ZONE;
-}
-
+// 点击事件：气泡区判定见 hit-area.ts
 container.addEventListener('click', (event) => {
-  if (inBubbleZone(event)) return;
+  if (inBubbleZone(event.clientY, event.isTrusted)) return;
   if (suppressNextClick) {
     suppressNextClick = false;
     return;
@@ -272,7 +264,7 @@ let suppressNextClick = false;
 let dragBegin: Promise<void> | undefined;
 
 container.addEventListener('pointerdown', (event) => {
-  if (inBubbleZone(event)) return;
+  if (inBubbleZone(event.clientY, event.isTrusted)) return;
   if (event.button !== 0 || activePointerId !== undefined) return;
   activePointerId = event.pointerId;
   pointerStart = { x: event.clientX, y: event.clientY };
@@ -363,7 +355,7 @@ async function init(): Promise<void> {
 
     // 进入待机（由状态机按权重随机挑一个待机动作开播）
     enterStandby();
-    animationFrame = requestAnimationFrame(animate);
+    requestAnimationFrame(animate);
 
     // 预热待机轮播的全部帧：轮播每 1.5~1.8s 换一个动作、动作之间夹着间歇，
     // 未预热的帧首次出现会闪白，故间歇期的静态帧一并预热。

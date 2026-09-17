@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { makeCheck, runChecks, PROJECT_ROOT } from './qa-common.mjs';
 
@@ -27,6 +27,14 @@ const byFile = new Map(contents);
 const packageText = (await readOptional('package.json')) ?? '';
 const rendererConfig = (await readOptional('webpack.renderer.config.js')) ?? '';
 const forgeConfig = (await readOptional('forge.config.js')) ?? '';
+
+// 主进程被拆成 src/main.ts + src/main/*.ts，契约按整体文本校验，不绑定具体模块划分
+const mainDirFiles = await readdir(path.join(PROJECT_ROOT, 'src', 'main')).catch(() => []);
+const mainModules = (await Promise.all(
+  mainDirFiles.filter((name) => name.endsWith('.ts')).sort()
+    .map((name) => readOptional(path.join('src', 'main', name))),
+)).map((text) => text ?? '');
+const mainProcess = [byFile.get('src/main.ts') ?? '', ...mainModules].join('\n');
 
 let packageJson = {};
 try {
@@ -134,9 +142,8 @@ checks.push(makeCheck({
   run: () => {
     const problems = [];
     const preload = byFile.get('src/preload.ts') ?? '';
-    const main = byFile.get('src/main.ts') ?? '';
-    apply(problems, true, /runtime:renderer-ready/, main, 'src/main.ts', '主进程必须收集渲染就绪');
-    apply(problems, true, /console-message/, main, 'src/main.ts', '主进程必须拦截渲染 CSP/启动 console 错误');
+    apply(problems, true, /runtime:renderer-ready/, mainProcess, 'src/main.ts + src/main/*.ts', '主进程必须收集渲染就绪');
+    apply(problems, true, /console-message/, mainProcess, 'src/main.ts + src/main/*.ts', '主进程必须拦截渲染 CSP/启动 console 错误');
     apply(problems, true, /runtime:renderer-ready/, preload, 'src/preload.ts', '预加载必须上报渲染就绪');
     return { passed: problems.length === 0, detail: problems.length ? problems.join('; ') : '渲染门控齐全' };
   },
