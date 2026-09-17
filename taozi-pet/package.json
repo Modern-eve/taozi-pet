@@ -8,9 +8,9 @@
   "scripts": {
     "dev": "node tools/run-dev.mjs",
     "start": "node tools/run-dev.mjs",
-    "check:quick": "tsc --noEmit && node tools/validate-dev-contract.mjs && node tools/validate-spec.mjs && node tools/validate-asset-links.mjs && node tools/qa-ui.mjs && node tools/qa-experience.mjs",
+    "check:quick": "node tools/validate-dev-contract.mjs && node tools/validate-spec.mjs && node tools/validate-asset-links.mjs && node tools/qa-ui.mjs && node tools/qa-experience.mjs",
     "check": "npm run check:quick && node tools/qa-assets.mjs",
-    "test": "tsx --test tests/unit/state-machine.test.ts tests/unit/persistence.test.ts tests/unit/cache-maintenance.test.ts tests/unit/drag.test.ts tests/unit/typing-listener.test.ts tests/unit/experience.test.ts tests/unit/dev-ports.test.mjs",
+    "test": "tsc --noEmit && tsx --test tests/unit/state-machine.test.ts tests/unit/persistence.test.ts tests/unit/cache-maintenance.test.ts tests/unit/drag.test.ts tests/unit/typing-listener.test.ts tests/unit/experience.test.ts tests/unit/dev-ports.test.mjs",
     "pretest:e2e": "node tools/run-build.mjs package-host",
     "test:e2e": "tsx tests/e2e/app.e2e.ts",
     "pretest:soak": "node tools/run-build.mjs package-host",
@@ -48,12 +48,14 @@
     "@types/node": "^22.15.0",
     "css-loader": "^7.1.2",
     "electron": "37.10.3",
+    "fork-ts-checker-webpack-plugin": "^9.1.0",
     "mini-css-extract-plugin": "^2.9.2",
     "sharp": "^0.34.5",
     "ts-loader": "^9.5.2",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",
-    "webpack": "^5.99.9"
+    "webpack": "^5.99.9",
+    "webpack-cli": "^7.2.3"
   },
   "allowScripts": {
     "electron@37.10.3": true,

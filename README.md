@@ -10,7 +10,7 @@
 
 ## 特性
 
-- **状态机驱动的拟真动作**：待机轮播（张望 / 眨眼 / 拍拍肚，动作之间夹一段静态母版呼吸的间歇）/ 睡觉 / 开心 / 伤心 / 走路 / 贴边窥视 / 提醒等多个状态自由切换，支持呼吸、挤压回弹等程序化动效。
+- **状态机驱动的拟真动作**：待机轮播（张望 / 眨眼 / 拍拍肚 / 踢腿，动作之间夹一段静态母版呼吸的间歇）/ 睡觉 / 开心 / 伤心 / 走路 / 贴边窥视 / 提醒等多个状态自由切换，支持呼吸、挤压回弹等程序化动效。
 
 - **4 个角色专属互动**：摸头、掏南瓜包、裙子转圈、海星挥手，触发后播放动画并回复语录、增长好感度。
 
@@ -83,7 +83,7 @@ npm run dev
 
 ```bash
 npm run dev / start    # 开发运行（自动跑 check:quick）
-npm run check:quick    # 快速 QA（tsc + 4 契约/结构校验 + ui + experience，亚秒级）
+npm run check:quick    # 快速 QA（dev-contract + spec + asset-links + ui + experience，亚秒级）
 npm run check          # 全量 QA（快速 QA + 素材像素级质检）
 npm run test           # 单元测试
 npm run test:e2e       # 端到端测试（自动打包 host）
@@ -103,7 +103,7 @@ npm run package:win / make:win / portable:win   # 打包 / 安装包 / 绿色版
 
 - `character`：显示名、个性、核心素材帧。
 
-- `states`：14 个状态，各自 `frames`、`triggers`、`canInterrupt`（可打断名单）、`interrupt`、`cooldownMs`、`anchor` 等。
+- `states`：15 个状态，各自 `frames`、`triggers`、`canInterrupt`（可打断名单）、`interrupt`、`cooldownMs`、`anchor` 等。
 
 - `idleRotation`：待机轮播池（动作 id + 权重）与待机间歇 `gap`。待机时按权重随机挑一个动作单轮播放，播完进入 `gap.stateId` 指定的静态帧停顿整数个呼吸周期，再续接下一个动作；新增待机动作只需在 `states` 里加状态、再到此处登记权重。`gap.levels` 按随机行走挡位（0–4）给出**呼吸次数**区间，间歇时长 = 次数 × `motion.breathing.periodMs`，挡位越高次数越少。时长恒为呼吸周期的整数倍，因此间歇结束时呼吸正好走完整数个周期、回到缩放 1 的相位，摘下呼吸动画时不会出现半相位回落。间歇期间叠一层缓慢呼吸（`motion.breathing`），该呼吸只在间歇启用。
 
@@ -154,7 +154,7 @@ npm run package:win / make:win / portable:win   # 打包 / 安装包 / 绿色版
 
 QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）：
 
-- **快速 QA** `check:quick`：`tsc` + validate-dev-contract / validate-spec / validate-asset-links + qa-ui + qa-experience，开发启动时自动运行，亚秒级。
+- **快速 QA** `check:quick`：validate-dev-contract / validate-spec / validate-asset-links + qa-ui + qa-experience，开发启动时自动运行，亚秒级。类型校验由 `tsc`（`npm test` 前置）与打包时的 fork-ts-checker 硬闸承担。
 
 - **全量 QA** `check`：快速 QA + `qa-assets` 逐帧像素质检（尺寸/透明/贴边/锚点/占用率/地面残留/跨帧稳定/重复帧/回归基线）。
 
@@ -162,13 +162,14 @@ QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）�
 
 ## 状态机行为（帧数 / 帧率 / 打断优先级）
 
-14 个状态每帧 `frameDurationMs: 250ms`（即 **4 FPS**）；待机轮播动作（look / blink / belly-ok）**单轮播放**、每帧只出现一次，其余非循环动作把独立帧按序**播两遍**构成完整单次动画（如 happy 12 张 → 播放帧 24），素材共 **141 张 base 帧**（look 7 帧、blink 6 帧、belly-ok 7 帧、standby-gap 1 帧、其余 10 个状态各 12 帧）、无 `-r2` 副本。
+15 个状态每帧 `frameDurationMs: 250ms`（即 **4 FPS**）；待机轮播动作（look / blink / belly-ok / kick）**单轮播放**、每帧只出现一次，其余非循环动作把独立帧按序**播两遍**构成完整单次动画（如 happy 12 张 → 播放帧 24），素材共 **147 张 base 帧**（look 7 帧、blink 6 帧、belly-ok 6 帧、kick 7 帧、standby-gap 1 帧、其余 10 个状态各 12 帧）、无 `-r2` 副本。
 
 | 状态            | 动作    | 独立帧 | 播放帧 | 类型   | 单周期  | 触发器                       | 冷却    |
 | ------------- | ----- | --- | --- | ---- | ---- | ------------------------- | ----- |
 | look          | 待机-张望 | 7   | 7   | 待机轮播 | 1.75s | app:start / ambient:idle  | —     |
 | blink         | 待机-眨眼 | 6   | 6   | 待机轮播 | 1.5s | ambient:blink             | —     |
-| belly-ok      | 待机-拍拍肚 | 7   | 7   | 待机轮播 | 1.75s | ambient:belly-ok          | —     |
+| belly-ok      | 待机-拍拍肚 | 6   | 6   | 待机轮播 | 1.5s | ambient:belly-ok          | —     |
+| kick          | 待机-踢腿 | 7   | 7   | 待机轮播 | 1.75s | ambient:kick              | —     |
 | standby-gap   | 待机-间歇 | 1   | 1   | 待机间歇 | 按挡位  | 轮播调度（无外部触发）               | —     |
 | happy         | 开心    | 12  | 24  | 单次   | 6.0s | pointer:tap（单击）           | 0.3s  |
 | notify        | 提醒    | 12  | 12  | 循环   | 3.0s | reminder:due              | 0.8s  |
@@ -181,7 +182,7 @@ QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）�
 | sleep         | 睡觉    | 12  | 12  | 循环   | 3.0s | state:sleep（3 分钟无互动）      | 1.0s  |
 | sad           | 沮丧    | 12  | 12  | 循环   | 3.0s | state:sad（心情↓25）          | 1.0s  |
 
-> 待机不是单一状态，而是 `idleRotation` 池中三个动作的随机轮播 + 每轮之后的间歇：一个动作播完先进入间歇（展示单帧静态母版 `core-ip`、按挡位停顿整数个呼吸周期——时长 = 呼吸次数 × `motion.breathing.periodMs`，期间叠一层缓慢呼吸，该呼吸只在此状态启用），再按权重随机续接下一个动作（允许连续两次是同一动作）。池成员与间歇都可被任意其它状态打断；池成员之间互不打断，动作之间的切换一律由状态机自行推进。每个状态还带 `anchor`（锚点）、`mirrorSafe`、`interrupt`（resume/restart）等配置，全部收敛在 `pet-spec.json`。周期 = 播放帧数 × 250ms。
+> 待机不是单一状态，而是 `idleRotation` 池中四个动作的随机轮播 + 每轮之后的间歇：一个动作播完先进入间歇（展示单帧静态母版 `core-ip`、按挡位停顿整数个呼吸周期——时长 = 呼吸次数 × `motion.breathing.periodMs`，期间叠一层缓慢呼吸，该呼吸只在此状态启用），再按权重随机续接下一个动作（允许连续两次是同一动作）。池成员与间歇都可被任意其它状态打断；池成员之间互不打断，动作之间的切换一律由状态机自行推进。每个状态还带 `anchor`（锚点）、`mirrorSafe`、`interrupt`（resume/restart）等配置，全部收敛在 `pet-spec.json`。周期 = 播放帧数 × 250ms。
 
 ### 打断优先级（canInterrupt 名单）
 
@@ -196,9 +197,9 @@ QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）�
 | 5         | sleep 睡觉                | 待机轮播、走路、偷看、伤心                | 开心、4 个互动、通知             |
 | 6         | sad 沮丧                  | 待机轮播、走路、偷看、开心                | 睡觉、4 个互动、通知             |
 | 7         | walk 走路                 | 待机轮播                         | 偷看、睡觉、伤心、开心、4 个互动、通知    |
-| **8（最低）** | look / blink / belly-ok 待机轮播 / standby-gap 间歇 | 无（池成员之间互不打断）                | 一切                      |
+| **8（最低）** | look / blink / belly-ok / kick 待机轮播 / standby-gap 间歇 | 无（池成员之间互不打断）                | 一切                      |
 
-> ① "能打断"里的**待机**由状态机特判：当前为 look / blink / belly-ok（轮播动作）或 standby-gap（间歇）时任意其它状态直接接管，因此 `pet-spec.json` 各状态的可打断名单里**无需也不能**显式写出它们。② 待机轮播动作单轮播完由状态机自行进入间歇、间歇走完再续接下一个轮播动作；轮播动作之间因此互不打断（池内互斥），切换全靠状态机自身推进。③ `canInterrupt` 含自身 id 属冗余。
+> ① "能打断"里的**待机**由状态机特判：当前为 look / blink / belly-ok / kick（轮播动作）或 standby-gap（间歇）时任意其它状态直接接管，因此 `pet-spec.json` 各状态的可打断名单里**无需也不能**显式写出它们。② 待机轮播动作单轮播完由状态机自行进入间歇、间歇走完再续接下一个轮播动作；轮播动作之间因此互不打断（池内互斥），切换全靠状态机自身推进。③ `canInterrupt` 含自身 id 属冗余。
 
 ## 数值规则
 
@@ -248,7 +249,7 @@ QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）�
 
 | 动作                 | 自动触发间隔          | 气泡内容                  | 气泡方式                |
 | ------------------ | --------------- | --------------------- | ------------------- |
-| 待机轮播 look / blink / belly-ok | 一个动作播完 → 间歇（按挡位 0.8–12s）→ 随机续接下一个 | 进入待机动作时取**该动作**的一句语录（间歇期不发声） | 普通 3s               |
+| 待机轮播 look / blink / belly-ok / kick | 一个动作播完 → 间歇（按挡位 0.8–12s）→ 随机续接下一个 | 进入待机动作时取**该动作**的一句语录（间歇期不发声） | 普通 3s               |
 | 开心 happy           | 用户单击            | 「点击」语录（`__click__` 组） | 普通 5s               |
 | 提醒 notify          | 定时提醒到点          | **该条提醒文本**            | **常驻**，直到单击/任一互动才消失 |
 | 贴边窥视 peek          | 吸附到屏幕边缘         | 「贴边窥视」语录              | 普通 3s               |

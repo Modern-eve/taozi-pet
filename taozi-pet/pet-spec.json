@@ -114,6 +114,17 @@
           "吃饱喝足，最幸福啦~"
         ]
       },
+      "kick": {
+        "label": "踢腿",
+        "emoji": "🦵",
+        "quotes": [
+          "踢踢小腿，活动一下~",
+          "嘿嘿，来一个飞踢！",
+          "腿伸伸，精神满满",
+          "踢踢踢，踢走烦恼~",
+          "蹦蹦跳跳，最开心啦"
+        ]
+      },
       "peek": {
         "label": "贴边窥视",
         "emoji": "👀",
@@ -248,6 +259,10 @@
       {
         "id": "belly-ok",
         "weight": 1
+      },
+      {
+        "id": "kick",
+        "weight": 1
       }
     ],
     "gap": {
@@ -352,8 +367,33 @@
         "belly-ok-03.png",
         "belly-ok-04.png",
         "belly-ok-05.png",
-        "belly-ok-06.png",
-        "belly-ok-07.png"
+        "belly-ok-06.png"
+      ],
+      "frameDurationMs": 250,
+      "loop": false,
+      "canInterrupt": [],
+      "interrupt": "restart",
+      "cooldownMs": 0,
+      "direction": "neutral",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.95
+      },
+      "mirrorSafe": true
+    },
+    {
+      "id": "kick",
+      "triggers": [
+        "ambient:kick"
+      ],
+      "frames": [
+        "kick-01.png",
+        "kick-02.png",
+        "kick-03.png",
+        "kick-04.png",
+        "kick-05.png",
+        "kick-06.png",
+        "kick-07.png"
       ],
       "frameDurationMs": 250,
       "loop": false,

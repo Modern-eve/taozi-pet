@@ -8,7 +8,7 @@ const spec = JSON.parse(specText);
 const packageJson = JSON.parse(packageText);
 
 const knownTriggers = new Set([
-  'app:start', 'ambient:idle', 'ambient:blink', 'ambient:belly-ok', 'ambient:random', 'pointer:tap', 'window:drag', 'window:edge-snap',
+  'app:start', 'ambient:idle', 'ambient:blink', 'ambient:belly-ok', 'ambient:kick', 'ambient:random', 'pointer:tap', 'window:drag', 'window:edge-snap',
   'reminder:due', 'typing:activity', 'file:drop', 'file:drop-success', 'file:drop-fail',
 ]);
 

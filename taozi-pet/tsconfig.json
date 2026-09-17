@@ -10,7 +10,9 @@
     "skipLibCheck": true,
     "sourceMap": true,
     "noUncheckedIndexedAccess": true,
-    "types": ["node"]
+    "types": ["node"],
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.tsbuildinfo"
   },
   "include": ["src/**/*.ts", "tests/**/*.ts"]
 }
