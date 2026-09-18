@@ -64,6 +64,8 @@ export interface MainContext {
   runtimeRendererReport?: RuntimeReadyReport;
   runtimeWindowReady: boolean;
   runtimeCommitted: boolean;
+  /** 每个角色已发起的渲染层重载恢复次数：达到上限后升级为致命错误，避免无限重载 */
+  rendererRecoveryAttempts: Map<Role, number>;
   fatalExitStarted: boolean;
   quitPersisting: boolean;
   /** 已到点、等待用户逐个消费的提醒队列（按到点先后排队：旧→新） */
@@ -119,6 +121,7 @@ export function createMainContext(options: {
     currentStateId: STANDBY_SIGNAL,
     runtimeWindowReady: false,
     runtimeCommitted: false,
+    rendererRecoveryAttempts: new Map(),
     fatalExitStarted: false,
     quitPersisting: false,
     pendingReminderQueue: [],

@@ -138,6 +138,14 @@ function applyMirror(mirror: boolean): void {
 // 只在状态真正切换时回报一次。
 let reportedStateId: string | null = null;
 
+// 渲染层可恢复问题（IPC 调用失败、素材缺失）上报主进程记日志：失败要留痕，但不阻断播放。
+function reportIssue(message: string): void {
+  void window.petAPI?.runtime.warn(message).catch(() => {});
+}
+
+// 已上报过缺失的帧：同一帧只报一次，避免逐帧刷屏
+const missingFrames = new Set<string>();
+
 function showFrame(snapshot: StateFrame): void {
   // dataset.state 是对外暴露的状态观测点（dev-smoke 探针按它读当前动作，见 tools/dev-smoke-client.mjs）。
   container.dataset.state = snapshot.stateId;
@@ -145,10 +153,16 @@ function showFrame(snapshot: StateFrame): void {
   // 主进程据此镜像当前状态，不再靠「自己发过什么」自持副本。
   if (snapshot.stateId !== reportedStateId) {
     reportedStateId = snapshot.stateId;
-    void window.petAPI?.state.report(snapshot.stateId).catch(() => {});
+    void window.petAPI?.state.report(snapshot.stateId)
+      .catch((error) => reportIssue(`state.report failed for ${snapshot.stateId}: ${error instanceof Error ? error.message : String(error)}`));
   }
   const frameUrl = assetMap.get(snapshot.frame);
   if (frameUrl) sprite.src = frameUrl;
+  else if (snapshot.frame && !missingFrames.has(snapshot.frame)) {
+    // 素材缺失：保留上一帧继续播放（降级），并上报一次，避免静默显示错帧
+    missingFrames.add(snapshot.frame);
+    reportIssue(`missing sprite frame: ${snapshot.frame}`);
+  }
 }
 
 function setState(stateId: string, durationMs?: number, mirror = false): void {
@@ -246,7 +260,8 @@ container.addEventListener('click', (event) => {
   playSquash();
   setState('happy');
   // 点击桌宠即消费待处理提醒（notify 循环被 happy 打断，气泡被点击语录替换）
-  void window.petAPI?.reminders.ack().catch(() => {});
+  void window.petAPI?.reminders.ack()
+    .catch((error) => reportIssue(`reminders.ack failed: ${error instanceof Error ? error.message : String(error)}`));
   // 沮丧状态下 happy 压不过 sad（动画不切，仍是沮丧），点击不该弹兴奋语录——
   // 此时改弹沮丧安抚语录，语气与心情一致
   const quote = stateMachine.currentStateId() === 'sad'
@@ -283,7 +298,7 @@ container.addEventListener('pointermove', (event) => {
   requestAnimationFrame(() => {
     void (dragBegin ?? Promise.resolve())
       .then(() => window.petAPI?.window.updateDrag())
-      .catch(() => {})
+      .catch((error) => reportIssue(`window.updateDrag failed: ${error instanceof Error ? error.message : String(error)}`))
       .finally(() => { dragUpdatePending = false; });
   });
 });
@@ -299,7 +314,7 @@ function finishPointer(event: PointerEvent): void {
     suppressNextClick = true;
     void (dragBegin ?? Promise.resolve())
       .then(() => window.petAPI?.window.endDrag())
-      .catch(() => {});
+      .catch((error) => reportIssue(`window.endDrag failed: ${error instanceof Error ? error.message : String(error)}`));
   }
   dragBegin = undefined;
 }
@@ -310,7 +325,8 @@ container.addEventListener('pointercancel', finishPointer);
 // 右键菜单
 container.addEventListener('contextmenu', (e) => {
   e.preventDefault();
-  window.petAPI?.window.showContextMenu().catch(() => {});
+  window.petAPI?.window.showContextMenu()
+    .catch((error) => reportIssue(`window.showContextMenu failed: ${error instanceof Error ? error.message : String(error)}`));
 });
 
 // ---- 文件口袋拖放 ----
@@ -347,7 +363,10 @@ function dropFiles(event: DragEvent): void {
       try { return window.petAPI?.files.getPathForFile(file) ?? ''; } catch { return ''; }
     })
     .filter((item): item is string => item.length > 0);
-  if (paths.length) void window.petAPI?.files.put(paths).catch(() => {});
+  if (paths.length) {
+    void window.petAPI?.files.put(paths)
+      .catch((error) => reportIssue(`files.put failed: ${error instanceof Error ? error.message : String(error)}`));
+  }
   // 放手即倒序播放（若正放未播完，状态机先继续播完正向再倒放）
   if (dropped) stateMachine.feedReverse(performance.now(), feedResumeId);
 }
@@ -386,13 +405,26 @@ window.petAPI?.events.onStateActivity((activity: StateActivity) => {
 });
 
 // 初始化
+// 读取一张帧的实际解码尺寸；解码失败返回 0，供启动自检判定。
+function measureFrame(url: string | undefined): Promise<{ width: number; height: number }> {
+  if (!url) return Promise.resolve({ width: 0, height: 0 });
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    image.onerror = () => resolve({ width: 0, height: 0 });
+    image.src = url;
+  });
+}
+
 async function init(): Promise<void> {
   try {
     // 从主进程加载语录数据（单一数据源 userData/quotes.json）
     customQuotesCache = (await window.petAPI?.quotes.get()) ?? {};
     // dashboard 修改语录后刷新本窗口缓存
     window.petAPI?.events.onQuotesChanged(() => {
-      void window.petAPI?.quotes.get().then((q) => { customQuotesCache = q; });
+      void window.petAPI?.quotes.get()
+        .then((q) => { customQuotesCache = q; })
+        .catch((error) => reportIssue(`quotes refresh failed: ${error instanceof Error ? error.message : String(error)}`));
     });
     // 主进程调整完桌宠窗口尺寸后主动刷新精灵尺寸（双保险，setBounds 后 resize 事件不稳定时仍生效）
     window.petAPI?.events.onPetSizeApplied(() => {
@@ -430,16 +462,20 @@ async function init(): Promise<void> {
       });
     }));
 
-    // 报告就绪（stateId/frame 取当前实际播放的待机动作，主进程据此校验状态与帧的归属）
+    // 报告就绪（stateId/frame 取当前实际播放的待机动作，主进程据此校验状态与帧的归属）。
+    // 帧尺寸取自实际解码结果：主进程据此校验交付素材边长，解码失败（0×0）在此显式失败而非上报假尺寸。
     const currentStateId = stateMachine.currentStateId();
+    const bootFrame = petSpec.states.find((s) => s.id === currentStateId)?.frames[0] ?? '';
+    const bootSize = await measureFrame(assetMap.get(bootFrame));
+    if (!bootSize.width || !bootSize.height) throw new Error(`Sprite frame failed to decode: ${bootFrame || '(none)'}`);
     await window.petAPI?.runtime.ready({
       status: 'ready',
       stateId: currentStateId,
-      frame: petSpec.states.find((s) => s.id === currentStateId)?.frames[0] ?? '',
+      frame: bootFrame,
       assetCount: assetMap.size,
       expectedAssetCount: assetMap.size,
-      naturalWidth: 512,
-      naturalHeight: 512,
+      naturalWidth: bootSize.width,
+      naturalHeight: bootSize.height,
       petVisible: true,
       ipcReady: true,
     });

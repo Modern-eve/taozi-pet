@@ -26,7 +26,7 @@ import { saveSettings } from './settings';
 import { resetActivityTimer } from './sleep';
 import { buildPetMenu } from './tray';
 import { resetWalkOverride, saveWalkOverride, walkTuningSnapshot } from './walk-tuning';
-import { filePocket, openPocket, petCharacterWidth, sendActivity, showDashboard, stateForTrigger } from './windows';
+import { filePocket, openPocket, petCharacterWidth, recoverRoleRenderer, sendActivity, showDashboard, stateForTrigger } from './windows';
 import { uniqueDestination } from './persistence';
 
 /** 运行时报到的精灵帧自然尺寸（素材流水线的产物边长，见 tools/process-assets.mjs） */
@@ -71,7 +71,17 @@ export function registerIpc(ctx: MainContext): void {
     const message = payload && typeof payload === 'object' && 'message' in payload && typeof payload.message === 'string'
       ? payload.message.slice(0, 2000)
       : 'Unknown renderer bootstrap failure';
-    await fatalExit(ctx, `${role}-renderer-bootstrap-failed`, new Error(message), { role });
+    // 渲染层脚本错误优先走有界重载恢复；达到上限或无法恢复才升级为致命错误
+    if (!recoverRoleRenderer(ctx, role, message)) {
+      await fatalExit(ctx, `${role}-renderer-bootstrap-failed`, new Error(message), { role });
+    }
+  });
+  // 渲染层可恢复问题（IPC 调用失败、素材缺失等）的留痕通道：只记日志，不阻断、不退出
+  ipcMain.handle('runtime:renderer-warning', async (event, message: unknown) => {
+    const role = assertSender(ctx, event, ['pet', 'dashboard']);
+    const text = (typeof message === 'string' ? message : String(message)).slice(0, 2000);
+    await ctx.logger?.write('warn', `${role}-renderer-warning`, { role, message: text });
+    return undefined;
   });
   ipcMain.handle('runtime:ready', async (event, report: unknown) => {
     assertSender(ctx, event, ['pet']);

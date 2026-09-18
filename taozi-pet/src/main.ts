@@ -7,7 +7,7 @@ import { localDateKey, parsePersistedStats, parseQuotes, parseReminders, parseSe
 import { registerIpc } from './main/ipc';
 import { JsonLogger } from './main/logger';
 import { startMoodDecay, stopMoodDecay } from './main/mood';
-import { readValidatedJson } from './main/persistence';
+import { readValidatedJson, type CorruptFallbackNotice } from './main/persistence';
 import { initialQuotes } from './main/quotes';
 import { startRandomWalk, stopRandomWalk } from './main/random-walk';
 import { scheduleReminder } from './main/reminders';
@@ -97,17 +97,27 @@ if (e2eMode) {
   };
 }
 
+// 损坏回退必须留痕：回退意味着旧数据被隔离、以默认值继续，属静默数据丢弃，写日志并退到 console
+function reportCorruptFallback(notice: CorruptFallbackNotice): void {
+  console.warn(`[data-corrupt-fallback] ${notice.file}: ${notice.reason}${notice.corruptFile ? ` -> ${notice.corruptFile}` : ''}`);
+  void ctx.logger?.write('warn', 'data-corrupt-fallback', {
+    file: notice.file,
+    corruptFile: notice.corruptFile,
+    reason: notice.reason,
+  });
+}
+
 async function initialize(): Promise<void> {
   ctx.logger = new JsonLogger(userFile('logs/app.jsonl'));
   const startupReport = await ctx.startupCacheSweep;
   if (startupReport) await logCacheReport(ctx, 'startup', startupReport);
-  ctx.settings = await readValidatedJson(userFile('settings.json'), defaultSettings, parseSettings);
-  ctx.reminders = await readValidatedJson(userFile('reminders.json'), [] as Reminder[], parseReminders);
-  ctx.quotes = await readValidatedJson(userFile('quotes.json'), initialQuotes(ctx), parseQuotes);
-  ctx.stats = await readValidatedJson(userFile('pet-stats.json'), defaultStats, parsePersistedStats);
+  ctx.settings = await readValidatedJson(userFile('settings.json'), defaultSettings, parseSettings, reportCorruptFallback);
+  ctx.reminders = await readValidatedJson(userFile('reminders.json'), [] as Reminder[], parseReminders, reportCorruptFallback);
+  ctx.quotes = await readValidatedJson(userFile('quotes.json'), initialQuotes(ctx), parseQuotes, reportCorruptFallback);
+  ctx.stats = await readValidatedJson(userFile('pet-stats.json'), defaultStats, parsePersistedStats, reportCorruptFallback);
   ctx.statsReady = true;
   // 随机行走：spec 存默认值，userData/tuning.json 若有覆盖则整体取覆盖值
-  const walkOverride = await loadWalkOverride();
+  const walkOverride = await loadWalkOverride(reportCorruptFallback);
   ctx.walk = walkOverride ?? spec.motion.walk;
   ctx.walkOverridden = walkOverride !== undefined;
   normalizeStatsDay(ctx);

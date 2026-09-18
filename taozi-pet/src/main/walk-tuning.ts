@@ -1,6 +1,6 @@
 import type { WalkConfig, WalkLevel, WalkTuningSnapshot } from '../shared/contracts';
 import type { MainContext } from './context';
-import { atomicWriteJson, readValidatedJson } from './persistence';
+import { atomicWriteJson, readValidatedJson, type CorruptFallbackNotice } from './persistence';
 import { userFile } from './runtime';
 
 /** 运行时调参文件：目前只放随机行走，后续可调项按同样的分组追加 */
@@ -68,9 +68,11 @@ export function parseTuningWalk(value: unknown): WalkConfig | undefined {
   return parseWalkConfig(walk, 'tuning.walk');
 }
 
-/** 读取覆盖层：文件缺失或只有别组时返回 undefined（表示不覆盖）。 */
-export async function loadWalkOverride(): Promise<WalkConfig | undefined> {
-  return readValidatedJson<WalkConfig | undefined>(userFile(TUNING_FILE), undefined, parseTuningWalk);
+/** 读取覆盖层：文件缺失或只有别组时返回 undefined（表示不覆盖）；损坏回退经 onCorrupt 上报。 */
+export async function loadWalkOverride(
+  onCorrupt?: (notice: CorruptFallbackNotice) => void,
+): Promise<WalkConfig | undefined> {
+  return readValidatedJson<WalkConfig | undefined>(userFile(TUNING_FILE), undefined, parseTuningWalk, onCorrupt);
 }
 
 function snapshot(ctx: MainContext): WalkTuningSnapshot {

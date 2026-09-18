@@ -60,6 +60,7 @@ const api: PetAPI = {
   runtime: {
     ready: (report: RuntimeReadyReport) => ipcRenderer.invoke('runtime:ready', report) as Promise<void>,
     fail: (report: RuntimeFailureReport) => ipcRenderer.invoke('runtime:fail', report) as Promise<void>,
+    warn: (message: string) => ipcRenderer.invoke('runtime:renderer-warning', message) as Promise<void>,
   },
   state: {
     get: () => ipcRenderer.invoke('state:get') as Promise<string>,

@@ -45,6 +45,7 @@ GPU 抠白底：assets-raw/ → taozi-pet/incoming-assets/（透明 PNG，默认
 模型: ZhengPeng7/BiRefNet + ToonOut 微调权重（设 USE_TOONOUT=0 可回退原版做 A/B）
 """
 import os
+import sys
 import time
 # 国内环境：让 HF 下载走镜像，避免 huggingface.co 直连超时
 os.environ.setdefault('HF_ENDPOINT', 'https://hf-mirror.com')
@@ -390,6 +391,10 @@ def main():
     (run_serial if args.serial else run_pipeline)()
     el = time.perf_counter() - t_start
     print(f'Done: {success}/{len(jobs)} succeeded in {el:.1f}s ({el / max(1, len(jobs)):.2f}s/frame)')
+    # 有帧失败即以非零码退出：上游据此拦住坏帧，避免下游拿到不完整素材
+    if success != len(jobs):
+        print(f'ERROR: {len(jobs) - success} frame(s) failed; rerun the failed files before the next stage.')
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()

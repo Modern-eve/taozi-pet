@@ -38,7 +38,7 @@
 
 - **共享层** `src/shared/contracts.ts`：类型契约、IPC 参数校验。
 
-- **数据**：语录、设置、状态、提醒以 JSON 原子写入 `userData`，损坏自动回退默认值。
+- **数据**：语录、设置、状态、提醒以 JSON 原子写入 `userData`；损坏时隔离为 `*.corrupt` 并回退默认值，同时写一条 `data-corrupt-fallback` 日志（不静默丢弃）。
 
 - **配置源** `pet-spec.json`：角色、状态机、语录、主题、素材管线等**唯一权威配置**。
 
@@ -50,7 +50,7 @@ src/
   main/
     context.ts         主进程共享运行时状态（模块只依赖它，彼此不互相 import）
     runtime.ts         缓存治理、运行时证据文件、致命退出、IPC 来源校验
-    windows.ts         窗口几何/创建、气泡区常量、广播、小屋面板与文件口袋
+    windows.ts         窗口几何/创建、气泡区常量、广播、小屋面板与文件口袋、渲染层错误恢复
     stats.ts           好感/心情/陪伴时长的对外口径与落盘
     mood.ts            心情衰减与 sad 判定
     sleep.ts           入睡计时（无互动触发 sleep）
@@ -170,13 +170,27 @@ npm run package:win / make:win / portable:win   # 打包 / 安装包 / 绿色版
 
 状态页「🔄 数据管理」下的「🧹 清理缓存」可随时手动触发（IPC `data:clear-cache`），完成后弹出各类释放量。
 
+## 错误处理
+
+分「致命」与「可恢复」两档，判据集中在主进程（`src/main/runtime.ts` / `windows.ts` / `ipc.ts`）：
+
+| 情形 | 处理 |
+| --- | --- |
+| 进程级未捕获异常 / 未处理拒绝、窗口加载失败、CSP 等安全违规 | **致命**：写 `.build/runtime-failed.json` + 结构化日志后退出 |
+| 渲染进程 `crashed` / `oom` / `integrity-failure` | **致命**同上；`clean-exit` / `killed` 只记日志 |
+| 渲染层脚本异常（`Uncaught` / `Unhandled`、`runtime:renderer-failed`） | **可恢复**：记日志并重载对应窗口，每个窗口最多 `RENDERER_RECOVERY_LIMIT`（3）次，超过才升为致命 |
+| 渲染层可恢复问题（IPC 调用失败、素材帧缺失） | 经 `runtime:renderer-warning` 上报，只记结构化日志、不阻断播放；缺帧保留上一帧降级 |
+| 数据文件损坏 | 隔离为 `*.corrupt` 回退默认值，并记 `data-corrupt-fallback` 日志 |
+
+日志自身写失败退到 console（`logger.ts`），保证失败本身可观测。
+
 ## QA 体系
 
 QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）：
 
 - **快速 QA** `check:quick`：validate-dev-contract / validate-spec / validate-asset-links + qa-ui + qa-experience，开发启动时自动运行，亚秒级。类型校验由 `tsc`（`npm test` 前置）与打包时的 fork-ts-checker 硬闸承担。
 
-- **全量 QA** `check`：快速 QA + `qa-assets` 逐帧像素质检（尺寸/透明/贴边/锚点/占用率/地面残留/跨帧稳定/重复帧/回归基线）。
+- **全量 QA** `check`：快速 QA + `qa-assets` 逐帧像素质检（尺寸/透明/贴边/锚点/占用率/地面残留/跨帧稳定/重复帧/交付编码/回归基线）。
 
 - 责任边界：结构契约归 validate-spec，素材引用归 validate-asset-links，像素质检归 qa-assets，运行时体验语义（打断矩阵、动画、语录、连通性）归 qa-experience。**每条规则只在一个文件维护**，防止漂移。
 

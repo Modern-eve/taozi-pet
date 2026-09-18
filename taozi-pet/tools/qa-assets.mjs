@@ -20,6 +20,9 @@ const maximumScaleRatio = Number(spec.assetPipeline?.qaMaxScaleRatio ?? 1.08);
 const maximumCenterDrift = Number(spec.assetPipeline?.qaMaxCenterDrift ?? 0.035);
 const maximumBottomDrift = Number(spec.assetPipeline?.qaMaxBottomDrift ?? 0.018);
 if (![maximumScaleRatio, maximumCenterDrift, maximumBottomDrift].every(Number.isFinite)) throw new Error('pet-spec assetPipeline drift limits must be numbers');
+// 交付编码：paletteColours > 0 时期望索引色 PNG，0 时期望 32 位 RGBA。
+// process-assets 按同一参数写文件，这里反查实际编码，堵住「上游设了参数、下游无人校验」。
+const paletteColours = Number(spec.assetPipeline?.paletteColours ?? 0);
 const selectedStateId = argumentsMap.state;
 const states = selectedStateId ? spec.states.filter((state) => state.id === selectedStateId) : spec.states;
 if (selectedStateId && states.length !== 1) throw new Error(`Unknown asset state: ${selectedStateId}`);
@@ -36,12 +39,32 @@ const REPAIRS = {
   SCALE_DRIFT: 'Regenerate only this state from the same core IP with fixed camera and body scale.',
   DUPLICATE_FRAME: 'Create a real intermediate pose; copied pixels do not count as animation.',
   ASSET_READ_FAILED: 'Restore the referenced PNG or correct its exact case-sensitive path.',
+  PALETTE_ENCODING: 'Run process:assets for this state; delivered PNGs must match assetPipeline.paletteColours encoding.',
 };
 
 function addDiagnostic(errors, diagnostics, code, message, confidence = 'high', blocking = true) {
   const repair = REPAIRS[code] || 'Inspect and repair only the affected state.';
   if (blocking) errors.push(`[${code}] ${message}`);
   diagnostics.push({ code, message, repair, confidence, blocking });
+}
+
+/**
+ * 从 PNG 字节解析交付编码：IHDR 的颜色类型与 PLTE 的调色板条目数。
+ * 颜色类型 3 = 索引色，6 = 32 位 RGBA；colorType 为 -1 表示结构不可识别。
+ */
+function readPngEncoding(buffer) {
+  let offset = 8; // 跳过 8 字节 PNG 签名
+  let colorType = -1;
+  let paletteEntries = 0;
+  while (offset + 12 <= buffer.length) {
+    const length = buffer.readUInt32BE(offset);
+    const type = buffer.toString('ascii', offset + 4, offset + 8);
+    if (type === 'IHDR') colorType = buffer[offset + 8 + 8 + 1]; // 数据段: width(4) height(4) bitDepth(1) colorType(1)
+    else if (type === 'PLTE') paletteEntries = Math.floor(length / 3);
+    if (type === 'IDAT' || type === 'IEND') break;
+    offset += 12 + length;
+  }
+  return { colorType, paletteEntries };
 }
 
 function flatGroundEvidence(data, width, bounds) {
@@ -125,7 +148,15 @@ for (const state of states) {
     const diagnostics = [];
     const file = path.join(assetDir, frame);
     try {
-      const { data, info } = await sharp(file).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const fileBuffer = await readFile(file);
+      const { data, info } = await sharp(fileBuffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const encoding = readPngEncoding(fileBuffer);
+      if (paletteColours > 0) {
+        if (encoding.colorType !== 3) addDiagnostic(errors, diagnostics, 'PALETTE_ENCODING', `expected indexed-colour PNG (colorType 3), got colorType ${encoding.colorType}`);
+        else if (encoding.paletteEntries > paletteColours) addDiagnostic(errors, diagnostics, 'PALETTE_ENCODING', `palette has ${encoding.paletteEntries} entries, exceeds paletteColours=${paletteColours}`);
+      } else if (encoding.colorType !== 6) {
+        addDiagnostic(errors, diagnostics, 'PALETTE_ENCODING', `expected 32-bit RGBA PNG (colorType 6), got colorType ${encoding.colorType}`);
+      }
       if (info.width !== 512 || info.height !== 512 || info.channels !== 4) addDiagnostic(errors, diagnostics, 'INVALID_DIMENSIONS', 'must be 512x512 RGBA');
       // 单遍全图扫描：透明/不透明统计与连通域 BFS 合并，每像素只访问一次。
       // 连通阈值 32 与 opaque 阈值 16 不同——16..31 的像素计入 opaque 但不属于任何组件。

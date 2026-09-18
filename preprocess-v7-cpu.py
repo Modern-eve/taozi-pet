@@ -13,6 +13,7 @@ GPU 版（preprocess-v7-gpu.py）为默认路径，本脚本仅作**应急兜底
   python preprocess-v7-cpu.py --states walk sleep   # 只处理指定状态
 """
 import os
+import sys
 
 import numpy as np
 from PIL import Image
@@ -62,6 +63,10 @@ def main():
         except Exception as e:
             print(f'  ERROR {fname}: {e}')
     print(f'Done: {success}/{len(jobs)} succeeded')
+    # 有帧失败即以非零码退出：上游据此拦住坏帧，避免下游拿到不完整素材
+    if success != len(jobs):
+        print(f'ERROR: {len(jobs) - success} frame(s) failed; rerun the failed files before the next stage.')
+        sys.exit(1)
 
 
 if __name__ == '__main__':

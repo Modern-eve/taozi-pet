@@ -52,6 +52,23 @@ export function sendActivity(ctx: MainContext, activity: StateActivity): void {
   if (ctx.petWindow && !ctx.petWindow.isDestroyed()) ctx.petWindow.webContents.send('state:activity', activity);
 }
 
+/** 渲染层可恢复故障的重载次数上限：超过则升级为致命错误，避免无限重载循环。 */
+export const RENDERER_RECOVERY_LIMIT = 3;
+
+/**
+ * 渲染层脚本错误的恢复：记录后在上限内重载对应窗口。
+ * 返回是否已发起恢复；达到上限、窗口不存在或正在退出时返回 false，由调用方升级为致命错误。
+ */
+export function recoverRoleRenderer(ctx: MainContext, role: Role, reason: string): boolean {
+  const attempts = (ctx.rendererRecoveryAttempts.get(role) ?? 0) + 1;
+  ctx.rendererRecoveryAttempts.set(role, attempts);
+  const window = role === 'pet' ? ctx.petWindow : ctx.dashboardWindow;
+  if (attempts > RENDERER_RECOVERY_LIMIT || !window || window.isDestroyed() || ctx.isQuitting) return false;
+  void ctx.logger?.write('warn', `${role}-renderer-recovering`, { role, attempt: attempts, reason });
+  window.webContents.reload();
+  return true;
+}
+
 export function registerWindow(ctx: MainContext, window: BrowserWindow, role: Role): BrowserWindow {
   const webContentsId = window.webContents.id;
   ctx.roles.set(webContentsId, role);
@@ -74,8 +91,19 @@ export function registerWindow(ctx: MainContext, window: BrowserWindow, role: Ro
   window.webContents.on('console-message', (details, level, legacyMessage) => {
     const message = details.message || legacyMessage;
     const currentLevel = details.level === 'error' ? 3 : level;
-    const fatalMessage = /Content Security Policy|unsafe-eval|Refused to evaluate|Uncaught|Unhandled/i.test(message);
-    if (fatalMessage || (!ctx.runtimeCommitted && currentLevel >= 3)) {
+    // 安全类违规不可恢复：CSP / 内联求值被拒说明渲染层已被降级，直接终结
+    if (/Content Security Policy|unsafe-eval|Refused to evaluate/i.test(message)) {
+      void fatalExit(ctx, `${role}-renderer-console-security`, new Error(message), { role });
+      return;
+    }
+    // 脚本异常（Uncaught / Unhandled）优先走有界重载恢复；无法恢复才升级为致命错误
+    if (/Uncaught|Unhandled/i.test(message)) {
+      if (!recoverRoleRenderer(ctx, role, message.slice(0, 500))) {
+        void fatalExit(ctx, `${role}-renderer-console-error`, new Error(message), { role });
+      }
+      return;
+    }
+    if (!ctx.runtimeCommitted && currentLevel >= 3) {
       void fatalExit(ctx, `${role}-renderer-console-error`, new Error(message), { role });
     } else if (currentLevel >= 3) {
       void ctx.logger?.write('error', `${role}-renderer-console-error`, { role, message: message.slice(0, 2000) });

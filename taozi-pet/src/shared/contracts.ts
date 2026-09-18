@@ -353,6 +353,8 @@ export interface PetAPI {
   runtime: {
     ready: (report: RuntimeReadyReport) => Promise<void>;
     fail: (report: RuntimeFailureReport) => Promise<void>;
+    /** 渲染层可恢复问题（IPC 失败、素材缺失）的留痕上报：主进程只记日志 */
+    warn: (message: string) => Promise<void>;
   };
   state: {
     get: () => Promise<string>;

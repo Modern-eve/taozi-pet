@@ -26,8 +26,9 @@ export class JsonLogger {
         ...data,
       };
       await appendFile(this.filePath, JSON.stringify(entry) + '\n', 'utf8');
-    } catch {
-      // 日志写入失败不应该影响主程序
+    } catch (error) {
+      // 日志写入失败不影响主程序；退到 console，保证至少有一条可观测记录
+      console.error('log-write-failed', error instanceof Error ? error.message : String(error));
     }
   }
 }
