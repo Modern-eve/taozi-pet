@@ -2,6 +2,8 @@ declare const PET_WINDOW_WEBPACK_ENTRY: string;
 declare const PET_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 declare const DASHBOARD_WINDOW_WEBPACK_ENTRY: string;
 declare const DASHBOARD_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
+declare const DEBUG_WINDOW_WEBPACK_ENTRY: string;
+declare const DEBUG_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 declare const __non_webpack_require__: NodeRequire;
 
 declare module '*.png' {

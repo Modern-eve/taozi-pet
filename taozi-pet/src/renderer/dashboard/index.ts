@@ -17,6 +17,9 @@ function avatarForState(stateId: string): string {
   return avatarUrls.ip;
 }
 
+// 开发者界面「抽鞭子」图标（手工引入的矢量图，与渲染入口同级存放）
+const WhipIconUrl = require('./whip.svg');
+
 const petSpec = spec as PetSpec;
 document.title = `${petSpec.character.displayName}的小屋`;
 
@@ -37,6 +40,10 @@ document.getElementById('pet-personality')!.textContent = petSpec.character.pers
 // 设置头像
 const avatarEl = document.getElementById('pet-avatar') as HTMLImageElement;
 if (avatarEl) avatarEl.src = avatarUrls.ip;
+
+// 设置开发者界面「抽鞭子」图标
+const whipIconEl = document.getElementById('dev-icon-whip') as HTMLImageElement;
+if (whipIconEl) whipIconEl.src = WhipIconUrl;
 
 // 应用状态到头像
 function applyStateAvatar(stateId: string): void {
@@ -714,11 +721,48 @@ document.getElementById('walk-tuning-reset')?.addEventListener('click', async ()
   renderWalkTuning();
 });
 
+// ---- 调试叠加层（开发者模式）----
+// 叠加层是主进程按需创建的全屏透明窗口：画出左右吸附判定带、随机行走范围，并标注桌宠与气泡尺寸。
+// 显示状态由主进程持有，这里每次操作都用返回值回填，避免两边不一致。
+const overlayToggle = document.getElementById('debug-overlay-toggle') as HTMLDivElement;
+const overlayHint = document.getElementById('debug-overlay-hint') as HTMLDivElement;
+let overlayVisible = false;
+
+function renderOverlayToggle(): void {
+  overlayToggle.classList.toggle('active', overlayVisible);
+  overlayHint.textContent = overlayVisible
+    ? '叠加层已画在桌宠所在屏幕上（点击穿透，不挡操作）'
+    : '在桌宠所在屏幕上标出边缘吸附判定带与随机行走范围';
+}
+
+overlayToggle.addEventListener('click', async () => {
+  try {
+    const payload = await window.petAPI?.debug.setOverlay(!overlayVisible);
+    overlayVisible = payload?.visible ?? !overlayVisible;
+  } catch (error) {
+    // 主进程要求开发者模式；失败时提示并把开关留在原状态
+    showDevPopup(error instanceof Error ? error.message.replace(/^Error invoking remote method '[^']*': (Error: )?/, '') : '叠加层切换失败');
+  }
+  renderOverlayToggle();
+});
+
+void (async () => {
+  try {
+    overlayVisible = (await window.petAPI?.debug.overlay())?.visible ?? false;
+  } catch {
+    overlayVisible = false;
+  }
+  renderOverlayToggle();
+})();
+
 // 关闭开发者模式（退出并隐藏开发者页，回状态页）
 function disableDevMode(): void {
   devModeActive = false;
   toggleDevMode.classList.remove('active');
   devTab.hidden = true;
+  // 叠加层由主进程在开发者模式关闭时一并撤下，这里同步开关显示
+  overlayVisible = false;
+  renderOverlayToggle();
   switchView('status');
 }
 
@@ -769,7 +813,7 @@ function initDevMode(): void {
     }
   });
 
-  // 🏃 奔跑 + 「抽一次 / 一直抽」模式开关
+  // 🪢 抽鞭子 + 「抽一次 / 一直抽」模式开关
   const devWalkBtn = document.getElementById('dev-walk-btn')!;
   const devWalkToggle = document.getElementById('dev-walk-loop-toggle')!;
   const devWalkDesc = document.getElementById('dev-walk-desc')!;

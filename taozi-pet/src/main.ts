@@ -34,8 +34,8 @@ const defaultSettings: Settings = {
   typingReaction: spec.features.typingReaction,
   clickThrough: false,
   petScale: spec.experience.petSizing.defaultScale,
-  autoStart: true,
-  // 默认已初始化：新用户默认开机自启（首次启动即写入系统自启动项）
+  autoStart: false,
+  // 默认已初始化：新用户默认不开机自启（用户显式开启后按选择写入系统自启动项）
   autoStartInit: true,
   randomWalk: 2,
   devMode: false,

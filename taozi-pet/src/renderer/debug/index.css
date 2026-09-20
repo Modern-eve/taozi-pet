@@ -1,0 +1,28 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent !important;
+}
+
+#overlay {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* 叠加层落在真实桌面上，文字用描边保证在任何壁纸上都可读。
+   颜色由渲染层逐个元素写成 fill 属性，这里不设 fill（CSS 会盖掉展示属性） */
+.overlay-label {
+  font: 12px/1.4 'Segoe UI', system-ui, sans-serif;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.78);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}

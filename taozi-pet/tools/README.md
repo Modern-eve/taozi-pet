@@ -37,11 +37,11 @@ npm run check          # 素材变更 / 出完整 QA 报告
 
 ## 三、三个 QA 详解
 
-### qa-ui.mjs（21 项）
+### qa-ui.mjs（23 项）
 
 | 关卡 | 检查 | 说明 |
 |---|---|---|
-| window | dashboard/pet-transparent-root | html/body 透明 + 页面级 overflow hidden |
+| window | dashboard/pet/debug-transparent-root | html/body 透明 + 页面级 overflow hidden（三个渲染窗口各一条） |
 | window | dashboard-hidden-scrollbar | 内部滚动不露系统滚动条 |
 | window | native-control-reset | 原生控件重置系统外观 |
 | window | drag-bar-full | 拖拽条 `-webkit-app-region:drag`，碰撞区内可点元素 `no-drag` |
@@ -53,7 +53,8 @@ npm run check          # 素材变更 / 出完整 QA 报告
 | spec+asset | content-width-fit | 素材人物横向占比 ≤ `petSizing.contentWidthRatio` 且水平居中（窗口据此收窄） |
 | spec+src | window-width-capped | 窗口宽度以人物可见宽度为下限（各档位都裁不到人物） |
 | window | sprite-not-compressed | 精灵与帧容器 `flex:none`，窗口窄于精灵时不被压缩变形 |
-| src | ipc-channels-declared | preload 调用的每个 IPC 通道名在主进程都有声明（防通道名漂移） |
+| src | ipc-channels-declared | preload 调用与订阅的每个 IPC 通道名在主进程都有声明（防通道名漂移，覆盖 invoke/send 与 subscribe 两个方向） |
+| src | debug-overlay-passive | 调试叠加层窗口点击穿透、不抢焦点、不驻留任务栏（盖在整块屏幕上，否则会挡住桌宠与桌面操作） |
 | src | png-tray-runtime | 托盘加载打包 PNG、拒绝空图 |
 | asset | tray-icon-file | 托盘图标 32×32、可见率 ≥8% |
 | src | menu-emoji | 系统与互动菜单使用语义 emoji |

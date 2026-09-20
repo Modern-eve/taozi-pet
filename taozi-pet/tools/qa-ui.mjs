@@ -12,6 +12,8 @@ const files = {
   dashboardHtml: await readFile(path.join(PROJECT_ROOT, 'src', 'renderer', 'dashboard', 'index.html'), 'utf8'),
   petCss: await readFile(path.join(PROJECT_ROOT, 'src', 'renderer', 'pet', 'index.css'), 'utf8'),
   petTs: await readFile(path.join(PROJECT_ROOT, 'src', 'renderer', 'pet', 'index.ts'), 'utf8'),
+  debugCss: await readFile(path.join(PROJECT_ROOT, 'src', 'renderer', 'debug', 'index.css'), 'utf8'),
+  debugOverlayTs: await readFile(path.join(PROJECT_ROOT, 'src', 'main', 'debug-overlay.ts'), 'utf8'),
 };
 
 // 主进程被拆成 src/main.ts + src/main/*.ts，涉及主进程的检查按整体文本判定
@@ -30,6 +32,7 @@ const checks = [];
 for (const view of [
   { id: 'dashboard', css: files.dashboardCss },
   { id: 'pet', css: files.petCss },
+  { id: 'debug', css: files.debugCss },
 ]) {
   checks.push(makeCheck({
     id: `${view.id}-transparent-root`,
@@ -212,18 +215,39 @@ checks.push(makeCheck({
 }));
 
 // ---- 主进程契约 ----
-// 通道名是 preload 与主进程之间的字符串弱链：写错任一侧只有运行到该功能才暴露
+// 通道名是 preload 与主进程之间的字符串弱链：写错任一侧只有运行到该功能才暴露。
+// 双向都要查：invoke/send 是渲染层发起，subscribe<...> 是主进程推送。
 checks.push(makeCheck({
   id: 'ipc-channels-declared',
   gate: 'src',
-  describe: '预加载调用的每个 IPC 通道在主进程都有声明',
+  describe: '预加载调用与订阅的每个 IPC 通道在主进程都有声明',
   run: () => {
-    const used = [...files.preload.matchAll(/ipcRenderer\.(?:invoke|send)\('([^']+)'/g)].map((match) => match[1]);
-    const unique = [...new Set(used)];
+    const invoked = [...files.preload.matchAll(/ipcRenderer\.(?:invoke|send)\('([^']+)'/g)].map((match) => match[1]);
+    const subscribed = [...files.preload.matchAll(/subscribe<[^>]*>\('([^']+)'/g)].map((match) => match[1]);
+    const unique = [...new Set([...invoked, ...subscribed])];
     const missing = unique.filter((channel) => !mainProcess.includes(`'${channel}'`));
     return {
       passed: missing.length === 0,
       detail: missing.length ? `主进程未声明: ${missing.join(', ')}` : `${unique.length} 个通道均在主进程声明`,
+    };
+  },
+}));
+
+// ---- 调试叠加层 ----
+// 叠加层是盖在整块屏幕上的窗口：必须点击穿透且不抢焦点，否则会挡住底下的桌宠与桌面操作。
+checks.push(makeCheck({
+  id: 'debug-overlay-passive',
+  gate: 'window',
+  describe: '调试叠加层窗口点击穿透、不抢焦点、不驻留任务栏',
+  run: () => {
+    const source = files.debugOverlayTs;
+    const passive = source.includes('setIgnoreMouseEvents(true)');
+    const unfocused = source.includes('focusable: false') && source.includes('showInactive()');
+    const noTaskbar = source.includes('skipTaskbar: true');
+    const missing = [!passive && 'setIgnoreMouseEvents(true)', !unfocused && 'focusable:false + showInactive()', !noTaskbar && 'skipTaskbar:true'].filter(Boolean);
+    return {
+      passed: missing.length === 0,
+      detail: missing.length ? `叠加层窗口缺少: ${missing.join(', ')}` : '叠加层为被动窗口：点击穿透、不抢焦点、不进任务栏',
     };
   },
 }));

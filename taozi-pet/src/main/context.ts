@@ -1,5 +1,5 @@
 import type { BrowserWindow, Tray } from 'electron';
-import type { PetSpec, Reminder, RuntimeReadyReport, Settings, TypingStatus, WalkConfig } from '../shared/contracts';
+import type { BubbleBox, PetSpec, Reminder, RuntimeReadyReport, Settings, SnapSide, TypingStatus, WalkConfig } from '../shared/contracts';
 import { STANDBY_SIGNAL } from '../shared/contracts';
 import type { CacheMaintenanceReport } from './cache-maintenance';
 import { runCacheMaintenance } from './cache-maintenance';
@@ -37,6 +37,17 @@ export interface MainContext {
   defaultStats: PersistedStats;
   petWindow?: BrowserWindow;
   dashboardWindow?: BrowserWindow;
+  /** 调试叠加层窗口（开发者模式按需创建）：全屏透明、点击穿透，只负责画吸附判定带与行走范围 */
+  debugOverlayWindow?: BrowserWindow;
+  /** 调试叠加层是否处于显示状态（设置变更时据此决定是否重画或撤下） */
+  debugOverlayVisible: boolean;
+  /** 上一次向叠加层下发绘制数据的时间：桌宠移动逐帧触发同步，据此限频 */
+  debugOverlaySyncedAt: number;
+  /**
+   * 当前正在显示的气泡盒子（桌宠窗口内坐标），由桌宠窗口上报；未显示气泡时为 null。
+   * 气泡宽度只有渲染层量得准：贴边基准与调试叠加层的尺寸标注都用它。
+   */
+  bubbleBox: BubbleBox | null;
   tray?: Tray;
   logger?: JsonLogger;
   settings: Settings;
@@ -57,6 +68,15 @@ export interface MainContext {
   randomWalkTimer?: ReturnType<typeof setTimeout>;
   randomWalkAnimTimer?: ReturnType<typeof setInterval>;
   randomWalkCenter?: { x: number; y: number };
+  /** 桌宠窗口的贴边侧：吸附后置位，拖拽中 / 随机行走 / 尺寸变化时清空（见 windows.ts 的 setSnapSide） */
+  snapSide: SnapSide;
+  /** 上一次贴边实际采用的基准框宽度（px），0 表示未贴边；调试叠加层据此画出人物的真实横向位置 */
+  snapWidth: number;
+  /**
+   * 拖拽开始时渲染层预告的「贴边将要播报的那条语录」气泡宽度（px），无语录可播时为 null。
+   * 贴边位置据此把气泡让出来，避免贴边后弹出的语录气泡被顶出屏幕。
+   */
+  snapPreviewWidth: number | null;
   sleepTimer?: ReturnType<typeof setTimeout>;
   lastActivityTime: number;
   /** 当前实际在播的状态：由桌宠窗口回报驱动（见 activity.ts 的 applyReportedState） */
@@ -116,6 +136,12 @@ export function createMainContext(options: {
     sessionStartedAt: Date.now(),
     typingStatus: { enabled: false, reason: 'not-started' },
     isQuitting: false,
+    snapSide: null,
+    snapWidth: 0,
+    snapPreviewWidth: null,
+    debugOverlayVisible: false,
+    debugOverlaySyncedAt: 0,
+    bubbleBox: null,
     lastActivityTime: Date.now(),
     // 尚未收到首次回报时按待机处理
     currentStateId: STANDBY_SIGNAL,

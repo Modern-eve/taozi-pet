@@ -287,6 +287,9 @@ export interface TypingStatus {
 // 小屋面板的视图：状态 / 语录 / 提醒，由桌宠右键或托盘右键三个选项分别进入
 export type DashboardView = 'status' | 'quotes' | 'reminders';
 
+/** 桌宠窗口的贴边侧：null 表示未贴边（窗口自由摆放）。 */
+export type SnapSide = 'left' | 'right' | null;
+
 /** 一次缓存清理的释放量明细，供数据管理页提示用户。 */
 export interface CacheSweepSummary {
   freedBytes: number;
@@ -295,6 +298,43 @@ export interface CacheSweepSummary {
   residueBytes: number;
   residueFiles: number;
   logTrimmedBytes: number;
+}
+
+/**
+ * 气泡的实际盒子（桌宠窗口内坐标）。
+ * 气泡宽度随文案变化、位置随贴边偏移，只有渲染层量得准，故由桌宠窗口上报给主进程。
+ */
+export interface BubbleBox {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * 调试叠加层（开发者模式）的绘制数据：屏幕坐标（绝对像素）。
+ * 吸附判定带为固定宽度（见 drag.ts 的 SNAP_BAND_PX / CURSOR_BAND_PX），
+ * 行走范围取当前挡位的 range、圆心取随机行走的中心。
+ */
+export interface DebugOverlayPayload {
+  visible: boolean;
+  workArea: { x: number; y: number; width: number; height: number };
+  /** 桌宠窗口矩形 */
+  pet: { x: number; y: number; width: number; height: number };
+  /** 桌宠缩放档位（settings.petScale）：桌宠大小 = 窗口高 - 气泡区高 */
+  scale: number;
+  /** 人物可见范围的横向位置：未贴边时居中于窗口，贴边时正好落在屏幕边缘 */
+  character: { left: number; width: number };
+  /** 气泡实际盒子（屏幕坐标）；未显示气泡时为 null */
+  bubble: BubbleBox | null;
+  snap: { enabled: boolean; side: SnapSide; band: number; cursorBand: number };
+  walk: {
+    enabled: boolean;
+    level: number;
+    /** 当前挡位的游走半径；挡位 0（木头人）无范围，为 null */
+    radius: number | null;
+    center: { x: number; y: number };
+  };
 }
 
 export interface PetAPI {
@@ -328,6 +368,20 @@ export interface PetAPI {
     triggerWalk: () => Promise<void>;
     triggerWalkOnce: () => Promise<void>;
     setMood: (value: number) => Promise<PetStats>;
+  };
+  /** 调试叠加层（开发者模式）：把吸附判定带与随机行走范围画在桌宠所在屏幕上 */
+  debug: {
+    overlay: () => Promise<DebugOverlayPayload>;
+    setOverlay: (visible: boolean) => Promise<DebugOverlayPayload>;
+  };
+  /**
+   * 气泡实测数据：宽度随文案变化，只有渲染层量得准。
+   * report 报当前显示的气泡盒子（叠加层据此画尺寸）；previewWidth 在拖拽开始时预告「贴边将要播报的那条语录」的气泡宽度，
+   * 主进程据此把气泡算进贴边基准；无语录可播时传 null。
+   */
+  bubble: {
+    report: (box: BubbleBox | null) => Promise<void>;
+    previewWidth: (width: number | null) => Promise<void>;
   };
   interactions: {
     list: () => Promise<InteractionSpec[]>;
@@ -375,6 +429,7 @@ export interface PetAPI {
     onPetSizeApplied: (listener: () => void) => () => void;
     /** 设置变更广播：供桌宠窗口同步依赖设置的呈现（如随机行走挡位决定待机间歇时长） */
     onSettingsChanged: (listener: (settings: Settings) => void) => () => void;
+    onDebugOverlay: (listener: (payload: DebugOverlayPayload) => void) => () => void;
   };
 }
 
@@ -458,4 +513,15 @@ export function assertRuntimeFailureReport(value: unknown): asserts value is Run
   }
   const obj = value as Record<string, unknown>;
   if (typeof obj.message !== 'string') throw new TypeError('Invalid message');
+}
+
+/** 气泡盒子上报：null 表示气泡当前未显示，其余要求四个有限数值字段。 */
+export function assertBubbleBox(value: unknown): asserts value is BubbleBox | null {
+  if (value === null) return;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid bubble box');
+  const box = value as Record<string, unknown>;
+  for (const key of ['left', 'top', 'width', 'height']) {
+    if (typeof box[key] !== 'number' || !Number.isFinite(box[key])) throw new TypeError(`Invalid bubble box field: ${key}`);
+  }
+  if ((box.width as number) < 0 || (box.height as number) < 0) throw new TypeError('Bubble box size must not be negative');
 }

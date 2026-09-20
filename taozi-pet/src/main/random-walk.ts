@@ -2,7 +2,7 @@ import { screen } from 'electron';
 import { isIdlePresentation, STANDBY_SIGNAL } from '../shared/contracts';
 import type { MainContext } from './context';
 import { isDraggingActive } from './sleep';
-import { movePetWindow, sendActivity } from './windows';
+import { movePetWindow, sendActivity, setSnapSide } from './windows';
 
 export function randomWalkStep(ctx: MainContext): void {
   if (!ctx.petWindow || ctx.petWindow.isDestroyed()) return;
@@ -57,8 +57,11 @@ export function randomWalkStep(ctx: MainContext): void {
   const totalSteps = Math.max(1, Math.ceil(Math.max(Math.abs(totalDx), Math.abs(totalDy)) / ctx.walk.speed));
   let step = 0;
 
-  // 触发 walk 动画：向右或向下移动时左右镜像
-  const walkMirror = direction === 1 || direction === 3; // 下或右
+  // 贴边偏移在窗口移走后不再成立，先复位再起步
+  setSnapSide(ctx, null);
+  // 触发 walk 动画：移动含向右分量时左右镜像（素材默认朝左）。
+  // 按裁剪与屏幕钳制之后的实际水平位移判定：纯上下与贴屏边被钳成零位移时不镜像。
+  const walkMirror = targetX > bounds.x;
   // durationMs:0 让渲染层把 walk 视为无限循环状态（见 PetStateMachine.durationFor 的 requested===0 分支），
   // 在物理移动结束前持续循环播放 walk 动画，避免只播一轮（3s）就静止；移动结束时由下方发待机信号收尾。
   sendActivity(ctx, { kind: 'ambient', stateId: 'walk', mirror: walkMirror, durationMs: 0 });

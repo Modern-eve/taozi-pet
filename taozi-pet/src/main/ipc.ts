@@ -4,6 +4,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { CacheSweepSummary, DashboardView, Reminder, WalkConfig } from '../shared/contracts';
 import {
+  assertBubbleBox,
   assertInteractionId,
   assertReminderInput,
   assertRuntimeFailureReport,
@@ -14,7 +15,8 @@ import {
 import { applyReportedState, canTakeOver, triggerInteraction } from './activity';
 import type { MainContext } from './context';
 import { parseQuotes, parseSettings } from './data-validation';
-import { draggedBounds, snapBounds } from './drag';
+import { classifySnapSide, draggedBounds, snappedBounds } from './drag';
+import { debugOverlayPayload, setDebugOverlayVisible, syncDebugOverlay } from './debug-overlay';
 import { checkMoodState } from './mood';
 import { publicStats, broadcastStats, normalizeStatsDay, persistStats } from './stats';
 import { initialQuotes, notifyQuotesChanged, persistQuotes } from './quotes';
@@ -26,7 +28,7 @@ import { saveSettings } from './settings';
 import { resetActivityTimer } from './sleep';
 import { buildPetMenu } from './tray';
 import { resetWalkOverride, saveWalkOverride, walkTuningSnapshot } from './walk-tuning';
-import { filePocket, openPocket, petCharacterWidth, recoverRoleRenderer, sendActivity, showDashboard, stateForTrigger } from './windows';
+import { filePocket, openPocket, petSnapWidth, recoverRoleRenderer, sendActivity, setSnapSide, showDashboard, stateForTrigger } from './windows';
 import { uniqueDestination } from './persistence';
 
 /** 运行时报到的精灵帧自然尺寸（素材流水线的产物边长，见 tools/process-assets.mjs） */
@@ -107,7 +109,10 @@ export function registerIpc(ctx: MainContext): void {
     const next = { ...ctx.settings, ...patch };
     // 一旦用户显式操作过开机自启，即固化该选择，之后启动都以此为准（含损坏回退不再复写）
     if ('autoStart' in patch) next.autoStartInit = true;
-    return saveSettings(ctx, parseSettings(next));
+    const saved = await saveSettings(ctx, parseSettings(next));
+    // 叠加层画的是当前设置下的判定带与范围（缩放、行走挡位、吸附开关都会变），并随开发者模式关闭自行撤下
+    syncDebugOverlay(ctx);
+    return saved;
   });
   ipcMain.handle('reminders:list', (event) => { assertSender(ctx, event, ['dashboard']); return ctx.reminders; });
   ipcMain.handle('reminders:save', async (event, input: unknown) => {
@@ -239,6 +244,7 @@ export function registerIpc(ctx: MainContext): void {
       stopRandomWalk(ctx);
       startRandomWalk(ctx);
     }
+    syncDebugOverlay(ctx); // 挡位范围可能变了，叠加层的行走圈随之重画
     return snapshot;
   });
   ipcMain.handle('walk:reset', async (event) => {
@@ -249,7 +255,35 @@ export function registerIpc(ctx: MainContext): void {
       stopRandomWalk(ctx);
       startRandomWalk(ctx);
     }
+    syncDebugOverlay(ctx);
     return snapshot;
+  });
+  // 调试叠加层（开发者模式）：把吸附判定带与随机行走范围画在桌宠所在屏幕上
+  ipcMain.handle('debug:overlay', (event) => {
+    assertSender(ctx, event, ['dashboard']);
+    return debugOverlayPayload(ctx);
+  });
+  ipcMain.handle('debug:overlay-set', (event, visible: unknown) => {
+    assertSender(ctx, event, ['dashboard']);
+    if (typeof visible !== 'boolean') throw new TypeError('Debug overlay visibility must be a boolean');
+    return setDebugOverlayVisible(ctx, visible);
+  });
+  // 气泡实际大小只有渲染层量得准（宽度随文案变化），叠加层据此画出气泡盒子
+  ipcMain.handle('bubble:report', (event, box: unknown) => {
+    assertSender(ctx, event, ['pet']);
+    assertBubbleBox(box);
+    ctx.bubbleBox = box;
+    syncDebugOverlay(ctx, true);
+    return undefined;
+  });
+  // 贴边将要播报的那条语录的气泡宽度：渲染层在拖拽开始时预取语录并实测，贴边位置据此把气泡让出来
+  ipcMain.handle('bubble:preview-width', (event, width: unknown) => {
+    assertSender(ctx, event, ['pet']);
+    if (width !== null && (typeof width !== 'number' || !Number.isFinite(width) || width < 0)) {
+      throw new TypeError('Bubble preview width must be a non-negative number or null');
+    }
+    ctx.snapPreviewWidth = width;
+    return undefined;
   });
   ipcMain.handle('interactions:list', (event) => { assertSender(ctx, event, ['pet', 'dashboard']); return spec.experience.interactions; });  ipcMain.handle('interactions:stats', (event) => { assertSender(ctx, event, ['pet', 'dashboard']); normalizeStatsDay(ctx); return publicStats(ctx); });
   ipcMain.handle('interactions:trigger', async (event, id: unknown) => {
@@ -296,6 +330,8 @@ export function registerIpc(ctx: MainContext): void {
   ipcMain.handle('window:drag-begin', (event) => {
     assertSender(ctx, event, ['pet']);
     if (!ctx.petWindow || !spec.features.drag) return;
+    // 拖动即离开原贴边位置，人物偏移同步复位，避免拖拽过程中精灵仍偏在一侧
+    setSnapSide(ctx, null);
     ctx.dragSession = { bounds: ctx.petWindow.getBounds(), cursor: screen.getCursorScreenPoint() };
     resetActivityTimer(ctx);
   });
@@ -312,38 +348,42 @@ export function registerIpc(ctx: MainContext): void {
     // 用桌宠中心（而非松手光标）选显示器/工作区，避免 drag-end 时光标跨屏边界导致选错 workArea
     const center = { x: original.x + original.width / 2, y: original.y + original.height / 2 };
     const workArea = screen.getDisplayNearestPoint(center).workArea;
-    // 边缘判定：用户把桌宠拖到屏幕左右边缘松手即触发 peek。
-    // 抓取点常在角色中心，光标顶到屏边时窗口会过冲约半个身位（悬在屏外，bounds.x 为负或右缘超出屏缘），
-    // 因此用「窗口左右缘到达/越过屏缘」的方向性判断 + 「松手光标距屏缘 ≤50px」双重信号，
-    // 而不是比较窗口缘与屏缘的绝对差值（窗口过冲时差值会很大，导致左右都不触发）。
+    // 贴边恒生效；peek 动画只在当前状态允许被它接管时才播。
+    // sleep / sad 等常驻状态的打断名单不含 peek，渲染层会拒绝这次切换；预判可省掉注定无效的下发。
+    const state = stateForTrigger(ctx, 'window:edge-snap');
+    const willPeek = state ? canTakeOver(ctx, state, ctx.currentStateId) : false;
+    // 贴边要播语录时把那条语录的气泡宽度让出来（渲染层在拖拽开始时实测预告）；
+    // 不播语录时不该让——否则人物平白停在离屏边一段距离处
+    const snapWidth = petSnapWidth(ctx, willPeek ? ctx.snapPreviewWidth ?? 0 : 0);
+    const snapInset = (original.width - snapWidth) / 2;
+    const reference = {
+      x: original.x + snapInset,
+      y: original.y,
+      width: snapWidth,
+      height: original.height,
+    };
+    // 边缘判定：基准框边缘进入判定带，或松手光标进入光标带
+    // （抓取点常在角色中心，光标顶到屏边时基准框缘可能还离得很远）。
     const cursor = screen.getCursorScreenPoint();
-    const SNAP_THRESHOLD = 20;
-    const CURSOR_EDGE_BAND = 50;
-    const atLeft = original.x <= workArea.x + SNAP_THRESHOLD
-      || cursor.x <= workArea.x + CURSOR_EDGE_BAND;
-    const atRight = original.x + original.width >= workArea.x + workArea.width - SNAP_THRESHOLD
-      || cursor.x >= workArea.x + workArea.width - CURSOR_EDGE_BAND;
-    const atEdge = atLeft || atRight;
-    if (ctx.settings.edgeSnap && atEdge) {
-      // 以「人物可见范围」为基准贴边：人物在窗口内水平居中，窗口比人物宽（气泡区最小宽度兜底）时
-      // 须扣除居中偏移 contentInset，否则吸附后人物仍停在离屏边 (windowWidth - contentWidth)/2 处。
-      const contentWidth = petCharacterWidth(ctx);
-      const contentInset = (original.width - contentWidth) / 2;
-      const snapped = snapBounds(original, workArea, contentInset, contentWidth);
+    const side = ctx.settings.edgeSnap ? classifySnapSide(reference, workArea, cursor) : null;
+    if (side) {
+      const snapped = snappedBounds(original, workArea, side, snapInset, snapWidth);
       ctx.petWindow.setBounds(snapped, true);
-      const state = stateForTrigger(ctx, 'window:edge-snap');
-      // 用 snapBounds 的计算结果判断右侧，避免 setBounds 动画导致 getBounds 延迟
-      const isRightSide = snapped.x + snapped.width >= workArea.x + workArea.width - 10;
-      // 贴边恒生效；peek 动画只在当前状态允许被它接管时才播。
-      // sleep / sad 等常驻状态的打断名单不含 peek，渲染层会拒绝这次切换；预判可省掉注定无效的下发。
-      if (state && canTakeOver(ctx, state, ctx.currentStateId)) {
+      setSnapSide(ctx, side, snapWidth);
+      if (willPeek && state) {
         // 不指定 durationMs：由渲染层按 spec 的 frames.length × frameDurationMs 播完整一轮，素材加帧/减帧自动适配
-        sendActivity(ctx, { kind: 'edge-snap', stateId: state.id, mirror: isRightSide });
+        sendActivity(ctx, { kind: 'edge-snap', stateId: state.id, mirror: side === 'right' });
       }
+    } else {
+      setSnapSide(ctx, null);
     }
+    // 预告只对刚结束的这一次拖拽有效，下一轮由渲染层重新预告
+    ctx.snapPreviewWidth = null;
     // 更新随机行走中心为拖动结束位置
     const b = ctx.petWindow.getBounds();
     ctx.randomWalkCenter = { x: b.x, y: b.y };
+    // 吸附侧、行走中心都可能刚变，叠加层要重画（窗口未移动时不会触发 move 事件）
+    syncDebugOverlay(ctx, true);
   });
   ipcMain.handle('window:show-context-menu', (event) => {
     assertSender(ctx, event, ['pet']);

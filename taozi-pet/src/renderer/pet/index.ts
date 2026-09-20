@@ -104,10 +104,29 @@ function positionBubble(): void {
     : `${margin}px`; // 长文本：固定在气泡区顶部，max-height 内滚动
 }
 
+/**
+ * 气泡实际盒子（窗口内坐标）上报主进程，调试叠加层据此画出气泡大小（宽度随文案变化，只有这里量得准）。
+ * 取 getBoundingClientRect 而非 offsetLeft：镜像时容器整体翻转，只有前者给的是屏幕上的真实位置。
+ */
+function reportBubbleBox(): void {
+  if (!feedbackBubble.classList.contains('show')) {
+    void window.petAPI?.bubble.report(null).catch(() => reportIssue('bubble box report failed'));
+    return;
+  }
+  const rect = feedbackBubble.getBoundingClientRect();
+  void window.petAPI?.bubble.report({
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height,
+  }).catch(() => reportIssue('bubble box report failed'));
+}
+
 function showFeedback(text: string, persist = false, hideAfterMs = 5000): void {
   feedbackBubble.textContent = text;
   positionBubble();
   feedbackBubble.classList.add('show');
+  reportBubbleBox();
   if (feedbackTimer) clearTimeout(feedbackTimer); // 防止多次点击堆叠 timer
   if (persist) {
     feedbackTimer = null;
@@ -115,6 +134,7 @@ function showFeedback(text: string, persist = false, hideAfterMs = 5000): void {
   }
   feedbackTimer = setTimeout(() => {
     feedbackBubble.classList.remove('show');
+    reportBubbleBox();
   }, hideAfterMs);
 }
 
@@ -250,6 +270,29 @@ function getQuote(stateId: string): string {
   return pickQuote(petSpec, customQuotesCache, stateId);
 }
 
+// 贴边后要播报的 peek 语录：拖拽开始时在这里定下并量宽上报，贴边位置就是按它算的，播报时必须复用同一条
+let pendingPeekQuote: string | null = null;
+
+/**
+ * 量一条语录在实际气泡样式下的渲染宽度（px）。
+ * 气泡常驻布局（未显示时只是 opacity: 0），改写文案后同步读回即可，同一个任务内还原，不会闪出画面。
+ */
+function measureBubbleWidth(text: string): number {
+  const previous = feedbackBubble.textContent;
+  feedbackBubble.textContent = text;
+  const width = feedbackBubble.getBoundingClientRect().width;
+  feedbackBubble.textContent = previous;
+  return Math.round(width);
+}
+
+/** 拖拽开始时预告贴边气泡宽度：语录此刻定下，贴边后弹出的就是它 */
+function previewSnapBubble(): void {
+  const quote = getQuote('peek');
+  pendingPeekQuote = quote || null;
+  const width = quote ? measureBubbleWidth(quote) : null;
+  void window.petAPI?.bubble.previewWidth(width)
+    .catch((error) => reportIssue(`bubble preview failed: ${error instanceof Error ? error.message : String(error)}`));
+}
 // 点击事件：气泡区判定见 hit-area.ts
 container.addEventListener('click', (event) => {
   if (inBubbleZone(event.clientY, event.isTrusted)) return;
@@ -290,6 +333,7 @@ container.addEventListener('pointermove', (event) => {
   if (event.pointerId !== activePointerId) return;
   if (!isDragging && exceedsDragThreshold(pointerStart, { x: event.clientX, y: event.clientY })) {
     isDragging = true;
+    previewSnapBubble();
     dragBegin = window.petAPI?.window.beginDrag() ?? Promise.resolve();
   }
   if (!isDragging) return;
@@ -396,8 +440,11 @@ window.petAPI?.events.onStateActivity((activity: StateActivity) => {
     } else if (feedback) {
       showFeedback(feedback);
     } else if (activity.stateId !== STANDBY_SIGNAL && activity.stateId !== 'notify' && activity.kind !== 'interaction') {
-      const quote = getQuote(activity.stateId);
-      if (quote) showFeedback(quote, false, activity.stateId === 'peek' ? 3000 : 5000);
+      // peek 语录在拖拽开始时已定下（贴边位置就是按它的气泡宽度算的），这里必须播同一条
+      const isPeek = activity.stateId === 'peek';
+      const quote = (isPeek ? pendingPeekQuote : null) ?? getQuote(activity.stateId);
+      if (isPeek) pendingPeekQuote = null;
+      if (quote) showFeedback(quote, false, isPeek ? 3000 : 5000);
     }
   } else if (activity.feedback) {
     showFeedback(activity.feedback);

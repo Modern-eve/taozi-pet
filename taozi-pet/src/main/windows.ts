@@ -1,7 +1,7 @@
 import { app, BrowserWindow, shell } from 'electron';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
-import type { DashboardView, PetState, StateActivity } from '../shared/contracts';
+import type { DashboardView, PetState, SnapSide, StateActivity } from '../shared/contracts';
 import { PET_BUBBLE_ZONE } from '../shared/contracts';
 import type { MainContext, Role } from './context';
 import { commitRuntimeReady, fatalExit } from './runtime';
@@ -17,6 +17,14 @@ export function petSize(ctx: MainContext): number {
 /** 人物的横向可见宽度：素材帧里人物只占中间一条，两侧是透明留白（占比见 spec.petSizing.contentWidthRatio，由 qa-ui 依实测校验）。 */
 export function petCharacterWidth(ctx: MainContext): number {
   return Math.round(petSize(ctx) * ctx.spec.experience.petSizing.contentWidthRatio);
+}
+
+/**
+ * 贴边基准宽度：贴边将要播报的气泡比人物宽时以气泡为准——否则人物贴到屏边会把居中在它上方的气泡顶出屏幕。
+ * bubbleWidth 由调用方给出（渲染层实测的语录气泡宽度；贴边不播语录时传 0），未超过人物宽时退化为人物可见宽度。
+ */
+export function petSnapWidth(ctx: MainContext, bubbleWidth: number): number {
+  return Math.max(petCharacterWidth(ctx), bubbleWidth);
 }
 
 // 桌宠窗口 = 精灵(高) + 顶部气泡区(高)。
@@ -126,6 +134,15 @@ export function secureWindow(ctx: MainContext, options: Electron.BrowserWindowCo
   }), role);
 }
 
+/**
+ * 记录当前贴边侧与贴边基准框宽度：调试叠加层据此把人物可见范围画在真实的横向位置上，并标注贴边侧。
+ * 贴边侧在拖拽中、随机行走、尺寸变化时清空（窗口离开屏幕边缘即不再成立）。
+ */
+export function setSnapSide(ctx: MainContext, side: SnapSide, snapWidth = 0): void {
+  ctx.snapSide = side;
+  ctx.snapWidth = snapWidth;
+}
+
 export function applyPetSettings(ctx: MainContext): void {
   if (!ctx.petWindow || ctx.petWindow.isDestroyed()) return;
   const { width, height } = petWindowSize(ctx);
@@ -133,6 +150,8 @@ export function applyPetSettings(ctx: MainContext): void {
   // setBounds 保留原位即时缩放；通知宠物端主动刷新精灵尺寸（双保险，不依赖 resize 事件是否触发）
   const bounds = ctx.petWindow.getBounds();
   ctx.petWindow.setBounds({ ...bounds, width, height }, false);
+  // 尺寸变化后贴边位置与人物偏移量都要重算，交由用户重新拖拽贴边
+  setSnapSide(ctx, null);
   ctx.petWindow.webContents.send('pet:size-applied');
   ctx.petWindow.setAlwaysOnTop(ctx.settings.alwaysOnTop);
   ctx.petWindow.setIgnoreMouseEvents(ctx.settings.clickThrough, { forward: true });

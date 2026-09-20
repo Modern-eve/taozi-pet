@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
-import type { CacheSweepSummary, DashboardView, InteractionResult, InteractionSpec, PetAPI, PetStats, Reminder, RuntimeFailureReport, RuntimeReadyReport, Settings, StateActivity, TypingStatus, WalkTuningSnapshot } from './shared/contracts';
+import type { BubbleBox, CacheSweepSummary, DashboardView, DebugOverlayPayload, InteractionResult, InteractionSpec, PetAPI, PetStats, Reminder, RuntimeFailureReport, RuntimeReadyReport, Settings, StateActivity, TypingStatus, WalkTuningSnapshot } from './shared/contracts';
 
 function subscribe<T>(channel: string, listener: (value: T) => void): () => void {
   const wrapped = (_event: Electron.IpcRendererEvent, value: T) => listener(value);
@@ -36,6 +36,14 @@ const api: PetAPI = {
     triggerWalk: () => ipcRenderer.invoke('dev:trigger-walk') as Promise<void>,
     triggerWalkOnce: () => ipcRenderer.invoke('dev:trigger-walk-once') as Promise<void>,
     setMood: (value) => ipcRenderer.invoke('dev:set-mood', value) as Promise<PetStats>,
+  },
+  debug: {
+    overlay: () => ipcRenderer.invoke('debug:overlay') as Promise<DebugOverlayPayload>,
+    setOverlay: (visible) => ipcRenderer.invoke('debug:overlay-set', visible) as Promise<DebugOverlayPayload>,
+  },
+  bubble: {
+    report: (box) => ipcRenderer.invoke('bubble:report', box) as Promise<void>,
+    previewWidth: (width) => ipcRenderer.invoke('bubble:preview-width', width) as Promise<void>,
   },
   interactions: {
     list: () => ipcRenderer.invoke('interactions:list') as Promise<InteractionSpec[]>,
@@ -76,6 +84,7 @@ const api: PetAPI = {
     onTypingStatus: (listener) => subscribe<TypingStatus>('typing:status', listener),
     onPetSizeApplied: (listener) => subscribe<void>('pet:size-applied', listener),
     onSettingsChanged: (listener) => subscribe<Settings>('settings:changed', listener),
+    onDebugOverlay: (listener) => subscribe<DebugOverlayPayload>('debug:overlay-push', listener),
   },
 };
 

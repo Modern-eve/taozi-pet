@@ -11,6 +11,7 @@ module.exports = (env, argv) => {
         { test: /\.tsx?$/, exclude: /node_modules/, use: [{ loader: 'ts-loader', options: { transpileOnly: true } }] },
         { test: /\.css$/, use: [MiniCssExtractPlugin.loader, 'css-loader'] },
         { test: /\.png$/i, type: 'asset/resource' },
+        { test: /\.svg$/i, type: 'asset/resource' },
       ],
     },
     plugins: [

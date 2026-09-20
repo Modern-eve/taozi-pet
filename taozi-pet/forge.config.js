@@ -71,6 +71,7 @@ module.exports = {
           entryPoints: [
             { html: './src/renderer/pet/index.html', js: './src/renderer/pet/index.ts', name: 'pet_window', preload: { js: './src/preload.ts' } },
             { html: './src/renderer/dashboard/index.html', js: './src/renderer/dashboard/index.ts', name: 'dashboard_window', preload: { js: './src/preload.ts' } },
+            { html: './src/renderer/debug/index.html', js: './src/renderer/debug/index.ts', name: 'debug_window', preload: { js: './src/preload.ts' } },
           ],
         },
       },

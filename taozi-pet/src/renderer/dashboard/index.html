@@ -149,11 +149,11 @@
             </div>
             <div class="setting-item">
               <div>
-                <div class="setting-label">🏃 奔跑</div>
+                <div class="setting-label"><img class="dev-icon" id="dev-icon-whip" alt="鞭子"> 抽鞭子</div>
                 <div class="setting-desc" id="dev-walk-desc">抽一次：按随机行走挡位立即走动一次</div>
               </div>
               <div class="dev-actions">
-                <button class="dev-btn" id="dev-walk-btn">奔跑</button>
+                <button class="dev-btn" id="dev-walk-btn">抽鞭子</button>
                 <div class="toggle" id="dev-walk-loop-toggle" title="抽一次 / 一直抽"></div>
               </div>
             </div>
@@ -179,6 +179,18 @@
             <div class="walk-grid" id="walk-tuning-container"></div>
             <div class="dev-actions">
               <button class="dev-btn" id="walk-tuning-reset">恢复默认</button>
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <div class="section-title">📐 调试叠加层</div>
+            <div class="section-hint" id="debug-overlay-hint">在桌宠所在屏幕上标出边缘吸附判定带与随机行走范围</div>
+            <div class="setting-item">
+              <div>
+                <div class="setting-label">显示吸附距离线与行走范围</div>
+                <div class="setting-desc">全屏透明叠加层，点击穿透，不影响桌宠与桌面操作</div>
+              </div>
+              <div class="toggle" id="debug-overlay-toggle"></div>
             </div>
           </div>
         </section>

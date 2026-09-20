@@ -16,7 +16,7 @@ const preflight = path.join(root, 'tools', 'preflight.mjs');
 const npmCli = process.env.npm_execpath || path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
 const smokeMode = process.argv.includes('--smoke');
 const smokeUserData = path.join(buildDirectory, 'dev-smoke-user-data');
-const smokeClient = path.join(root, 'tools', 'dev-smoke-client.mjs');
+const smokeClient = process.env.PET_SMOKE_CLIENT ? path.join(root, process.env.PET_SMOKE_CLIENT) : path.join(root, 'tools', 'dev-smoke-client.mjs');
 const activityLock = await acquireActivityLock(buildDirectory, smokeMode ? 'dev-smoke' : 'dev-source-preview');
 let child;
 let shuttingDown = false;

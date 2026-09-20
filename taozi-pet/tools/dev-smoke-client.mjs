@@ -117,6 +117,95 @@ await evaluate(pet, 'window.petAPI.window.showDashboard()');
 await evaluate(dashboard, 'window.petAPI.window.hideDashboard()');
 await evaluate(pet, 'window.petAPI.window.beginDrag().then(()=>window.petAPI.window.updateDrag()).then(()=>window.petAPI.window.endDrag())');
 
+// 贴边基准的语录气泡宽度预告：只收桌宠窗口报来的非负数值或 null
+if (!await evaluate(pet, 'window.petAPI.bubble.previewWidth(180).then(()=>true,()=>false)')) {
+  throw new Error('Bubble preview width was rejected for the pet window.');
+}
+if (!await evaluate(pet, 'window.petAPI.bubble.previewWidth("180").then(()=>false,()=>true)')) {
+  throw new Error('Bubble preview width accepted a non-numeric value.');
+}
+if (!await evaluate(dashboard, 'window.petAPI.bubble.previewWidth(180).then(()=>false,()=>true)')) {
+  throw new Error('Bubble preview width accepted a dashboard sender.');
+}
+await evaluate(pet, 'window.petAPI.bubble.previewWidth(null)');
+
+// 调试叠加层（开发者模式）：窗口按需创建、绘制数据下发、渲染层真的画出内容，最后撤下
+async function waitForOverlayTarget(timeoutMs = 15_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const list = await (await fetch(`${endpoint}/json/list`)).json();
+      const target = list.find((item) => item.url.includes('/debug_window/'));
+      if (target) return target;
+    } catch {
+      // 本地调试端点可能还没就绪
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  throw new Error('Debug overlay window was not created.');
+}
+
+const overlayBefore = await evaluate(dashboard, 'window.petAPI.debug.overlay()');
+if (overlayBefore?.visible) throw new Error('Debug overlay should start hidden.');
+await evaluate(dashboard, 'window.petAPI.settings.update({devMode:true})');
+const overlayOn = await evaluate(dashboard, 'window.petAPI.debug.setOverlay(true)');
+if (!overlayOn?.visible || !overlayOn.workArea || typeof overlayOn.snap?.band !== 'number' || !overlayOn.character) {
+  throw new Error(`Debug overlay payload is incomplete: ${JSON.stringify(overlayOn)}`);
+}
+// 目标一出现在调试端点里页面脚本可能还没跑完，等首帧数据下发并画出内容再断言
+async function waitForOverlayDrawn(target, timeoutMs = 15_000) {
+  const deadline = Date.now() + timeoutMs;
+  let drawn = null;
+  while (Date.now() < deadline) {
+    try {
+      drawn = await evaluate(target, `({
+        labels: document.querySelectorAll('#overlay text').length,
+        shapes: document.querySelectorAll('#overlay rect, #overlay line, #overlay circle').length,
+      })`);
+      if (drawn?.labels && drawn?.shapes) return drawn;
+    } catch {
+      // 页面尚未载入完成，执行上下文还不可用
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  throw new Error(`Debug overlay drew nothing: ${JSON.stringify(drawn)}`);
+}
+
+// 叠加层是独立窗口，开关回填的标志位不代表窗口真的显示了，因此以页面实际可见性为准
+async function waitForOverlayVisibility(target, expected, timeoutMs = 5_000) {
+  const deadline = Date.now() + timeoutMs;
+  let state = null;
+  while (Date.now() < deadline) {
+    try {
+      state = await evaluate(target, 'document.visibilityState');
+      if (state === expected) return state;
+    } catch {
+      // 页面尚未载入完成，执行上下文还不可用
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`Debug overlay visibilityState is ${state}, expected ${expected}`);
+}
+
+const overlayTarget = await waitForOverlayTarget();
+await waitForOverlayDrawn(overlayTarget);
+await waitForOverlayVisibility(overlayTarget, 'visible');
+// 反复开关：窗口加载只在创建时发生一次，再次开启不会再触发 did-finish-load，必须重新显示
+await evaluate(dashboard, 'window.petAPI.debug.setOverlay(false)');
+await waitForOverlayVisibility(overlayTarget, 'hidden');
+const reopened = await evaluate(dashboard, 'window.petAPI.debug.setOverlay(true)');
+if (!reopened?.visible) throw new Error('Debug overlay did not turn back on.');
+await waitForOverlayVisibility(overlayTarget, 'visible');
+// 退出开发者模式：叠加层自动撤下，且此后不再接受打开请求
+await evaluate(dashboard, 'window.petAPI.settings.update({devMode:false})');
+const hidden = await evaluate(dashboard, 'window.petAPI.debug.overlay()');
+if (hidden?.visible) throw new Error('Debug overlay stayed visible after leaving developer mode.');
+const rejected = await evaluate(
+  dashboard,
+  'window.petAPI.debug.setOverlay(true).then(()=>false,()=>true)',
+);
+if (!rejected) throw new Error('Debug overlay accepted a request outside developer mode.');
+
 // 缓存清理（放在末尾：它会删除运行中的 Chromium 缓存目录，避免干扰前面的时序敏感断言）
 const cacheControl = await evaluate(dashboard, 'Boolean(document.getElementById("clear-cache-btn"))');
 if (!cacheControl) throw new Error('Dashboard is missing the cache clear control.');
@@ -125,4 +214,4 @@ if (!cacheSweep || typeof cacheSweep.freedBytes !== 'number' || typeof cacheSwee
   throw new Error('Cache sweep IPC did not return a report.');
 }
 
-console.log('Dev smoke: PASS (two renderers, cache sweep, interaction state flow, strict settings, reminder, windows, drag IPC).');
+console.log('Dev smoke: PASS (two renderers, cache sweep, interaction state flow, strict settings, reminder, windows, drag IPC, debug overlay toggle).');
