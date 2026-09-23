@@ -31,6 +31,9 @@ const api: PetAPI = {
     update: (config) => ipcRenderer.invoke('walk:update', config) as Promise<WalkTuningSnapshot>,
     reset: () => ipcRenderer.invoke('walk:reset') as Promise<WalkTuningSnapshot>,
   },
+  typing: {
+    status: () => ipcRenderer.invoke('typing:status') as Promise<TypingStatus>,
+  },
   dev: {
     triggerSleep: () => ipcRenderer.invoke('dev:trigger-sleep') as Promise<void>,
     triggerWalk: () => ipcRenderer.invoke('dev:trigger-walk') as Promise<void>,

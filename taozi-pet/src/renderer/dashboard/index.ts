@@ -1,5 +1,5 @@
 import spec from '../../../pet-spec.json';
-import type { PetSpec, PetStats, Settings, WalkLevel, WalkTuningSnapshot } from '../../shared/contracts';
+import type { PetSpec, PetStats, Settings, TypingStatus, WalkLevel, WalkTuningSnapshot } from '../../shared/contracts';
 import { STANDBY_SIGNAL } from '../../shared/contracts';
 import './index.css';
 
@@ -59,6 +59,8 @@ const toggleAlwaysOnTop = document.getElementById('toggle-always-on-top') as HTM
 const toggleClickThrough = document.getElementById('toggle-click-through') as HTMLDivElement;
 const toggleAutoStart = document.getElementById('toggle-auto-start') as HTMLDivElement;
 const toggleFilePocket = document.getElementById('toggle-file-pocket') as HTMLDivElement;
+const toggleTypingReaction = document.getElementById('toggle-typing-reaction') as HTMLDivElement;
+const typingReactionDesc = document.getElementById('typing-reaction-desc') as HTMLDivElement;
 const filePocketDirEl = document.getElementById('file-pocket-dir') as HTMLDivElement;
 const filePocketChooseBtn = document.getElementById('file-pocket-choose') as HTMLButtonElement;
 const filePocketOpenBtn = document.getElementById('file-pocket-open') as HTMLButtonElement;
@@ -340,6 +342,9 @@ async function loadSettings(): Promise<void> {
     }
     updatePocketDirDisplay(settings.filePocketDir);
 
+    toggleTypingReaction.classList.toggle('active', settings.typingReaction);
+    renderTypingReactionDesc();
+
     for (const btn of randomWalkButtons) {
       btn.classList.toggle('active', Number(btn.dataset.level) === settings.randomWalk);
     }
@@ -406,6 +411,47 @@ toggleClickThrough.addEventListener('click', async () => {
     } else {
       toggleClickThrough.classList.remove('active');
     }
+  } catch (error) {
+    console.error('Failed to update setting:', error);
+  }
+});
+
+// ---- 键盘监听（打字反应）----
+// 开关是「意图」，钩子有没有真的装上由主进程回报；描述行据此把不可用的原因写出来，
+// 免得开关看着是开的、实际什么都没发生。
+let typingStatus: TypingStatus | null = null;
+const TYPING_REASON_TEXT: Record<string, string> = {
+  'not-available': '未装载原生键盘钩子',
+  'start-failed': '键盘钩子启动失败',
+};
+
+function renderTypingReactionDesc(): void {
+  if (!currentSettings?.typingReaction) {
+    typingReactionDesc.textContent = '敲字母键时桌宠拍手应和';
+    typingReactionDesc.title = '';
+    return;
+  }
+  if (typingStatus?.enabled) {
+    typingReactionDesc.textContent = '敲字母键时桌宠拍手应和';
+    typingReactionDesc.title = '';
+    return;
+  }
+  typingReactionDesc.textContent = typingStatus
+    ? `开关已开，但键盘监听未生效：${TYPING_REASON_TEXT[typingStatus.reason] ?? typingStatus.reason}`
+    : '开关已开，等待主进程回报监听状态';
+  // 底层原因（原生模块报错首行）可能很长，放悬停提示，不撑破设置行
+  typingReactionDesc.title = typingStatus?.detail ?? '';
+}
+
+toggleTypingReaction.addEventListener('click', async () => {
+  if (!currentSettings) return;
+  const newVal = !currentSettings.typingReaction;
+  try {
+    await window.petAPI?.settings.update({ typingReaction: newVal });
+    currentSettings.typingReaction = newVal;
+    toggleTypingReaction.classList.toggle('active', newVal);
+    // 开关落盘后主进程会回报最新的监听状态，描述行等回报到达再刷新
+    renderTypingReactionDesc();
   } catch (error) {
     console.error('Failed to update setting:', error);
   }
@@ -597,6 +643,12 @@ window.petAPI?.events.onStateChanged((stateId: string) => {
   applyStateAvatar(stateId);
 });
 
+// 键盘监听状态回报 → 刷新开关下方的说明
+window.petAPI?.events.onTypingStatus((status: TypingStatus) => {
+  typingStatus = status;
+  renderTypingReactionDesc();
+});
+
 // 监听统计数据更新
 window.petAPI?.events.onStats((stats: PetStats) => {
   updateStats(stats);
@@ -611,6 +663,8 @@ window.petAPI?.events.onRemindersUpdated(() => {
 async function init(): Promise<void> {
   setDefaultReminderTime();
   switchView('status');
+  // 先取一次键盘监听状态，再渲染设置（描述行要据此判断钩子是否真的在监听）
+  typingStatus = (await window.petAPI?.typing.status()) ?? null;
   await loadSettings();
   await loadStats();
   // 首次拉取当前状态，让头像从打开瞬间就反映人物情绪

@@ -67,14 +67,14 @@ npm run check          # 素材变更 / 出完整 QA 报告
 
 > 涉及主进程的检查（`png-tray-runtime`、`menu-emoji`、`window-width-capped`）按 `src/main.ts` + `src/main/*.ts` 的合并文本判定，不绑定具体模块划分。
 
-### qa-experience.mjs（18 项，纯体验语义）
+### qa-experience.mjs（19 项，纯体验语义）
 
 > 结构类（trigger 唯一、每状态有 trigger、素材未用/缺失等）**不在此重复维护**，已收敛到 validate-spec / validate-asset-links。本文件只负责运行时体验正确性，避免同规则多处漂移。
 
 | 关卡 | 检查 | 说明 |
 |---|---|---|
 | interrupt-matrix | caninterrupt-id-exists | canInterrupt 引用的 id 必须存在 |
-| interrupt-matrix | caninterrupt-live-lock ⚠ | loop + 全通配(*) 的永久卡死态（如 notify），warning |
+| interrupt-matrix | caninterrupt-live-lock ⚠ | loop 状态须有「逃生门」：存在另一状态（含 `*` 通配）能打断它，否则判定卡死 |
 | interrupt-matrix | caninterrupt-standby-redundant ⚠ | 名单含待机基底（轮播动作或间歇）属冗余（待机本就可被任意抢占），warning |
 | interrupt-matrix | caninterrupt-covering ⚠ | 每个非待机状态至少被一个其它状态可打断 |
 | interaction | interaction-connected | 菜单 trigger 与互动状态 stateId 运行时连通 |
@@ -87,10 +87,11 @@ npm run check          # 素材变更 / 出完整 QA 报告
 | quotes | quote-group-thin ⚠ | 语录组条数 ≥3，避免反馈单调 |
 | quotes | quotes-duplicate-in-group ⚠ | 同一语录组/互动反馈内无重复文本 |
 | motion | interaction-duration-excess ⚠ | 互动时长不超过 3 个完整动画周期 |
-| motion | frame-duration-flicker ⚠ | 帧时长(frameDurationMs) ≥80ms，避免闪烁 |
+| motion | frame-duration-flicker ⚠ | 帧时长(frameDurationMs) ≥80ms，避免闪烁（分段播放的状态除外：帧时长由输入节奏决定） |
 | motion | loop-cycle-brisk ⚠ | loop 状态单轮周期 ≥1500ms，避免循环显急促 |
 | interrupt-matrix | caninterrupt-star-broadcast ⚠ | 非互动状态持全通配(*) 的不超过系统级豁免（notify / feed） |
 | interrupt-matrix | caninterrupt-self ⚠ | canInterrupt 名单不含自身 id（防自引用成环） |
+| interrupt-matrix | interrupt-standby-resume ⚠ | 待机表现（轮播动作与间歇）的 interrupt 须为 resume（进入与续接都由状态机内部路径完成，外部重入会绕过池内互斥） |
 
 ⚠ = warning，仅提示不阻断。
 

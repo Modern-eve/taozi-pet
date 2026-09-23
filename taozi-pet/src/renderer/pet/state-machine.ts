@@ -1,4 +1,4 @@
-import type { IdleRotationGapLevelSpec, IdleRotationSpec, PetState } from '../../shared/contracts';
+import type { IdleRotationGapLevelSpec, IdleRotationSpec, PetState, StateSegment } from '../../shared/contracts';
 import { isIdlePresentation, stateCanInterrupt } from '../../shared/contracts';
 
 export interface StateFrame {
@@ -19,6 +19,8 @@ interface ActiveState {
   resumeId?: string;
   /** 正向播放中已收到倒放请求：待正向播到末帧后自动转入倒放 */
   pendingReverse?: boolean;
+  /** 定格帧（分段播放专用）：播到该帧即停住，undefined 表示播到状态末帧 */
+  holdFrame?: number;
 }
 
 interface RotationEntry {
@@ -27,11 +29,9 @@ interface RotationEntry {
 }
 
 /**
- * 状态机。待机不是单一状态，而是 idleRotation 池中若干动作的随机轮播，动作之间插入一段间歇：
- * - 池成员一律单轮播放（每帧只出现一次），播完进入 idleRotation.gap 指定的静态帧，停顿若干次呼吸后再按权重续接下一个动作（允许连续两次是同一个动作）；
- * - 间歇长度以呼吸次数计（见 setWalkLevel）：挡位越高越活跃，呼吸次数越少；
- * - 池成员与间歇都能被任意其它状态抢占；池成员之间互不打断，动作之间的切换由 tick 的完成分支推进；
- * - 一次性状态（互动 / 提醒 / 行走等）播完后不进入间歇，直接续接下一个待机动作。
+ * 状态机。待机不是单一状态，而是 idleRotation 池中若干动作的随机轮播，每个动作播完接一段间歇：
+ * - 池成员单轮播放（每帧只出现一次），播完进 idleRotation.gap 的静态帧，停顿若干次呼吸后按权重续接下一个动作（允许连续两次是同一个）；
+ * - 池成员之间互不打断，动作间的切换只由 tick 的完成分支推进；一次性状态（互动 / 提醒 / 行走等）播完不进间歇，直接续接下一个待机动作。
  */
 export class PetStateMachine {
   private readonly states: Map<string, PetState>;
@@ -82,16 +82,14 @@ export class PetStateMachine {
     return this.rotationIds.has(stateId);
   }
 
-  /** 当前是否处于待机（轮播动作或间歇）。待机是抢占基底，任何状态都能打断它。 */
   isStandby(): boolean {
     return isIdlePresentation(this.rotationSpec, this.active.state.id);
   }
 
   /**
-   * 按当前挡位摇出间歇时长 = 呼吸次数 × 呼吸周期。
-   * 用整数次呼吸而非毫秒，是为了让间歇与呼吸同起同落：间歇结束的那一刻呼吸正好走完整数个周期、
-   * 回到缩放 1 的相位，摘下呼吸动画时不会出现半相位回落。
-   * 挡位超出配置范围时退回第 0 档（呼吸次数最多、间歇最长）；未提供呼吸周期时无间歇。
+   * 按当前挡位摇出间歇时长 = 呼吸次数 × 呼吸周期。以整数次呼吸计（而非毫秒），让间歇与呼吸同起同落：
+   * 结束时呼吸正好走完整数个周期、回到缩放 1 的相位，摘下呼吸动画不会半相位回落。
+   * 挡位越界退回第 0 档（呼吸次数最多、间歇最长）；未提供呼吸周期时无间歇。
    */
   private gapDurationMs(): number {
     const level = this.gapLevels[this.walkLevel] ?? this.gapLevels[0];
@@ -103,7 +101,7 @@ export class PetStateMachine {
   }
 
   private durationFor(state: PetState, requested?: number): number {
-    // 显式 0 时长 = 无限循环（用于 notify 提醒，直到被更高优先级动作打断）
+    // 显式 0 时长 = 无限循环，直到被别的状态压过（notify 提醒的常驻播报）
     if (requested !== undefined && Number.isFinite(requested) && requested === 0) return 0;
     if (requested !== undefined && Number.isFinite(requested) && requested > 0) return requested;
     // 未指定时长：播放一轮全部帧，每帧只出现一次
@@ -128,23 +126,58 @@ export class PetStateMachine {
     return halfCycle ? Math.max(0, Math.round((state.frames.length * state.frameDurationMs) / 2)) : 0;
   }
 
-  start(stateId: string, now: number, durationMs?: number): boolean {
-    const next = this.states.get(stateId);
-    if (!next) return false;
-    const activeId = this.active.state.id;
-    if (next.id === activeId) {
-      // 同状态重入由 interrupt 类型决定：resume 拒绝，restart 允许
-      if (next.interrupt === 'resume') return false;
-    } else {
-      // 池内互斥：待机轮播动作之间互不打断，动作之间的切换由 tick 的完成分支推进
-      if (this.isRotation(next.id) && this.isRotation(activeId)) return false;
-      // 待机（轮播动作或间歇）是抢占基底：任何状态都能打断它
-      if (!this.isStandby() && !stateCanInterrupt(next, activeId)) return false;
-    }
+  /**
+   * 抢占准入，只在 id 不同时走到（同 id 重入由 start() 按 interrupt 判定）：
+   * 池成员之间互不打断 → 待机（轮播动作或间歇）是抢占基底、一律放行 → 否则查目标的 canInterrupt 名单 → 最后过冷却。
+   */
+  private admit(next: PetState, activeId: string, now: number): boolean {
+    if (this.isRotation(next.id) && this.isRotation(activeId)) return false;
+    if (!this.isStandby() && !stateCanInterrupt(next, activeId)) return false;
     const cooldownMs = this.cooldownMsFor(next);
     const lastCompleted = this.completedAt.get(next.id);
     if (lastCompleted !== undefined && now - lastCompleted < cooldownMs) return false;
+    return true;
+  }
+
+  start(stateId: string, now: number, durationMs?: number): boolean {
+    const next = this.states.get(stateId);
+    if (!next) return false;
+    if (next.id === this.active.state.id) {
+      // 同 id 重入：resume 拒绝、restart 允许
+      if (next.interrupt === 'resume') return false;
+    } else if (!this.admit(next, this.active.state.id, now)) {
+      return false;
+    }
     this.active = this.makeActive(next, now, durationMs);
+    return true;
+  }
+
+  /**
+   * 分段播放（键盘监听）：从 fromFrame 起播、播到 holdFrame 定格，直到被接管或送回待机。
+   * durationMs 置 0 表示不定时结束，配合 holdFrame 封顶 ⇒ 非循环状态永不触发完成分支，播到 holdFrame 就停住。
+   * 同 id 重入只认段边界：holdFrame 相同视为同段连击、不重播（免动画跳回起点），跨段才重开。
+   */
+  playSegment(stateId: string, segment: StateSegment, now: number): boolean {
+    const state = this.states.get(stateId);
+    if (!state) return false;
+    const frameCount = Math.max(1, state.frames.length);
+    const from = Math.min(Math.max(0, Math.floor(segment.fromFrame)), frameCount - 1);
+    const hold = Math.min(Math.max(from, Math.floor(segment.holdFrame)), frameCount - 1);
+    if (this.active.state.id === stateId) {
+      if (this.active.holdFrame === hold) return false;
+    } else if (!this.admit(state, this.active.state.id, now)) {
+      return false;
+    }
+    const frameMs = Math.max(1, state.frameDurationMs);
+    this.active = {
+      state,
+      frameIndex: from,
+      // 起始时间回拨 from 帧的时长，使 tick 的 rawIndex 从 from 起算
+      startedAt: now - from * frameMs,
+      durationMs: 0,
+      direction: 1,
+      holdFrame: hold,
+    };
     return true;
   }
 
@@ -156,10 +189,8 @@ export class PetStateMachine {
   }
 
   /**
-   * 文件拖入桌宠：进入 feed 正向播放（播放完保持末帧）。
-   * - 非 feed 状态 → 从第 0 帧开始正向播放（feed 可打断一切，直接接管）;
-   * - 正在倒放中 → 以当前帧为起点转回正向继续；
-   * - 已在正向（播放中或保持末帧）→ 保持现状，并撤销已排队的倒放请求（用户重新拖入）。
+   * 文件拖入桌宠：进入 feed 正向播放（播完保持末帧），不经 admit——feed 可打断一切。
+   * 正在倒放 → 以当前帧为起点转回正向；已在正向 → 保持现状，并撤销已排队的倒放请求（用户重新拖入）。
    */
   feedForward(now: number): boolean {
     const feed = this.states.get('feed');
@@ -185,22 +216,17 @@ export class PetStateMachine {
     return true;
   }
 
-  /**
-   * 放手 / 拖离桌宠：倒序播放 feed，播完（回到第 0 帧）后恢复 resumeId 指定的状态。
-   * 若正向播放尚未播完，先继续播完正向（到末帧）再自动转入倒放。
-   */
+  /** 放手 / 拖离桌宠：倒序播放 feed，播完回到 resumeId 指定的状态；正向未播完则先补完正向再倒放。 */
   feedReverse(now: number, resumeId?: string): void {
     const active = this.active;
     if (active.state.id !== 'feed') return;
     if (active.direction === -1) {
-      // 已在倒放：更新恢复目标即可
       this.active.resumeId = resumeId;
       return;
     }
     const frameCount = Math.max(1, active.state.frames.length);
     const frameMs = Math.max(1, active.state.frameDurationMs);
     if (this.completedPositive(active, now, frameCount, frameMs)) {
-      // 正向已播完、正保持末帧：立即转入倒放
       this.active.direction = -1;
       this.active.startedAt = now;
       this.active.durationMs = frameCount * frameMs;
@@ -208,7 +234,6 @@ export class PetStateMachine {
       this.active.pendingReverse = false;
       return;
     }
-    // 正向未播完：排队，等 tick 推进到末帧（保持末帧）后转倒放
     this.active.pendingReverse = true;
     this.active.resumeId = resumeId;
   }
@@ -228,7 +253,6 @@ export class PetStateMachine {
     let stateChanged = false;
     let elapsed = Math.max(0, now - this.active.startedAt);
 
-    // 倒序播放完成：回到恢复目标（feed 前被接管的状态或待机轮播）
     if (this.active.direction === -1 && this.active.durationMs > 0 && elapsed >= this.active.durationMs) {
       const resumeId = this.active.resumeId;
       this.active = this.resumeAfterFeed(resumeId, now);
@@ -239,7 +263,6 @@ export class PetStateMachine {
     if (this.active.durationMs > 0 && elapsed >= this.active.durationMs) {
       const completedId = this.active.state.id;
       this.completedAt.set(completedId, now);
-      // 轮播动作播完先进入间歇（呼吸次数按挡位随机）；间歇结束或一次性状态播完则续接下一个待机动作
       const gapMs = this.gapState && this.isRotation(completedId) ? this.gapDurationMs() : 0;
       this.active = gapMs > 0 && this.gapState
         ? this.makeActive(this.gapState, now, gapMs)
@@ -256,8 +279,9 @@ export class PetStateMachine {
     if (this.active.direction === -1) {
       frameIndex = Math.max(0, frameCount - 1 - rawIndex);
     } else {
-      frameIndex = state.loop ? rawIndex % frameCount : Math.min(frameCount - 1, rawIndex);
-      // 正向播放中收到倒放请求：到达末帧（保持末帧）即转入倒放
+      const lastFrame = this.active.holdFrame ?? frameCount - 1;
+      frameIndex = state.loop ? rawIndex % frameCount : Math.min(lastFrame, rawIndex);
+      // 正向播放中收到倒放请求：到末帧即转倒放
       if (this.active.pendingReverse && this.completedPositive(this.active, now, frameCount, frameMs)) {
         this.active.direction = -1;
         this.active.startedAt = now;

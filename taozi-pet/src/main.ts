@@ -12,7 +12,7 @@ import { initialQuotes } from './main/quotes';
 import { startRandomWalk, stopRandomWalk } from './main/random-walk';
 import { scheduleReminder } from './main/reminders';
 import { cacheMaintenancePaths, fatalExit, logCacheReport, userFile } from './main/runtime';
-import { restartTypingListener } from './main/settings';
+import { restartTypingListener, stopTypingListener } from './main/settings';
 import { scheduleSleep } from './main/sleep';
 import { normalizeStatsDay, persistStats } from './main/stats';
 import { createTray, refreshTrayMenu } from './main/tray';
@@ -154,7 +154,7 @@ if (hasSingleInstanceLock) {
 app.on('window-all-closed', () => { /* tray app stays alive */ });
 app.on('before-quit', (event) => {
   ctx.isQuitting = true;
-  ctx.typingListener.stop();
+  stopTypingListener(ctx);
   stopMoodDecay(ctx);
   stopRandomWalk(ctx);
   for (const timer of ctx.reminderTimers.values()) clearTimeout(timer);

@@ -303,7 +303,7 @@
     "interactions": true,
     "filePocket": true,
     "dashboard": true,
-    "typingReaction": false
+    "typingReaction": true
   },
   "states": [
     {
@@ -349,7 +349,7 @@
       "frameDurationMs": 250,
       "loop": false,
       "canInterrupt": [],
-      "interrupt": "restart",
+      "interrupt": "resume",
       "cooldownMs": 0,
       "direction": "neutral",
       "anchor": {
@@ -374,7 +374,7 @@
       "frameDurationMs": 250,
       "loop": false,
       "canInterrupt": [],
-      "interrupt": "restart",
+      "interrupt": "resume",
       "cooldownMs": 0,
       "direction": "neutral",
       "anchor": {
@@ -400,7 +400,7 @@
       "frameDurationMs": 250,
       "loop": false,
       "canInterrupt": [],
-      "interrupt": "restart",
+      "interrupt": "resume",
       "cooldownMs": 0,
       "direction": "neutral",
       "anchor": {
@@ -448,7 +448,7 @@
       "canInterrupt": [
         "*"
       ],
-      "interrupt": "restart",
+      "interrupt": "resume",
       "cooldownMs": 0,
       "direction": "neutral",
       "anchor": {
@@ -494,7 +494,8 @@
         "walk",
         "sleep",
         "notify",
-        "peek"
+        "peek",
+        "clap"
       ],
       "interrupt": "restart",
       "cooldownMs": 0,
@@ -529,7 +530,7 @@
       "canInterrupt": [
         "*"
       ],
-      "interrupt": "restart",
+      "interrupt": "resume",
       "cooldownMs": 0,
       "direction": "neutral",
       "anchor": {
@@ -605,7 +606,16 @@
       "frameDurationMs": 250,
       "loop": false,
       "canInterrupt": [
-        "*"
+        "happy",
+        "notify",
+        "peek",
+        "pumpkin-bag",
+        "petal-spin",
+        "starfish-wave",
+        "walk",
+        "sleep",
+        "sad",
+        "clap"
       ],
       "interrupt": "restart",
       "cooldownMs": 0,
@@ -650,7 +660,16 @@
       "frameDurationMs": 250,
       "loop": false,
       "canInterrupt": [
-        "*"
+        "happy",
+        "notify",
+        "peek",
+        "pet-head",
+        "petal-spin",
+        "starfish-wave",
+        "walk",
+        "sleep",
+        "sad",
+        "clap"
       ],
       "interrupt": "restart",
       "cooldownMs": 0,
@@ -695,7 +714,16 @@
       "frameDurationMs": 250,
       "loop": false,
       "canInterrupt": [
-        "*"
+        "happy",
+        "notify",
+        "peek",
+        "pet-head",
+        "pumpkin-bag",
+        "starfish-wave",
+        "walk",
+        "sleep",
+        "sad",
+        "clap"
       ],
       "interrupt": "restart",
       "cooldownMs": 0,
@@ -740,7 +768,16 @@
       "frameDurationMs": 250,
       "loop": false,
       "canInterrupt": [
-        "*"
+        "happy",
+        "notify",
+        "peek",
+        "pet-head",
+        "pumpkin-bag",
+        "petal-spin",
+        "walk",
+        "sleep",
+        "sad",
+        "clap"
       ],
       "interrupt": "restart",
       "cooldownMs": 0,
@@ -806,7 +843,8 @@
       "canInterrupt": [
         "walk",
         "peek",
-        "sad"
+        "sad",
+        "clap"
       ],
       "interrupt": "resume",
       "cooldownMs": 0,
@@ -841,7 +879,8 @@
       "canInterrupt": [
         "walk",
         "peek",
-        "happy"
+        "happy",
+        "clap"
       ],
       "interrupt": "resume",
       "cooldownMs": 0,
@@ -851,6 +890,44 @@
         "y": 0.95
       },
       "mirrorSafe": true
+    },
+    {
+      "id": "clap",
+      "triggers": [
+        "typing:activity"
+      ],
+      "frames": [
+        "clap-01.png",
+        "clap-02.png",
+        "clap-03.png",
+        "clap-04.png",
+        "clap-05.png",
+        "clap-06.png"
+      ],
+      "frameDurationMs": 20,
+      "loop": false,
+      "canInterrupt": [
+        "walk",
+        "peek"
+      ],
+      "interrupt": "restart",
+      "cooldownMs": 0,
+      "direction": "neutral",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.95
+      },
+      "mirrorSafe": true,
+      "segments": {
+        "press": {
+          "fromFrame": 0,
+          "holdFrame": 2
+        },
+        "release": {
+          "fromFrame": 3,
+          "holdFrame": 5
+        }
+      }
     }
   ],
   "storage": {

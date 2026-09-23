@@ -273,6 +273,22 @@ checks.push(makeCheck({
   },
 }));
 
+// 待机表现的进入与续接都由状态机自行调度的内部路径完成（不经 start() 的同状态判定），
+// 若声明为 restart，一旦被外部再次下发就会绕过池内互斥重播。故待机表现一律 resume。
+checks.push(makeCheck({
+  id: 'interrupt-standby-resume',
+  gate: 'interrupt-matrix',
+  severity: 'warning',
+  describe: '待机表现（轮播动作与间歇）不可被重入：interrupt 必须为 resume',
+  run: () => {
+    const replayable = [...standbyBaseIds].filter((id) => stateById.get(id)?.interrupt !== 'resume');
+    return {
+      passed: replayable.length === 0,
+      detail: replayable.length ? `可被重入的待机状态: ${replayable.join(', ')}` : '待机表现一律 resume',
+    };
+  },
+}));
+
 // 同组语录重复文本：去重后实际条数会缩水，内容可能单调
 checks.push(makeCheck({
   id: 'quotes-duplicate-in-group',
@@ -293,14 +309,19 @@ checks.push(makeCheck({
   },
 }));
 
-// 单帧时长过短：低于 ~80ms 时动画肉眼易闪烁
+// 单帧时长过短：低于 ~80ms 时动画肉眼易闪烁。
+// 分段播放的状态（键盘应和）不参与判定：它由按键事件驱动、单段总时长仅几十毫秒，
+// 帧时长由输入节奏决定，不按观赏性动画的观感标准衡量。
 checks.push(makeCheck({
   id: 'frame-duration-flicker',
   gate: 'motion',
   severity: 'warning',
-  describe: '帧时长(frameDurationMs) ≥ 80ms，避免动画闪烁',
+  describe: '帧时长(frameDurationMs) ≥ 80ms，避免动画闪烁（分段播放的状态除外）',
   run: () => {
-    const flicker = spec.states.filter((state) => (state.frameDurationMs ?? 0) > 0 && state.frameDurationMs < 80).map((state) => `${state.id}(${state.frameDurationMs}ms)`);
+    const flicker = spec.states
+      .filter((state) => !state.segments)
+      .filter((state) => (state.frameDurationMs ?? 0) > 0 && state.frameDurationMs < 80)
+      .map((state) => `${state.id}(${state.frameDurationMs}ms)`);
     return { passed: flicker.length === 0, detail: flicker.length ? `帧时长过短: ${flicker.join(', ')}` : '帧时长均在合理范围' };
   },
 }));

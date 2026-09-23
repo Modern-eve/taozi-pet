@@ -91,8 +91,8 @@ export interface MainContext {
   /** 已到点、等待用户逐个消费的提醒队列（按到点先后排队：旧→新） */
   pendingReminderQueue: Reminder[];
   nextAnnounceReminderTimer: ReturnType<typeof setTimeout> | null;
-  /** 打字反应的节流锚点 */
-  lastTypingReactionAt: number;
+  /** 键盘反应的回待机定时器：抬起字母键后起算，再次按下即清空 */
+  typingIdleTimer: ReturnType<typeof setTimeout> | undefined;
   /** 由装配方（main.ts）注入的回调，用于打破模块间本会形成的循环依赖 */
   hooks: { refreshTrayMenu?: () => void };
 }
@@ -152,7 +152,7 @@ export function createMainContext(options: {
     quitPersisting: false,
     pendingReminderQueue: [],
     nextAnnounceReminderTimer: null,
-    lastTypingReactionAt: 0,
+    typingIdleTimer: undefined,
     hooks: {},
   };
   return ctx;

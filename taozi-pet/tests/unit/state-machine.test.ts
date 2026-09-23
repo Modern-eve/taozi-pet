@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { IdleRotationGapLevelSpec, IdleRotationSpec, PetState } from '../../src/shared/contracts';
+import type { IdleRotationGapLevelSpec, IdleRotationSpec, PetState, StateSegment } from '../../src/shared/contracts';
 import { PetStateMachine } from '../../src/renderer/pet/state-machine';
 
 function state(id: string, overrides: Partial<PetState> = {}): PetState {
@@ -267,4 +267,81 @@ test('feed 倒放结束恢复循环状态（sad/sleep/notify 常驻）', () => {
   machine.feedReverse(600, 'sad');
   machine.tick(1201); // 倒放完成
   assert.equal(machine.currentStateId(), 'sad');
+});
+
+// ---- 分段播放（键盘监听）：按下播前段、抬起播后段，各自定格在段末帧 ----
+// 与 spec.states.clap 同形：6 帧 × 20ms，press = 帧 0..2，release = 帧 3..5
+const CLAP_MS = 20;
+const CLAP_FRAMES = ['clap-1.png', 'clap-2.png', 'clap-3.png', 'clap-4.png', 'clap-5.png', 'clap-6.png'];
+const PRESS: StateSegment = { fromFrame: 0, holdFrame: 2 };
+const RELEASE: StateSegment = { fromFrame: 3, holdFrame: 5 };
+const clap = state('clap', {
+  triggers: ['typing:activity'],
+  frames: CLAP_FRAMES,
+  frameDurationMs: CLAP_MS,
+  canInterrupt: ['walk', 'peek'],
+  segments: { press: PRESS, release: RELEASE },
+});
+
+function clapMachine(extra: PetState[] = []): PetStateMachine {
+  return new PetStateMachine([look, blink, gap, clap, ...extra], rotation([['look', 1], ['blink', 1]]), 0, BREATH_MS);
+}
+
+test('分段播放停在段末帧，既不自播完也不回待机', () => {
+  const machine = clapMachine();
+  assert.equal(machine.playSegment('clap', PRESS, 0), true);
+  // 段内逐帧推进，之后无论过多久都停在第 3 帧（holdFrame）
+  assert.deepEqual(
+    [0, CLAP_MS, CLAP_MS * 2, CLAP_MS * 40].map((at) => machine.tick(at).frameIndex),
+    [0, 1, 2, 2],
+  );
+  assert.equal(machine.currentStateId(), 'clap');
+});
+
+test('抬起段从自己的起点续播，并定格在状态末帧', () => {
+  const machine = clapMachine();
+  machine.playSegment('clap', PRESS, 0);
+  const handoff = CLAP_MS * 6; // 前段早已定格，此刻抬起
+  machine.tick(handoff);
+  assert.equal(machine.playSegment('clap', RELEASE, handoff), true);
+  // 后段从 fromFrame 起播（不是从第 1 帧重来），末帧再停住
+  assert.deepEqual(
+    [0, 1, 2].map((i) => machine.tick(handoff + i * CLAP_MS).frameIndex),
+    [3, 4, 5],
+  );
+  assert.equal(machine.tick(handoff + CLAP_MS * 100).frameIndex, 5);
+  assert.equal(machine.currentStateId(), 'clap');
+});
+
+test('同一段的重复按下不重播，跨段才重开', () => {
+  const machine = clapMachine();
+  machine.playSegment('clap', PRESS, 0);
+  machine.tick(CLAP_MS * 2);
+  // 定格帧相同即同一段：返回 false，动画不会被拉回起点
+  assert.equal(machine.playSegment('clap', PRESS, CLAP_MS * 2), false);
+  assert.equal(machine.playSegment('clap', RELEASE, CLAP_MS * 2), true);
+});
+
+test('分段播放与 start 共用同一套抢占名单：可打断待机 / walk / peek，被常驻状态挡下', () => {
+  const walk = state('walk', { triggers: ['state:walk'], loop: true, interrupt: 'resume' });
+  const peek = state('peek', { triggers: ['window:edge-snap'], interrupt: 'resume' });
+  const sleep = state('sleep', { triggers: ['state:sleep'], loop: true, interrupt: 'resume', canInterrupt: ['clap'] });
+  const machine = clapMachine([walk, peek, sleep]);
+
+  // 待机是抢占基底：按下即接管
+  machine.startStandby(0);
+  assert.equal(machine.playSegment('clap', PRESS, 10), true);
+
+  // walk / peek 都在 clap 的打断名单里：先让它们成为当前状态，再按键夺回
+  for (const target of ['walk', 'peek']) {
+    machine.startStandby(100);
+    assert.equal(machine.start(target, 110), true);
+    assert.equal(machine.playSegment('clap', PRESS, 120), true);
+    assert.equal(machine.currentStateId(), 'clap');
+  }
+
+  // 常驻的 sleep 能打断 clap；clap 的名单里没有 sleep，于是睡觉期间按键不再响应
+  assert.equal(machine.start('sleep', 300), true);
+  assert.equal(machine.playSegment('clap', PRESS, 400), false);
+  assert.equal(machine.currentStateId(), 'sleep');
 });

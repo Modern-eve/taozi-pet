@@ -258,6 +258,11 @@ export function registerIpc(ctx: MainContext): void {
     syncDebugOverlay(ctx);
     return snapshot;
   });
+  // 键盘监听状态：settings.typingReaction 是开关意图，这里回报钩子的事实状态
+  ipcMain.handle('typing:status', (event) => {
+    assertSender(ctx, event, ['dashboard']);
+    return ctx.typingStatus;
+  });
   // 调试叠加层（开发者模式）：把吸附判定带与随机行走范围画在桌宠所在屏幕上
   ipcMain.handle('debug:overlay', (event) => {
     assertSender(ctx, event, ['dashboard']);
@@ -348,12 +353,10 @@ export function registerIpc(ctx: MainContext): void {
     // 用桌宠中心（而非松手光标）选显示器/工作区，避免 drag-end 时光标跨屏边界导致选错 workArea
     const center = { x: original.x + original.width / 2, y: original.y + original.height / 2 };
     const workArea = screen.getDisplayNearestPoint(center).workArea;
-    // 贴边恒生效；peek 动画只在当前状态允许被它接管时才播。
-    // sleep / sad 等常驻状态的打断名单不含 peek，渲染层会拒绝这次切换；预判可省掉注定无效的下发。
+    // 贴边恒生效；peek 只在允许被它接管时下发（预判见 activity.ts 的 canTakeOver，省掉注定被渲染层拒绝的下发）
     const state = stateForTrigger(ctx, 'window:edge-snap');
     const willPeek = state ? canTakeOver(ctx, state, ctx.currentStateId) : false;
-    // 贴边要播语录时把那条语录的气泡宽度让出来（渲染层在拖拽开始时实测预告）；
-    // 不播语录时不该让——否则人物平白停在离屏边一段距离处
+    // 要播语录时让出那条语录的气泡宽度；不播时不预留，否则人物平白停在离屏边一段距离处
     const snapWidth = petSnapWidth(ctx, willPeek ? ctx.snapPreviewWidth ?? 0 : 0);
     const snapInset = (original.width - snapWidth) / 2;
     const reference = {
@@ -362,8 +365,7 @@ export function registerIpc(ctx: MainContext): void {
       width: snapWidth,
       height: original.height,
     };
-    // 边缘判定：基准框边缘进入判定带，或松手光标进入光标带
-    // （抓取点常在角色中心，光标顶到屏边时基准框缘可能还离得很远）。
+    // 边缘判定：基准框边缘进入判定带，或松手光标进入光标带（抓取点常在角色中心，光标顶到屏边时基准框缘可能还离得很远）
     const cursor = screen.getCursorScreenPoint();
     const side = ctx.settings.edgeSnap ? classifySnapSide(reference, workArea, cursor) : null;
     if (side) {
@@ -371,7 +373,7 @@ export function registerIpc(ctx: MainContext): void {
       ctx.petWindow.setBounds(snapped, true);
       setSnapSide(ctx, side, snapWidth);
       if (willPeek && state) {
-        // 不指定 durationMs：由渲染层按 spec 的 frames.length × frameDurationMs 播完整一轮，素材加帧/减帧自动适配
+        // 不指定时长：渲染层按 spec 的 frames.length × frameDurationMs 播完整一轮，素材加减帧自动适配
         sendActivity(ctx, { kind: 'edge-snap', stateId: state.id, mirror: side === 'right' });
       }
     } else {

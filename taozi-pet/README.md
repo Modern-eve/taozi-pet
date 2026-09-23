@@ -29,7 +29,7 @@ taozi-pet/incoming-assets/  (透明抠图)
 taozi-pet/src/assets/pet/  (node tools/process-assets.mjs 渲染为最终桌宠素材)
    │  node tools/validate-spec.mjs + node tools/qa-assets.mjs  (校验)
    ▼
-QA: PASS (152/152)
+QA: PASS (158/158)
 ```
 
 > ⚠️ **第 1 步不能跳过**：`assemble-incoming-assets.py` 按 `pet-spec.json` 的 frames 取清单（**不扫描目录**），
@@ -51,7 +51,7 @@ Python 脚本在**仓库根目录**运行，Node 工具在 `taozi-pet/` 内运�
 | `preprocess-v7-cpu.py` | `assets-raw/` → `incoming-assets/` | CPU 抠白底（洪水填充）。**应急兜底**，默认全量处理全部状态，`--states` 可限定部分状态；输入格式、输出规则与后处理口径均同 GPU 版（共用 `preprocess_common.py`）；**有帧失败即以非零码退出** |
 | `assemble-incoming-assets.py` | `incoming-assets/` 原地归一化 | 全部状态按 `sourceOccupancy` 缩放 + 居中 + 底部对齐到 `sourceCanvas`，**同一套有界非等比规则**（不区分状态） |
 | `tools/process-assets.mjs` | `incoming-assets/` → `src/assets/pet/` | 渲染为最终 512×512 桌宠素材（去背景、羽化、按状态统一尺寸、按 anchor 落位）。先按状态内公共比例缩放，再按帧面积校正到状态中位面积（上限 `processMaxCorrection`），最后把最长边夹在 `targetOccupancy + occupancyTolerance` 之内。交付编码由 `assetPipeline.paletteColours` 决定（>0 写索引色 PNG，0 写 PNG-32）；`--palette-colours <n>` 可临时覆盖，便于 A/B 对比编码 |
-| `tools/validate-spec.mjs` / `tools/qa-assets.mjs` | — | 校验 pet-spec 结构与素材像素质量，目标 `PASS (152/152)` |
+| `tools/validate-spec.mjs` / `tools/qa-assets.mjs` | — | 校验 pet-spec 结构与素材像素质量，目标 `PASS (158/158)` |
 | `repair-src-for-qa.py` | `qa/assets-report.json` → `src/assets/pet/` | 按 QA 报告自动修复失败帧（`SCALE_DRIFT` / `OCCUPANCY_TOO_LARGE` / `GROUND_RESIDUE` / `SUBJECT_TOUCHES_BORDER`），`--dry-run` 可预览 |
 | `make-graphics.py` | `core-ip.jpg`(+`sad-ip.jpg`/`sleep-ip.jpg`) → 托盘图标 / 状态头像 | 复用 `preprocess-v7-gpu.py`（BiRefNet GPU）抠图，从母版头部生成 32×32 透明托盘图标 + 三张页面状态头像，**与动画帧流水线解耦**；后处理共用 `preprocess_common.py`，与动画帧同口径 |
 
@@ -85,7 +85,7 @@ cd taozi-pet
 
 # 4) 校验
 <node> tools/validate-spec.mjs
-<node> tools/qa-assets.mjs               # 期望输出 PASS (152/152)
+<node> tools/qa-assets.mjs               # 期望输出 PASS (158/158)
 
 # 5) QA 兜底（可选）：qa 报错时按报告自动修复
 cd D:\Documents\Doubao\chats\2026-08-12\new-chat
@@ -131,17 +131,17 @@ python make-graphics.py --inner 28
 
 ### 关键约定
 
-- **素材共 152 张 base 帧**：待机轮播四个动作的素材是 `look-01..07.png`（7 帧，承载 `app:start` / `ambient:idle` 触发语义）、`blink-01..06.png`（6 帧）、`belly-ok-01..06.png`（6 帧）、`kick-01..07.png`（7 帧），待机间歇状态 `standby-gap` 用 `core-ip.png`（1 帧，母版全身静态帧）、文件口袋喂食 `feed-01..05.png`（5 帧，200ms/帧 5FPS），其余 10 状态各 12 帧；无 `-r2`。待机轮播动作**单轮播放**（每帧只出现一次，frames 直接列一遍），其余非循环状态的「播两遍」通过 `pet-spec.json` 的 frames 重复引用 base 文件名实现（如 happy 24 项 = 12 帧 × 2）。
+- **素材共 158 张 base 帧**：待机轮播四个动作的素材是 `look-01..07.png`（7 帧，承载 `app:start` / `ambient:idle` 触发语义）、`blink-01..06.png`（6 帧）、`belly-ok-01..06.png`（6 帧）、`kick-01..07.png`（7 帧），待机间歇状态 `standby-gap` 用 `core-ip.png`（1 帧，母版全身静态帧）、文件口袋喂食 `feed-01..05.png`（5 帧，200ms/帧 5FPS）、键盘监听拍手 `clap-01..06.png`（6 帧，20ms/帧 50FPS，按下播前 3 帧、抬起播后 3 帧），其余 10 状态各 12 帧；无 `-r2`。待机轮播动作**单轮播放**（每帧只出现一次，frames 直接列一遍），其余非循环状态的「播两遍」通过 `pet-spec.json` 的 frames 重复引用 base 文件名实现（如 happy 24 项 = 12 帧 × 2）；`clap` 走分段播放，6 张帧不重复引用。
 - **待机间歇帧走同一条流水线**：`standby-gap` 是 `states` 里的普通单帧状态（帧名 `core-ip.png`，源图 `assets-raw/core-ip.jpg`），由 `idleRotation.gap.stateId` 引用。因此它与其他状态共用同一套抠图/归一化/质检规则，工具链无需特判：`preprocess-v7-gpu.py core-ip.jpg`（文件名直传，母版无帧号故不用 `--states`）→ `assemble-incoming-assets.py --states standby-gap` → `node tools/process-assets.mjs --state standby-gap`。间歇长度由 `idleRotation.gap.levels`（按随机行走挡位给**呼吸次数**区间）决定，时长 = 次数 × `motion.breathing.periodMs`，与帧的 `frameDurationMs` 无关。间歇的动感来自 `motion.breathing`（周期 `periodMs`），渲染层按状态挂载该动效，**只有 `standby-gap` 会呼吸**；因为时长恒为呼吸周期的整数倍，间歇结束时呼吸正好走完整数个周期，摘下时不会出现半相位回落。
 - **`pet-spec.json`（`taozi-pet/pet-spec.json`）是帧清单唯一权威**：新增帧时在 spec 的 frames 里加文件名即可。
 - **资产阈值唯一权威**：归一化/边距/占用率/漂移阈值等全部参数都收敛在 `pet-spec.json` 的 `assetPipeline`——`sourceCanvas` / `sourceMargin` / `sourceOccupancy` / `sourcePad` / `sourceScaleAxisCap`（py 上游预处理层），`processMaxCorrection`（process-assets 的面积校正上限），`targetOccupancy` / `occupancyTolerance` / `safeMargin` / `paletteColours`（输出层占用率、上限容差与交付编码颜色数），`qaMaxScaleRatio` / `qaMaxCenterDrift` / `qaMaxBottomDrift`（qa-assets）。所有脚本（py + mjs）读取同一份配置，改一处即全局生效，避免阈值漂移。
 - **交付帧写索引色 PNG**：`paletteColours: 256` 时 process-assets 与 `repair-src-for-qa.py` 都用索引色 PNG（256 色 + `tRNS` 透明度）落盘，实测全量 **21.9 MiB → 6.1 MiB（-72%）**；1:1 与显示尺寸下肉眼无差别（可见像素通道差平均 5~6/255、p99 19、峰值 40，差异覆盖整个人物而非局部崩坏），且应用内精灵为降采样显示（512 → 最多 330px）会再平滑一层。设 `paletteColours: 0` 即回到 PNG-32；`qa-assets` 的像素判据按解码后的 RGBA 判定（与编码无关），另对交付编码做反查（`PALETTE_ENCODING`），因此切换编码既不会绕过像素判据，也不会静默失效。
 - **占用率上限双端一致**：`targetOccupancy` 是目标值，`targetOccupancy + occupancyTolerance` 是硬上限。qa-assets 用它判 `OCCUPANCY_TOO_LARGE`，process-assets 用同一个和夹住帧的最长边——面积校正需要把长宽比偏窄的帧按面积放大，最长边会因此超过目标值，夹到上限即止（占用是硬约束，帧间面积一致性让位于 `qaMaxScaleRatio`）。
-- **人物横向占比是窗口收窄的依据**：`experience.petSizing.contentWidthRatio`（当前 0.62）声明人物在帧内最多占多大横向比例，桌宠窗口宽度据此派生，两侧透明留白由窗口裁掉。`qa-ui` 的 `content-width-fit` 会用**全部 152 帧实测的包围盒并集**校验实际占比不超过该值且人物水平居中——换素材后若人物横向变宽，会在 QA 阶段直接报出来。
+- **人物横向占比是窗口收窄的依据**：`experience.petSizing.contentWidthRatio`（当前 0.62）声明人物在帧内最多占多大横向比例，桌宠窗口宽度据此派生，两侧透明留白由窗口裁掉。`qa-ui` 的 `content-width-fit` 会用**全部 158 帧实测的包围盒并集**校验实际占比不超过该值且人物水平居中——换素材后若人物横向变宽，会在 QA 阶段直接报出来。
 - **贴边以「贴边基准框」为基准，判定带固定**：基准框宽度 = `windows.ts` 的 `petSnapWidth` = `max(人物可见宽度, 本次贴边将要播报的语录气泡宽度)`。语录气泡宽度由渲染层在**拖拽开始**时预取并实测（`bubble:preview-width` → `ctx.snapPreviewWidth`，量法是改气泡文案后同步读回再还原；同一句在贴边播报时复用，见渲染层 `pendingPeekQuote`）——贴上边会弹 peek 语录，位置必须按它的宽度把气泡让出来。本次贴边不播 peek（睡觉 / 沮丧等状态会拒掉它）时不把气泡宽度计入，否则人物会平白让开。判定带固定 20px / 松手光标 50px（真源 `drag.ts` 的 `SNAP_BAND_PX` / `CURSOR_BAND_PX`）。不拿窗口缘判：窗口宽度有气泡区最小宽度 240 兜底，随人物缩放变化的成分很小。吸附后窗口向屏外过冲基准框在窗口内的偏移，使基准框左右缘正好落在工作区左右缘（窗口透明，过冲不影响显示）。
 - **GPU 抠图为默认全量**（`preprocess-v7-gpu.py` 不加 `--states` 即处理全部状态）。GPU 图若触发 QA 问题优先由下流解决：扩展 `assemble` 归一化覆盖范围（消除 `SCALE_DRIFT`），而非退回 `CPU` 版——CPU 版仅作应急兜底。
 - **按需重跑，不要全量**：改动脚本或修单帧时用 `preprocess-v7-gpu.py --states <素材前缀>`（或直接传文件名，如 `preprocess-v7-gpu.py happy-11.jpg`）、`assemble-incoming-assets.py --states <状态 id>` 把范围收窄到受影响的帧；只有确实需要重建全部帧时才不加筛选参数。
-- **抠图耗时**（RTX 4060 Laptop）：瓶颈依次是 GPU 推理 → 连通域分析 → PNG 编码，故推理走 fp16 autocast、连通域合并为一次分析且只对候选块做全图归约、PNG 用 `compress_level=1`，并让「预取 → 推理 → 收尾」三阶段流水线并行。稳态实测 **0.39 s/帧**（主线程只剩推理时间，GPU 利用率约 82%、CPU 并行度 1.4 核）；`--serial` 关闭流水线可对照，此时 0.72 s/帧、GPU 约 53%。全量 152 帧含模型加载约 2 分钟（兜底权重使每帧跑两次推理）。**瓶颈已完全落在 GPU 推理上**——再叠加 CPU 并行、批处理或 `cudnn.benchmark` 都没有收益，再快只能动模型或输入分辨率。
+- **抠图耗时**（RTX 4060 Laptop）：瓶颈依次是 GPU 推理 → 连通域分析 → PNG 编码，故推理走 fp16 autocast、连通域合并为一次分析且只对候选块做全图归约、PNG 用 `compress_level=1`，并让「预取 → 推理 → 收尾」三阶段流水线并行。稳态实测 **0.39 s/帧**（主线程只剩推理时间，GPU 利用率约 82%、CPU 并行度 1.4 核）；`--serial` 关闭流水线可对照，此时 0.72 s/帧、GPU 约 53%。全量 158 帧含模型加载约 2 分钟（兜底权重使每帧跑两次推理）。**瓶颈已完全落在 GPU 推理上**——再叠加 CPU 并行、批处理或 `cudnn.benchmark` 都没有收益，再快只能动模型或输入分辨率。
 
 ### 启动与打包
 

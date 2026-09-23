@@ -104,6 +104,14 @@ const toggled = await evaluate(
 if (toggled?.edgeSnap === settingsBefore.edgeSnap) throw new Error('Settings update did not apply.');
 await evaluate(dashboard, `window.petAPI.settings.update({edgeSnap:${JSON.stringify(settingsBefore.edgeSnap)}})`);
 
+// 键盘监听（打字反应）：开关打开后原生键盘钩子要真的装上，关掉后要真的卸下
+await evaluate(dashboard, 'window.petAPI.settings.update({typingReaction:true})');
+const typingOn = await evaluate(dashboard, 'window.petAPI.typing.status()');
+if (!typingOn?.enabled) throw new Error(`Typing listener did not start: ${JSON.stringify(typingOn)}`);
+await evaluate(dashboard, 'window.petAPI.settings.update({typingReaction:false})');
+const typingOff = await evaluate(dashboard, 'window.petAPI.typing.status()');
+if (typingOff?.enabled) throw new Error('Typing listener kept running after being switched off.');
+
 const testReminder = await evaluate(
   dashboard,
   'window.petAPI.reminders.save({text:"Doubao dev smoke",dueAt:new Date(Date.now()+300000).toISOString()})',
@@ -214,4 +222,4 @@ if (!cacheSweep || typeof cacheSweep.freedBytes !== 'number' || typeof cacheSwee
   throw new Error('Cache sweep IPC did not return a report.');
 }
 
-console.log('Dev smoke: PASS (two renderers, cache sweep, interaction state flow, strict settings, reminder, windows, drag IPC, debug overlay toggle).');
+console.log('Dev smoke: PASS (two renderers, cache sweep, interaction state flow, strict settings, reminder, windows, drag IPC, debug overlay toggle, typing listener).');

@@ -56,7 +56,10 @@ module.exports = {
       unsafelyDisableChecksums: true,
     } : undefined,
   },
-  rebuildConfig: {},
+  // uiohook-napi 分发 prebuildify 产出的 N-API 预编译二进制（prebuilds/<platform>-<arch>/），
+  // N-API 跨 Node/Electron 版本 ABI 稳定，由 node-gyp-build 在运行时直接加载；
+  // 交给 @electron/rebuild 反而会走 node-gyp 从源码重编译并要求本机工具链。
+  rebuildConfig: { ignoreModules: ['uiohook-napi'] },
   makers,
   plugins: [
     { name: '@electron-forge/plugin-auto-unpack-natives', config: {} },

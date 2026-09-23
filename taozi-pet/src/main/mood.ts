@@ -27,7 +27,7 @@ export function decayMood(ctx: MainContext): void {
 /** 心情跨越阈值时切换 sad / 回待机。 */
 export function checkMoodState(ctx: MainContext): void {
   if (ctx.stats.mood < MOOD_SAD_THRESHOLD && ctx.currentStateId !== 'sad') {
-    // durationMs:0 = 常驻（如同 notify），心情未回升前持续沮丧，仅被 sleep/互动/通知打断
+    // durationMs:0 = 常驻，心情未回升前持续沮丧，仅被 sleep / 互动 / 通知打断
     sendActivity(ctx, { kind: 'ambient', stateId: 'sad', durationMs: 0 });
   } else if (ctx.stats.mood >= MOOD_SAD_THRESHOLD && ctx.currentStateId === 'sad') {
     sendActivity(ctx, { kind: 'ambient', stateId: STANDBY_SIGNAL });

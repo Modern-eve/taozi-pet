@@ -126,8 +126,8 @@ export interface QuoteGroupSpec {
 }
 
 /**
- * 「回到待机」的调度信号：待机由 idleRotation 池中的动作轮播呈现，没有独立的待机状态，
- * 因此用这个 id 表达「脱离当前动作、回到待机轮播」，不指向任何一个可播放状态。
+ * 「回到待机」的调度信号：待机由 idleRotation 池的动作轮播呈现、没有独立状态，
+ * 故用这个 id 表达「脱离当前动作回到待机轮播」，它不指向任何一个可播放状态。
  */
 export const STANDBY_SIGNAL = 'idle';
 
@@ -182,28 +182,32 @@ export interface PetState {
   frameDurationMs: number;
   /** 是否循环播放；待机轮播成员一律单轮播放（每帧只出现一次，播完续接下一个待机动作） */
   loop: boolean;
-  /** 本状态可打断（压过）的状态 id 名单；'*' 表示可打断一切；待机轮播动作是抢占基底，默认可被任意状态打断，无需列入 */
+  /** 可被本状态压过的状态 id 名单；'*' 表示可压过一切；待机轮播动作是抢占基底，无需列入 */
   canInterrupt: string[];
+  /** 同一状态被再次下发时的行为：restart 重播、resume 忽略；只在同 id 重入路径读取 */
   interrupt: string;
   cooldownMs: number;
   direction: string;
   anchor: { x: number; y: number };
   mirrorSafe: boolean;
+  /** 键盘监听的分段播放：按下播 press 段、抬起播 release 段 */
+  segments?: { press: StateSegment; release: StateSegment };
 }
 
-/**
- * 目标状态能否压过当前状态：看目标的在案打断名单（'*' 表示可打断一切）。
- * 渲染层状态机与主进程发 activity 前的预判共用这一份判据，避免两侧规则漂移。
- */
+/** 分段播放区间（帧下标，0-based 含两端）：从 fromFrame 起播，播到 holdFrame 定格在该帧，直到被接管或送回待机。 */
+export interface StateSegment {
+  fromFrame: number;
+  holdFrame: number;
+}
+
+/** 目标状态能否压过当前状态：查目标的 canInterrupt 名单（'*' 即全部）。渲染层状态机与主进程的预判共用这份判据。 */
 export function stateCanInterrupt(next: PetState, activeId: string): boolean {
   return next.canInterrupt.includes('*') || next.canInterrupt.includes(activeId);
 }
 
 /**
- * 该状态是否属于待机表现：idleRotation 的轮播池成员，或轮播之间的间歇。
- * 待机没有独立状态，由池内动作与间歇交替呈现，故判据落在 idleRotation 上。
- * 渲染层状态机（进入待机的抢占基底判定）与主进程（能否随机行走）共用这一份判据。
- * STANDBY_SIGNAL 视同待机：它是「回到待机」的调度信号本身，主进程在收到首次回报前也以它表示待机。
+ * 该状态是否属于待机表现：idleRotation 的轮播池成员、池成员之间的间歇，或「回到待机」信号本身
+ * （STANDBY_SIGNAL 在首次回报前也代表待机）。渲染层状态机与主进程共用这一份判据。
  */
 export function isIdlePresentation(rotation: IdleRotationSpec, stateId: string): boolean {
   if (stateId === STANDBY_SIGNAL) return true;
@@ -251,6 +255,8 @@ export interface StateActivity {
   durationMs?: number;
   feedback?: string;
   mirror?: boolean;
+  /** 分段播放：只播该区间并定格（键盘监听的两段 clap），与 durationMs 不同时使用时以本字段为准 */
+  segment?: StateSegment;
 }
 
 export interface RuntimeReadyReport {
@@ -282,6 +288,8 @@ export interface InteractionResult {
 export interface TypingStatus {
   enabled: boolean;
   reason: string;
+  /** 失败时的底层原因（原生模块报错首行），供日志与状态页定位问题 */
+  detail?: string;
 }
 
 // 小屋面板的视图：状态 / 语录 / 提醒，由桌宠右键或托盘右键三个选项分别进入
@@ -347,6 +355,13 @@ export interface PetAPI {
     get: () => Promise<WalkTuningSnapshot>;
     update: (config: WalkConfig) => Promise<WalkTuningSnapshot>;
     reset: () => Promise<WalkTuningSnapshot>;
+  };
+  /**
+   * 键盘监听（打字反应）：settings.typingReaction 只是开关意图，
+   * status 回报的是键盘钩子的事实状态（是否真的装上并在监听）。
+   */
+  typing: {
+    status: () => Promise<TypingStatus>;
   };
   reminders: {
     list: () => Promise<Reminder[]>;
