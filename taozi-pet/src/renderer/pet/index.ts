@@ -255,7 +255,7 @@ function scheduleSleepQuote(): void {
 
 // ---- 待机语录：进入待机动作时播报 ----
 // 间歇期间不发声；等挡位对应的间歇走完、进入下一个待机动作时，随机取该动作的一句语录，气泡 3s。
-// 节奏因此天然跟着随机行走挡位走（挡位越高间歇越短、说话越勤），无需独立定时器。
+// 播报节奏因此天然跟着随机行走挡位走（挡位越高间歇越短、说话越勤），无需独立定时器。
 const rotationStateIds = petSpec.idleRotation.states.map((entry) => entry.id);
 const STANDBY_QUOTE_HIDE_MS = 3000;
 let lastAnnouncedStateId = stateMachine.currentStateId();
@@ -312,7 +312,8 @@ container.addEventListener('click', (event) => {
   // 点击桌宠即消费待处理提醒（notify 循环被 happy 打断，气泡被点击语录替换）
   void window.petAPI?.reminders.ack()
     .catch((error) => reportIssue(`reminders.ack failed: ${error instanceof Error ? error.message : String(error)}`));
-  // sad 时 happy 压不过它（动画仍停在沮丧），故改弹沮丧安抚语录，语气与心情一致
+  // 沮丧状态下 happy 压不过 sad（动画不切，仍是沮丧），点击不该弹兴奋语录——
+  // 此时改弹沮丧安抚语录，语气与沮丧状态一致
   const quote = stateMachine.currentStateId() === 'sad'
     ? (getQuote('sad') || getQuote('__click__'))
     : getQuote('__click__');
@@ -381,7 +382,8 @@ container.addEventListener('contextmenu', (e) => {
 
 // ---- 文件口袋拖放 ----
 // 文件拖入桌宠 → feed 正向播放（播完保持末帧）；放手（drop）→ 收纳文件并倒序播放 feed；
-// 拖离（dragleave 且未放下）→ 不收纳、同样倒序播放。倒序是「回到 feed 前状态」的过渡，细节见状态机的 feedForward / feedReverse。
+// 拖离（dragleave 且未放下）→ 不收纳、同样倒序播放。倒序是「回到 feed 前状态的过渡」。
+// 倒放过程中再次拖入 → 以当前帧转回正向继续（见状态机 feedForward/feedReverse）。
 const FEED_RESUME_IDS = new Set(['idle', 'sad', 'sleep', 'notify']);
 let filePocketEnabled = true;
 let fileDragDepth = 0;

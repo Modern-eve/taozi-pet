@@ -8,7 +8,8 @@ export function randomWalkStep(ctx: MainContext): void {
   if (!ctx.petWindow || ctx.petWindow.isDestroyed()) return;
   if (isDraggingActive(ctx)) return;
   if (ctx.randomWalkAnimTimer) return; // 正在移动中，不触发新的移动
-  // 仅在待机时走动：常驻状态（sleep/sad 等）既不移动，也避免收尾的待机信号把常驻状态打断
+  // 仅在待机时随机行走；sleep/sad 等常驻状态时既不移动也不发 walk 语录，
+  // 更避免移动结束的回待机信号把常驻状态打断
   if (!isIdlePresentation(ctx.spec.idleRotation, ctx.currentStateId)) return;
   const cfg = ctx.walk.levels[ctx.settings.randomWalk];
   if (!cfg) return; // 0 木头人（关闭）
@@ -58,11 +59,14 @@ export function randomWalkStep(ctx: MainContext): void {
 
   // 贴边偏移在窗口移走后不再成立，先复位再起步
   setSnapSide(ctx, null);
-  // 触发 walk 动画：按钳制后的实际水平位移镜像（素材默认朝左；纯上下与贴屏边被钳成零位移时不镜像）
+  // 触发 walk 动画：移动含向右分量时左右镜像（素材默认朝左）。
+  // 按裁剪与屏幕钳制之后的实际水平位移判定：纯上下与贴屏边被钳成零位移时不镜像。
   const walkMirror = targetX > bounds.x;
-  // durationMs:0 = 无限循环（见 PetStateMachine.durationFor），使动画在物理移动结束前持续循环，而非只播一轮就静止
+  // durationMs:0 让渲染层把 walk 视为无限循环状态（见 PetStateMachine.durationFor 的 requested===0 分支），
+  // 在物理移动结束前持续循环播放 walk 动画，避免只播一轮（3s）就静止；移动结束时由下方发待机信号收尾。
   sendActivity(ctx, { kind: 'ambient', stateId: 'walk', mirror: walkMirror, durationMs: 0 });
-  // 不调 resetActivityTimer()：入睡计时只被用户主动动作重置（互动 / 拖动 / 开发者面板），随机行走是自动行为
+  // 注意：此处【不】调用 resetActivityTimer()。睡觉计时只允许被用户主动动作重置
+  // （互动 / 拖动 / 开发者面板点击）；随机行走是自动行为，不应推迟入睡。
 
   ctx.randomWalkAnimTimer = setInterval(() => {
     step++;
@@ -74,7 +78,8 @@ export function randomWalkStep(ctx: MainContext): void {
       if (ctx.petWindow && !ctx.petWindow.isDestroyed()) {
         movePetWindow(ctx, targetX, targetY);
       }
-      // 移动结束回待机，但仅当期间没被互动 / 提醒 / 贴边接管：无条件广播会把主进程门控冲回待机，而渲染层还在播互动
+      // 移动结束，回到待机。仅当期间未被互动 / 提醒 / 贴边等状态接管时才复位：
+      // 无条件广播待机信号会把互动状态从主进程门控里冲掉，导致渲染层仍在播互动而主进程已回待机。
       if (ctx.currentStateId === 'walk') {
         sendActivity(ctx, { kind: 'ambient', stateId: STANDBY_SIGNAL });
       }

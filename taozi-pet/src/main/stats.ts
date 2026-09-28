@@ -32,6 +32,20 @@ export async function persistStats(ctx: MainContext): Promise<void> {
   await atomicWriteJson(userFile('pet-stats.json'), ctx.stats);
 }
 
+/**
+ * 结算一次增益：好感按来源每日仅首次计入（同日重复不再加），心情每次都计入；两者均封顶 100。
+ * 只改内存状态，落盘与广播由调用方决定。
+ */
+export function applyReward(ctx: MainContext, source: string, gain: number): void {
+  normalizeStatsDay(ctx);
+  const today = localDateKey();
+  if (ctx.stats.dailyInteractionDates[source] !== today) {
+    ctx.stats.affection = Math.min(100, ctx.stats.affection + gain);
+    ctx.stats.dailyInteractionDates[source] = today;
+  }
+  ctx.stats.mood = Math.min(100, ctx.stats.mood + gain);
+}
+
 export function broadcastStats(ctx: MainContext): void {
   broadcastToWindows(ctx, 'pet:stats', publicStats(ctx));
 }

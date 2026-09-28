@@ -81,6 +81,11 @@ checks.push(makeCheck({
     const sizing = spec.experience?.petSizing ?? {};
     if (!Number.isInteger(sizing.baseWindowPx) || sizing.baseWindowPx < 180 || sizing.baseWindowPx > 260) problems.push('experience.petSizing.baseWindowPx 必须为 180-260');
     if (![0.65, 0.8, 1, 1.2].includes(sizing.defaultScale)) problems.push('experience.petSizing.defaultScale 必须是 0.65/0.8/1/1.2 之一');
+    const rewards = spec.experience?.rewards ?? {};
+    for (const key of ['feed', 'peek', 'happy']) {
+      const gain = rewards[key]?.affectionGain;
+      if (!Number.isInteger(gain) || gain < 1 || gain > 100) problems.push(`experience.rewards.${key}.affectionGain 必须为 1-100 的整数`);
+    }
     if (spec.features?.transparentWindow !== true) problems.push('features.transparentWindow 必须为 true');
     if (spec.build?.unsigned !== true) problems.push('build.unsigned 必须显式为 true');
     if (spec.build?.windows?.arch !== 'x64') problems.push('Windows 架构必须为 x64');

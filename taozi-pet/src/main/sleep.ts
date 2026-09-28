@@ -23,7 +23,7 @@ export function scheduleSleep(ctx: MainContext): void {
   ctx.sleepTimer = setTimeout(() => {
     const elapsed = Date.now() - ctx.lastActivityTime;
     if (elapsed >= SLEEP_TRIGGER_MS && !isDraggingActive(ctx) && !ctx.randomWalkAnimTimer) {
-      // durationMs:0 = 常驻，保持入睡直到被开心 / 互动 / 通知打断
+      // durationMs:0 = 常驻（如同 notify），保持入睡直到被开心/互动/通知打断
       sendActivity(ctx, { kind: 'ambient', stateId: 'sleep', durationMs: 0 });
     } else {
       scheduleSleep(ctx);

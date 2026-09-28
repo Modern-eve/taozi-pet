@@ -6,7 +6,8 @@ assemble-incoming-assets.py — 组装 + 归一化 taozi-pet/incoming-assets
 
 **全部状态同一套规则，不按状态名/id/trigger 做任何分支**：以状态内中位数帧为参考，
 每帧先按占用率算统一因子 su，再把 sx、sy 分别限定在 su*(1±cap) 内
-（cap = assetPipeline.sourceScaleAxisCap，默认 0.035，对应面积漂移 <7%、qa 限 8%）。
+（cap = assetPipeline.sourceScaleAxisCap，默认 0.01784，对应宽高比形变上限
+(1+cap)²−1 ≈ 3.6%、面积漂移 <7%、qa 限 8%）。
 该规则自动适配：姿态几乎不动的状态其 sx≈sy≈su，钳制不生效，结果等同于逐轴精确对齐；
 姿态变化大的状态则保留有限的非等比空间，避免被压扁/拉长。
 
@@ -35,7 +36,7 @@ CANVAS = _pipeline.get("sourceCanvas", 1280)                        # 统一透�
 MARGIN = _pipeline.get("sourceMargin", 48)                          # 画布边缘留白（防贴边）
 TARGET_OCC = _pipeline.get("sourceOccupancy", 0.62)                 # 目标占用率（面积占比）
 PAD = _pipeline.get("sourcePad", 4)                                 # bbox 外扩留白
-CAP = _pipeline.get("sourceScaleAxisCap", 0.035)                    # 每轴相对统一因子 su 的最大偏差（全状态统一）
+CAP = _pipeline.get("sourceScaleAxisCap", 0.01784)                  # 每轴相对统一因子 su 的最大偏差（全状态统一）
 
 
 def load_states():

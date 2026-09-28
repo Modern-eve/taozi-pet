@@ -14,8 +14,9 @@ rename-assets.py — assets-raw 帧整理（流水线第 1 步）：统一转 .j
      RGBA 源按 RGB 落盘（白底图无透明信息需保留）。
   2. 编号收拢：按帧号排序后重映射为连续整数，收拢数字缺口、把 x.5 过渡帧
      各自并入连续序列、消除文件名空格（" blink - 1 .png" → "blink-01.jpg"）。
-     落盘按**降序执行**（先写高编号），原地重编号时目标名若与未处理帧的源同名
-     （如 look-03.5 的目标 look-04.jpg 恰是帧 4 的源），先腾走旧名再写入，不会覆盖真实帧。
+     落盘按**升序执行**（先写低编号）：目标编号恒 ≤ 该帧的源编号（收拢只会前移），
+     而占着编号 i 的文件其源编号必 ≤ i，轮到 i 时它已经腾走，故不会覆盖真实帧；
+     降序执行会在写高编号目标时压掉尚未处理的低编号源。
   3. 去多余尾缀：文件名形如 <state>-NN-<尾缀>...（尾缀可含连字符/数字/点）统一收敛为
      <state>-NN（仅保留「前缀-帧号」两段），例如 look-01-extra-2.jpg → look-01.jpg。
      与编号收拢共用：尾缀帧按其帧号入桶，输出标准名即自动去掉尾缀（mtime 冲突裁决规则一致）。
@@ -118,9 +119,9 @@ def plan(prefix, items, d):
 def do_convert(d, converts, deletes, quality, apply):
     """转 jpg + 覆盖冲突。默认 dry-run 不落盘。
 
-    按**降序**执行（先写高编号）：原地重编号时目标名可能是未处理帧的旧名
-    （如 look-03.5 → look-04.jpg，而 look-04.jpg 还是帧 4 的源），
-    从高往低写可保证写目标前旧名已被腾走，永不覆盖尚未处理的源文件。
+    按**升序**执行（先写低编号）：目标编号恒 ≤ 该帧的源编号（收拢只会前移），
+    而占着编号 i 的文件其源编号必 ≤ i（编号序列严格递增，第 k 项的源 ≥ k），
+    轮到 i 时它已经腾走。降序执行会在写高编号目标时压掉尚未处理的低编号源。
     """
     from PIL import Image
     if not apply:
@@ -130,8 +131,8 @@ def do_convert(d, converts, deletes, quality, apply):
         p = os.path.join(d, name)
         if os.path.exists(p):
             os.remove(p)
-    # 再把每个 NN 的最新源落到目标（降序执行，避免目标名压到未处理帧的源）
-    for src, dst in reversed(converts):
+    # 再把每个 NN 的最新源落到目标（升序执行；降序会压掉尚未处理的低编号源）
+    for src, dst in converts:
         sp, dp = os.path.join(d, src), os.path.join(d, dst)
         if src.lower() == dst.lower():
             continue  # 最新者已是目标名，无需改动

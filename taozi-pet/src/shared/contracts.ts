@@ -74,6 +74,18 @@ export interface PetSpec {
       /** 人物在精灵帧内的横向占比上限：窗口宽度与贴边基准都据此派生（QA 依素材实测校验） */
       contentWidthRatio: number;
     };
+    /** 非菜单互动（点击桌宠 / 喂食 / 贴边窥视）的好感增益 */
+    rewards: {
+      feed: {
+        affectionGain: number;
+      };
+      happy: {
+        affectionGain: number;
+      };
+      peek: {
+        affectionGain: number;
+      };
+    };
     quotes: Record<string, QuoteGroupSpec>;
     interactions: InteractionSpec[];
   };
@@ -126,8 +138,8 @@ export interface QuoteGroupSpec {
 }
 
 /**
- * 「回到待机」的调度信号：待机由 idleRotation 池的动作轮播呈现、没有独立状态，
- * 故用这个 id 表达「脱离当前动作回到待机轮播」，它不指向任何一个可播放状态。
+ * 「回到待机」的调度信号：待机由 idleRotation 池中的动作轮播呈现，没有独立的待机状态，
+ * 因此用这个 id 表达「脱离当前动作、回到待机轮播」，不指向任何一个可播放状态。
  */
 export const STANDBY_SIGNAL = 'idle';
 
@@ -182,9 +194,8 @@ export interface PetState {
   frameDurationMs: number;
   /** 是否循环播放；待机轮播成员一律单轮播放（每帧只出现一次，播完续接下一个待机动作） */
   loop: boolean;
-  /** 可被本状态压过的状态 id 名单；'*' 表示可压过一切；待机轮播动作是抢占基底，无需列入 */
+  /** 本状态可打断（压过）的状态 id 名单；'*' 表示可打断一切；待机轮播动作是抢占基底，默认可被任意状态打断，无需列入 */
   canInterrupt: string[];
-  /** 同一状态被再次下发时的行为：restart 重播、resume 忽略；只在同 id 重入路径读取 */
   interrupt: string;
   cooldownMs: number;
   direction: string;
@@ -200,14 +211,19 @@ export interface StateSegment {
   holdFrame: number;
 }
 
-/** 目标状态能否压过当前状态：查目标的 canInterrupt 名单（'*' 即全部）。渲染层状态机与主进程的预判共用这份判据。 */
+/**
+ * 目标状态能否压过当前状态：看目标的在案打断名单（'*' 表示可打断一切）。
+ * 渲染层状态机与主进程发 activity 前的预判共用这一份判据，避免两侧规则漂移。
+ */
 export function stateCanInterrupt(next: PetState, activeId: string): boolean {
   return next.canInterrupt.includes('*') || next.canInterrupt.includes(activeId);
 }
 
 /**
- * 该状态是否属于待机表现：idleRotation 的轮播池成员、池成员之间的间歇，或「回到待机」信号本身
- * （STANDBY_SIGNAL 在首次回报前也代表待机）。渲染层状态机与主进程共用这一份判据。
+ * 该状态是否属于待机表现：idleRotation 的轮播池成员，或轮播之间的间歇。
+ * 待机没有独立状态，由池内动作与间歇交替呈现，故判据落在 idleRotation 上。
+ * 渲染层状态机（进入待机的抢占基底判定）与主进程（能否随机行走）共用这一份判据。
+ * STANDBY_SIGNAL 视同待机：它是「回到待机」的调度信号本身，主进程在收到首次回报前也以它表示待机。
  */
 export function isIdlePresentation(rotation: IdleRotationSpec, stateId: string): boolean {
   if (stateId === STANDBY_SIGNAL) return true;

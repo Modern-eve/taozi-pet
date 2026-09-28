@@ -7,21 +7,18 @@ import { sendActivity } from './windows';
 export const MOOD_SAD_THRESHOLD = 25;
 
 export function decayMood(ctx: MainContext): void {
-  const now = Date.now();
-  const elapsed = now - ctx.stats.lastMoodDecayMs;
+  const elapsed = Date.now() - ctx.stats.lastMoodDecayMs;
   // 每2分钟衰减1点心情
-  const accrued = Math.floor(elapsed / 120_000);
+  const periods = Math.floor(elapsed / 120_000);
+  if (periods <= 0) return;
+  // 参考点只前进整周期、零头留给下次结算，使「每 2 分钟 -1」在持续运行时同样成立
+  ctx.stats.lastMoodDecayMs += periods * 120_000;
   // 封顶单次结算点数，避免长期静置/休眠唤醒后一次性暴跌（心情"突然跃变"）
-  const decayPoints = Math.min(6, accrued);
-  if (decayPoints > 0 && ctx.stats.mood > 0) {
-    ctx.stats.mood = Math.max(0, ctx.stats.mood - decayPoints);
-    ctx.stats.lastMoodDecayMs = now;
-    broadcastStats(ctx);
-    checkMoodState(ctx);
-  } else if (decayPoints === 0) {
-    // 静置不足一个结算周期：时间前进，纯粹提前刷新参考点，防止累积瞬间扣分
-    ctx.stats.lastMoodDecayMs = now;
-  }
+  const decayPoints = Math.min(6, periods);
+  if (ctx.stats.mood <= 0) return;
+  ctx.stats.mood = Math.max(0, ctx.stats.mood - decayPoints);
+  broadcastStats(ctx);
+  checkMoodState(ctx);
 }
 
 /** 心情跨越阈值时切换 sad / 回待机。 */

@@ -34,15 +34,15 @@
     "edgeFeather": 12,
     "safeMargin": 24,
     "targetOccupancy": 0.78,
-    "occupancyTolerance": 0.025,
+    "occupancyTolerance": 0.06,
     "paletteColours": 256,
     "sourceCanvas": 1280,
     "sourceMargin": 48,
     "sourceOccupancy": 0.62,
     "sourcePad": 4,
-    "sourceScaleAxisCap": 0.035,
+    "sourceScaleAxisCap": 0.01784,
     "processMaxCorrection": 1.12,
-    "qaMaxScaleRatio": 1.08,
+    "qaMaxScaleRatio": 1.03,
     "qaMaxCenterDrift": 0.035,
     "qaMaxBottomDrift": 0.018
   },
@@ -60,6 +60,17 @@
       "baseWindowPx": 220,
       "defaultScale": 0.8,
       "contentWidthRatio": 0.62
+    },
+    "rewards": {
+      "feed": {
+        "affectionGain": 3
+      },
+      "happy": {
+        "affectionGain": 2
+      },
+      "peek": {
+        "affectionGain": 2
+      }
     },
     "quotes": {
       "__click__": {
@@ -169,7 +180,7 @@
         "label": "摸摸头",
         "stateId": "pet-head",
         "durationMs": 6000,
-        "affectionGain": 2,
+        "affectionGain": 3,
         "feedback": [
           "嘿嘿，别乱摸啦~",
           "头发会乱的！",
@@ -184,7 +195,7 @@
         "label": "掏南瓜包",
         "stateId": "pumpkin-bag",
         "durationMs": 6000,
-        "affectionGain": 3,
+        "affectionGain": 2,
         "feedback": [
           "猜猜我包里藏了什么？",
           "给你看个宝贝~",
@@ -214,7 +225,7 @@
         "label": "海星招手",
         "stateId": "starfish-wave",
         "durationMs": 6000,
-        "affectionGain": 1,
+        "affectionGain": 2,
         "feedback": [
           "嗨！",
           "今天也要元气满满哦！",
@@ -838,7 +849,7 @@
         "sleep-11.png",
         "sleep-12.png"
       ],
-      "frameDurationMs": 333,
+      "frameDurationMs": 625,
       "loop": true,
       "canInterrupt": [
         "walk",
@@ -874,7 +885,7 @@
         "sad-11.png",
         "sad-12.png"
       ],
-      "frameDurationMs": 333,
+      "frameDurationMs": 625,
       "loop": true,
       "canInterrupt": [
         "walk",

@@ -18,7 +18,7 @@ import { parseQuotes, parseSettings } from './data-validation';
 import { classifySnapSide, draggedBounds, snappedBounds } from './drag';
 import { debugOverlayPayload, setDebugOverlayVisible, syncDebugOverlay } from './debug-overlay';
 import { checkMoodState } from './mood';
-import { publicStats, broadcastStats, normalizeStatsDay, persistStats } from './stats';
+import { publicStats, applyReward, broadcastStats, normalizeStatsDay, persistStats } from './stats';
 import { initialQuotes, notifyQuotesChanged, persistQuotes } from './quotes';
 import { randomWalkStep, startRandomWalk, stopRandomWalk } from './random-walk';
 import { ackPendingReminder, broadcastRemindersUpdated, clearAllReminders, clearReminderTimer, persistReminders, scheduleReminder } from './reminders';
@@ -125,11 +125,15 @@ export function registerIpc(ctx: MainContext): void {
     broadcastRemindersUpdated(ctx);
     return reminder;
   });
-  ipcMain.handle('reminders:ack', (event) => {
+  ipcMain.handle('reminders:ack', async (event) => {
     assertSender(ctx, event, ['pet']);
     // 点击桌宠会打断到 happy，需等它（frames × 帧长）播完再播放下一条提醒
     const interrupt = spec.states.find((s) => s.id === 'happy');
     const afterMs = interrupt ? interrupt.frames.length * interrupt.frameDurationMs : 0;
+    // 点击桌宠由用户带来，计入好感（每日首次）与心情（每次）
+    applyReward(ctx, 'happy', spec.experience.rewards.happy.affectionGain);
+    await persistStats(ctx);
+    broadcastStats(ctx);
     return ackPendingReminder(ctx, afterMs);
   });
   ipcMain.handle('reminders:remove', async (event, id: unknown) => {
@@ -321,6 +325,17 @@ export function registerIpc(ctx: MainContext): void {
         result.failed.push({ source, reason: error instanceof Error ? error.message : String(error) });
       }
     }
+    // 喂食是用户主动动作：计入好感（每日首次）与心情（每次），并消费队首待处理提醒。
+    // 动画按「正向补完 + 倒放」两个周期计、末尾多留一帧等渲染层回报落地；
+    // 心情检查先注册，避免回升回待机的信号与下一条提醒互相打断。
+    applyReward(ctx, 'feed', spec.experience.rewards.feed.affectionGain);
+    await persistStats(ctx);
+    broadcastStats(ctx);
+    const feedState = spec.states.find((state) => state.id === 'feed');
+    const feedCycleMs = (feedState?.frames.length ?? 0) * (feedState?.frameDurationMs ?? 0);
+    const settleMs = feedCycleMs * 2 + (feedState?.frameDurationMs ?? 0);
+    setTimeout(() => checkMoodState(ctx), settleMs);
+    ackPendingReminder(ctx, settleMs);
     return result;
   });
   ipcMain.handle('files:open-pocket', async (event) => { assertSender(ctx, event, ['pet', 'dashboard']); await openPocket(ctx); });
@@ -345,7 +360,7 @@ export function registerIpc(ctx: MainContext): void {
     if (!ctx.petWindow || !ctx.dragSession) return;
     ctx.petWindow.setBounds(draggedBounds(ctx.dragSession.bounds, ctx.dragSession.cursor, screen.getCursorScreenPoint()), false);
   });
-  ipcMain.handle('window:drag-end', (event) => {
+  ipcMain.handle('window:drag-end', async (event) => {
     assertSender(ctx, event, ['pet']);
     if (!ctx.petWindow || !ctx.dragSession) return;
     ctx.dragSession = undefined;
@@ -353,10 +368,12 @@ export function registerIpc(ctx: MainContext): void {
     // 用桌宠中心（而非松手光标）选显示器/工作区，避免 drag-end 时光标跨屏边界导致选错 workArea
     const center = { x: original.x + original.width / 2, y: original.y + original.height / 2 };
     const workArea = screen.getDisplayNearestPoint(center).workArea;
-    // 贴边恒生效；peek 只在允许被它接管时下发（预判见 activity.ts 的 canTakeOver，省掉注定被渲染层拒绝的下发）
+    // 贴边恒生效；peek 动画只在当前状态允许被它接管时才播。
+    // sleep / sad 等常驻状态的打断名单不含 peek，渲染层会拒绝这次切换；预判可省掉注定无效的下发。
     const state = stateForTrigger(ctx, 'window:edge-snap');
     const willPeek = state ? canTakeOver(ctx, state, ctx.currentStateId) : false;
-    // 要播语录时让出那条语录的气泡宽度；不播时不预留，否则人物平白停在离屏边一段距离处
+    // 贴边要播语录时把那条语录的气泡宽度让出来（渲染层在拖拽开始时实测预告）；
+    // 不播语录时不该让——否则人物平白停在离屏边一段距离处
     const snapWidth = petSnapWidth(ctx, willPeek ? ctx.snapPreviewWidth ?? 0 : 0);
     const snapInset = (original.width - snapWidth) / 2;
     const reference = {
@@ -365,7 +382,8 @@ export function registerIpc(ctx: MainContext): void {
       width: snapWidth,
       height: original.height,
     };
-    // 边缘判定：基准框边缘进入判定带，或松手光标进入光标带（抓取点常在角色中心，光标顶到屏边时基准框缘可能还离得很远）
+    // 边缘判定：基准框边缘进入判定带，或松手光标进入光标带
+    // （抓取点常在角色中心，光标顶到屏边时基准框缘可能还离得很远）。
     const cursor = screen.getCursorScreenPoint();
     const side = ctx.settings.edgeSnap ? classifySnapSide(reference, workArea, cursor) : null;
     if (side) {
@@ -373,8 +391,12 @@ export function registerIpc(ctx: MainContext): void {
       ctx.petWindow.setBounds(snapped, true);
       setSnapSide(ctx, side, snapWidth);
       if (willPeek && state) {
-        // 不指定时长：渲染层按 spec 的 frames.length × frameDurationMs 播完整一轮，素材加减帧自动适配
+        // 不指定 durationMs：由渲染层按 spec 的 frames.length × frameDurationMs 播完整一轮，素材加帧/减帧自动适配
         sendActivity(ctx, { kind: 'edge-snap', stateId: state.id, mirror: side === 'right' });
+        // 贴边窥视由用户拖动带来，计入好感（每日首次）与心情（每次）
+        applyReward(ctx, 'peek', spec.experience.rewards.peek.affectionGain);
+        await persistStats(ctx);
+        broadcastStats(ctx);
       }
     } else {
       setSnapSide(ctx, null);
