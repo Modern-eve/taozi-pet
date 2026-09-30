@@ -21,6 +21,19 @@ export interface WalkTuningSnapshot {
   overridden: boolean;
 }
 
+/**
+ * 呼吸动效参数：帧容器贴底缓慢缩放，一个周期从 1 放大到峰值再回到 1。
+ * `motion.breathing` 给默认值，状态可用 `breathing` 覆盖其中任意字段（如 sleep 睡得更慢更深）。
+ */
+export interface BreathingSpec {
+  /** 一次完整呼吸的周期(ms) */
+  periodMs: number;
+  /** 吸气峰值的横向放大比例（0.035 = +3.5%） */
+  scaleX: number;
+  /** 吸气峰值的纵向放大比例 */
+  scaleY: number;
+}
+
 export interface PetSpec {
   schemaVersion: number;
   app: {
@@ -96,7 +109,8 @@ export interface PetSpec {
   motion: {
     /** 随机行走：spec 里存的是默认值，运行时可由 userData/tuning.json 整体覆盖（开发者模式可调） */
     walk: WalkConfig;
-    breathing: { enabled: boolean; periodMs: number; scaleX: number; scaleY: number };
+    /** `enabled` 是呼吸总开关，其余为默认参数；状态自带 `breathing` 时按字段覆盖 */
+    breathing: BreathingSpec & { enabled: boolean };
     squashStretch: { enabled: boolean; durationMs: number; intensity: number };
   };
   /** 待机轮播：待机时按权重随机挑一个动作单轮播放，播完续接下一个 */
@@ -135,6 +149,11 @@ export interface PetSpec {
   };
 }
 
+/**
+ * 语录组：`experience.quotes` 的条目，键为状态 id。
+ * 状态语录与互动语录同表——互动动作的 `id` 与其状态 id 相同，其语录即该状态的语录组，
+ * 托盘菜单与语录页因此都从这一处取显示名与 emoji。
+ */
 export interface QuoteGroupSpec {
   label: string;
   emoji: string;
@@ -196,14 +215,16 @@ export interface IdleRotationSpec {
   gap: IdleRotationGapSpec;
 }
 
+/**
+ * 角色专属互动：托盘菜单里的一项，描述「播什么动画、播多久、涨多少好感」。
+ * 显示名、emoji 与回复语录都在 `experience.quotes[id]`，即该互动状态的语录组。
+ */
 export interface InteractionSpec {
   id: string;
-  emoji: string;
-  label: string;
+  /** 播放的动作状态；与 `id` 相同，作为动作与状态的显式绑定 */
   stateId: string;
   durationMs: number;
   affectionGain: number;
-  feedback: string[];
 }
 
 export interface PetState {
@@ -218,6 +239,11 @@ export interface PetState {
    * 用于常驻的情绪状态：播完不再循环，画面停在末帧保持情绪，需外部信号才能离开。与 loop 互斥。
    */
   holdLastFrame?: boolean;
+  /**
+   * 本状态自带的呼吸参数，覆盖 `motion.breathing` 的默认值，未列出的字段沿用默认。
+   * 呼吸只在该状态实际挂载时生效（待机间歇，以及定格末帧状态停下的末帧）。
+   */
+  breathing?: Partial<BreathingSpec>;
   /** 本状态可打断（压过）的状态 id 名单；'*' 表示可打断一切；待机轮播动作是抢占基底，默认可被任意状态打断，无需列入 */
   canInterrupt: string[];
   interrupt: string;

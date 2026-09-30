@@ -10,7 +10,9 @@ export function buildPetMenu(ctx: MainContext): Electron.MenuItemConstructorOpti
   const items: Electron.MenuItemConstructorOptions[] = [];
   if (ctx.spec.features.interactions) {
     for (const interaction of ctx.spec.experience.interactions) {
-      items.push({ label: `${interaction.emoji} ${interaction.label}`, click: () => void triggerInteraction(ctx, interaction.id) });
+      // 显示名与 emoji 取自该互动状态的语录组（experience.quotes[id]），与语录页共用同一处
+      const group = ctx.spec.experience.quotes?.[interaction.id];
+      items.push({ label: group ? `${group.emoji} ${group.label}` : interaction.id, click: () => void triggerInteraction(ctx, interaction.id) });
     }
     if (ctx.spec.experience.interactions.length) items.push({ type: 'separator' });
   }

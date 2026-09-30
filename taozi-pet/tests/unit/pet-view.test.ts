@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PET_BUBBLE_ZONE, type PetSpec } from '../../src/shared/contracts';
 import { inBubbleZone, inZone, type ZoneRect } from '../../src/renderer/pet/hit-area';
-import { pickQuote } from '../../src/renderer/pet/quotes';
+import { pickQuote } from '../../src/shared/quotes';
 
 const spec = {
   experience: {

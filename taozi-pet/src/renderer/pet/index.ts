@@ -1,9 +1,9 @@
 import spec from '../../../pet-spec.json';
-import type { PetSpec, StateActivity, StateSegment } from '../../shared/contracts';
+import type { BreathingSpec, PetSpec, StateActivity, StateSegment } from '../../shared/contracts';
 import { PET_BUBBLE_ZONE, STANDBY_SIGNAL } from '../../shared/contracts';
 import { exceedsDragThreshold } from '../../main/drag';
+import { pickQuote } from '../../shared/quotes';
 import { inBubbleZone, inZone } from './hit-area';
-import { pickQuote } from './quotes';
 import { PetStateMachine } from './state-machine';
 import type { StateFrame } from './state-machine';
 import './index.css';
@@ -37,7 +37,8 @@ for (const state of petSpec.states) {
 
 // 待机轮播池成员（含间歇期的 standby-gap）由 spec 的 idleRotation 声明，
 // 是否处于待机统一问状态机（轮播动作与间歇都算待机）。
-// 间歇长度以呼吸次数计，故把呼吸周期一并交给状态机换算（单一来源 spec.motion.breathing）。
+// 间歇长度以呼吸次数计，故把呼吸周期一并交给状态机换算；间歇期恒由 standby-gap 承担、
+// 该状态不带呼吸覆盖，因此换算取默认周期（单一来源 spec.motion.breathing）。
 const stateMachine = new PetStateMachine(
   petSpec.states,
   petSpec.idleRotation,
@@ -48,7 +49,12 @@ const stateMachine = new PetStateMachine(
 // 呼吸动效：服务待机间歇（单帧静态母版）与定格末帧的常驻状态（末帧是静止画面，靠这层缓慢缩放保持生命感）。
 // 动画挂在帧容器上、挤压回弹挂在精灵自身，两层元素各持一个 transform，互不覆盖，
 // 因此点击的挤压播完后不会顶掉呼吸，下一次进入间歇照常呼吸。
+// 参数默认取 motion.breathing，状态可自带一套覆盖（只写要改的字段，其余沿用默认，如 sleep 睡得更慢更深）。
 const breathing = petSpec.motion.breathing;
+const breathOverrides = new Map<string, Partial<BreathingSpec>>();
+for (const state of petSpec.states) {
+  if (state.breathing) breathOverrides.set(state.id, state.breathing);
+}
 const breathStateId = petSpec.idleRotation.gap.stateId;
 // 定格末帧的状态只在末帧呼吸：播放期间帧本身在动，停下之后才需要呼吸续命
 const holdLastFrameIds = new Set(
@@ -56,12 +62,18 @@ const holdLastFrameIds = new Set(
 );
 // 气泡区高度由 shared 常量注入 CSS 变量；CSS 里的初值只是脚本执行前的回退
 document.documentElement.style.setProperty('--pet-bubble-zone', `${PET_BUBBLE_ZONE}px`);
-if (breathing.enabled) {
-  document.documentElement.style.setProperty('--breath-period', `${breathing.periodMs}ms`);
-  document.documentElement.style.setProperty('--breath-scale-x', `${1 + breathing.scaleX}`);
-  document.documentElement.style.setProperty('--breath-scale-y', `${1 + breathing.scaleY}`);
+// 当前挂着的呼吸参数签名（'' = 未挂）；周期或幅度变了也要重挂，让新参数立即生效
+let breathKey = '';
+
+/** 本状态实际生效的呼吸参数：默认值打底，状态自带的覆盖字段逐个盖上去。 */
+function breathParams(stateId: string): BreathingSpec {
+  const own = breathOverrides.get(stateId);
+  return {
+    periodMs: own?.periodMs ?? breathing.periodMs,
+    scaleX: own?.scaleX ?? breathing.scaleX,
+    scaleY: own?.scaleY ?? breathing.scaleY,
+  };
 }
-let breathingActive = false;
 
 function isBreathFrame(stateId: string, frameIndex: number): boolean {
   if (stateId === breathStateId) return true;
@@ -71,10 +83,17 @@ function isBreathFrame(stateId: string, frameIndex: number): boolean {
 }
 
 function applyBreathing(stateId: string, frameIndex: number): void {
-  const on = breathing.enabled && isBreathFrame(stateId, frameIndex);
-  if (on === breathingActive) return; // 状态未变则不重挂，避免动画反复重头播放
-  breathingActive = on;
-  spriteFrame.classList.toggle('breathing', on);
+  const params = breathing.enabled && isBreathFrame(stateId, frameIndex) ? breathParams(stateId) : undefined;
+  const key = params ? `${params.periodMs}:${params.scaleX}:${params.scaleY}` : '';
+  if (key === breathKey) return; // 状态与参数都没变则不重挂，避免动画反复重头播放
+  breathKey = key;
+  spriteFrame.classList.remove('breathing');
+  if (!params) return;
+  document.documentElement.style.setProperty('--breath-period', `${params.periodMs}ms`);
+  document.documentElement.style.setProperty('--breath-scale-x', `${1 + params.scaleX}`);
+  document.documentElement.style.setProperty('--breath-scale-y', `${1 + params.scaleY}`);
+  void spriteFrame.offsetWidth; // 触发重绘，让新参数从本轮起点生效
+  spriteFrame.classList.add('breathing');
 }
 
 applyBreathing(stateMachine.currentStateId(), 0);

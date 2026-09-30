@@ -12,6 +12,9 @@ const knownTriggers = new Set([
   'reminder:due', 'typing:activity', 'file:drop', 'file:drop-success', 'file:drop-fail',
 ]);
 
+// 状态级 breathing 允许覆盖的字段及其合理区间（呼吸周期 ms，吸气峰值的横向/纵向放大比例）
+const BREATH_FIELDS = { periodMs: [1, 60000], scaleX: [0.001, 0.5], scaleY: [0.001, 0.5] };
+
 // 顶层构建一次共享映射，供 states/interactions 两个 check 闭包复用
 const states = new Map((spec.states ?? []).map((state) => [state.id, state]));
 const frameOwners = new Map();
@@ -115,6 +118,12 @@ checks.push(makeCheck({
       }
       if (!Array.isArray(state.triggers) || !state.triggers.length) problems.push(`状态无运行时触发: ${state.id}`);
       if (state.holdLastFrame && state.loop) problems.push(`状态 ${state.id} 的 loop 与 holdLastFrame 互斥（不能既循环播放又定格末帧）`);
+      // 状态级呼吸参数：只覆盖三个数值字段，逐个判范围（未知字段多为拼写错误，直接拦下）
+      for (const [field, value] of Object.entries(state.breathing ?? {})) {
+        const range = BREATH_FIELDS[field];
+        if (!range) problems.push(`状态 ${state.id} 的 breathing 含未知字段 ${field}（只允许 ${Object.keys(BREATH_FIELDS).join(' / ')}）`);
+        else if (typeof value !== 'number' || !Number.isFinite(value) || value < range[0] || value > range[1]) problems.push(`状态 ${state.id} 的 breathing.${field} 必须在 ${range[0]}~${range[1]} 之间`);
+      }
     }
     for (const frame of sharedFrames) problems.push(`帧 ${frame} 归属多个状态（跨状态共享帧冲突）`);
     const triggerToState = new Map();
@@ -142,6 +151,7 @@ checks.push(makeCheck({
       if (!gapState) problems.push(`待机间歇状态 ${gap.stateId} 不存在于 states`);
       else {
         if (new Set(gapState.frames ?? []).size !== 1) problems.push(`待机间歇状态 ${gap.stateId} 必须是单帧静态帧`);
+        if (gapState.breathing) problems.push(`待机间歇状态 ${gap.stateId} 不得自带 breathing（间歇时长按 motion.breathing.periodMs 换算，两者须同源）`);
         if (rotation.some((entry) => entry.id === gap.stateId)) problems.push(`待机间歇状态 ${gap.stateId} 不得同时参与轮播`);
       }
       const levels = gap.levels;
@@ -174,7 +184,10 @@ checks.push(makeCheck({
     const problems = [];
     if (spec.features?.interactions && interactions.size < 2) problems.push('启用的互动至少需要两个角色专属动作');
     for (const [id, interaction] of interactions) {
-      if (typeof interaction.emoji !== 'string' || interaction.emoji.length < 1 || interaction.emoji.length > 8) problems.push(`互动 ${id} 需要简短 emoji`);
+      // 显示名与 emoji 归该互动状态的语录组（experience.quotes），菜单与语录页都从那里取
+      const group = spec.experience?.quotes?.[id];
+      if (!group) problems.push(`互动 ${id} 缺少同名语录组（experience.quotes.${id}）`);
+      else if (typeof group.emoji !== 'string' || group.emoji.length < 1 || group.emoji.length > 8) problems.push(`互动 ${id} 的语录组需要简短 emoji`);
       const state = states.get(interaction.stateId);
       if (!state) { problems.push(`互动 ${id} 引用不存在的状态 ${interaction.stateId}`); continue; }
       if (!triggers.has(`interaction:${id}`)) problems.push(`互动 ${id} 无运行时触发`);

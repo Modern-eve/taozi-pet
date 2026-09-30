@@ -183,44 +183,30 @@
           "我准备好了~主人",
           "再摸摸别的地方嘛~主人"
         ]
-      }
-    },
-    "interactions": [
-      {
-        "id": "pet-face",
-        "emoji": "🤏",
+      },
+      "pet-face": {
         "label": "捏捏脸",
-        "stateId": "pet-face",
-        "durationMs": 6000,
-        "affectionGain": 3,
-        "feedback": [
+        "emoji": "🤏",
+        "quotes": [
           "唔……主人的手好暖",
           "套套的脸，只给主人捏哦~",
           "其它地方手感更好哦~主人"
         ]
       },
-      {
-        "id": "pumpkin-bag",
-        "emoji": "🎃",
+      "pumpkin-bag": {
         "label": "掏南瓜包",
-        "stateId": "pumpkin-bag",
-        "durationMs": 6000,
-        "affectionGain": 2,
-        "feedback": [
+        "emoji": "🎃",
+        "quotes": [
           "主人，今天用哪个？",
           "准备齐全哦~主人能用完吗？",
           "包里装着对主人满满的爱哦~",
-          "又要有新衣服穿啦！"
+          "套套又要有新衣服穿啦！"
         ]
       },
-      {
-        "id": "petal-spin",
-        "emoji": "🌸",
+      "petal-spin": {
         "label": "花瓣转圈",
-        "stateId": "petal-spin",
-        "durationMs": 6000,
-        "affectionGain": 2,
-        "feedback": [
+        "emoji": "🌸",
+        "quotes": [
           "好看吧？主人",
           "这可是套套亲手串的~",
           "套套可是攒了好久呢~",
@@ -228,20 +214,42 @@
           "好开心，像被主人包裹着！"
         ]
       },
-      {
-        "id": "starfish-wave",
-        "emoji": "👋",
+      "starfish-wave": {
         "label": "海星招手",
-        "stateId": "starfish-wave",
-        "durationMs": 6000,
-        "affectionGain": 2,
-        "feedback": [
+        "emoji": "👋",
+        "quotes": [
           "主人，套套在这里！",
           "主人，今天也要让套套满足哦~",
           "见到主人真开心！",
           "主人，套套的小手准备好咯~",
           "空气中都带着主人的甜味呢~"
         ]
+      }
+    },
+    "interactions": [
+      {
+        "id": "pet-face",
+        "stateId": "pet-face",
+        "durationMs": 6000,
+        "affectionGain": 3
+      },
+      {
+        "id": "pumpkin-bag",
+        "stateId": "pumpkin-bag",
+        "durationMs": 6000,
+        "affectionGain": 2
+      },
+      {
+        "id": "petal-spin",
+        "stateId": "petal-spin",
+        "durationMs": 6000,
+        "affectionGain": 2
+      },
+      {
+        "id": "starfish-wave",
+        "stateId": "starfish-wave",
+        "durationMs": 6000,
+        "affectionGain": 2
       }
     ]
   },
@@ -902,21 +910,16 @@
         "state:sleep"
       ],
       "frames": [
-        "sleep-01.png",
-        "sleep-02.png",
-        "sleep-03.png",
-        "sleep-04.png",
-        "sleep-05.png",
-        "sleep-06.png",
-        "sleep-07.png",
-        "sleep-08.png",
-        "sleep-09.png",
-        "sleep-10.png",
-        "sleep-11.png",
-        "sleep-12.png"
+        "sleep.png"
       ],
       "frameDurationMs": 625,
-      "loop": true,
+      "loop": false,
+      "holdLastFrame": true,
+      "breathing": {
+        "periodMs": 4200,
+        "scaleX": 0.035,
+        "scaleY": 0.08
+      },
       "canInterrupt": [
         "walk",
         "peek",

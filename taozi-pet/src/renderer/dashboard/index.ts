@@ -1,6 +1,7 @@
 import spec from '../../../pet-spec.json';
 import type { PetSpec, PetStats, Settings, TypingStatus, WalkLevel, WalkTuningSnapshot } from '../../shared/contracts';
 import { STANDBY_SIGNAL } from '../../shared/contracts';
+import { allQuoteGroups } from '../../shared/quotes';
 import './index.css';
 
 // 引入头像图片：正常/伤心/睡觉 三张头部特写，随人物状态切换
@@ -163,14 +164,9 @@ function renderQuoteGroup(key: string, label: string, emoji: string, fallback: s
 
 function renderQuotes(): void {
   quotesContainer.replaceChildren();
-  // 状态语录（来自 pet-spec.json experience.quotes）
-  const statusQuotes = petSpec.experience.quotes ?? {};
-  for (const [key, group] of Object.entries(statusQuotes)) {
-    renderQuoteGroup(key, group.label, group.emoji, group.quotes);
-  }
-  // 互动语录（来自 pet-spec.json experience.interactions[].feedback）
-  for (const interaction of petSpec.experience.interactions) {
-    renderQuoteGroup(interaction.id, interaction.label, interaction.emoji, interaction.feedback || []);
+  // 语录组同表：状态语录与互动语录都来自 pet-spec.json 的 experience.quotes
+  for (const group of allQuoteGroups(petSpec)) {
+    renderQuoteGroup(group.key, group.label, group.emoji, group.quotes);
   }
 }
 

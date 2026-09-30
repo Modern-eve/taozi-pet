@@ -13,7 +13,7 @@
 - **状态机驱动的拟真动作**：待机轮播（张望 / 眨眼 / 拍拍肚 / 踢腿，动作之间夹一段静态母版呼吸的间歇）/ 睡觉 / 开心 / 伤心（定格末帧）/ 走路 / 贴边窥视 / 提醒等多个状态自由切换，支持呼吸、挤压回弹等程序化动效。
 
 - **4 个角色专属互动**：交互-捏捏脸、交互-掏南瓜包、交互-花瓣转圈、交互-海星招手，触发后播放动画并回复语录、增长好感度。
-- **单击分流**：点头部播放「点击-摸摸头」、点别处播放「点击-开心」，两种都回复语录、增长好感度。头部区域由 `experience.clickZone` 声明，坐标为按参照状态首帧归一化的比例框，缩放窗口不影响命中；开发者模式下可在**调试叠加层**里核对区域位置。
+- **单击分流**：点头部播放「点击-摸摸头」、点别处播放「开心」，两种都回复语录、增长好感度。头部区域由 `experience.clickZone` 声明，坐标为按参照状态首帧归一化的比例框，缩放窗口不影响命中；开发者模式下可在**调试叠加层**里核对区域位置。
 
 - **自由尺寸**：气泡区与精灵解耦，桌宠可在 50%–150% 间**滑块自由缩放**，气泡尺寸不随桌宠变化。窗口宽度按人物可见宽度收窄（下限为气泡区最小宽度 240px），精灵帧两侧的透明留白由窗口裁掉，不白占桌面点击区域。
 
@@ -52,6 +52,7 @@ src/
   main.ts              主进程入口：装配共享上下文、生命周期、单实例与退出落盘
   preload.ts           预加载（安全暴露 petAPI，CSP 严格）
   shared/contracts.ts  类型契约与数据校验
+  shared/quotes.ts     语录组枚举与语录选取（主进程与渲染层共用，纯函数，有单测）
   main/
     context.ts         主进程共享运行时状态（模块只依赖它，彼此不互相 import）
     runtime.ts         缓存治理、运行时证据文件、致命退出、IPC 来源校验
@@ -77,7 +78,6 @@ src/
   renderer/
     pet/                桌宠窗口（状态机、动画、气泡、拖拽、互动）
       state-machine.ts  状态机与轮播/间歇调度
-      quotes.ts         语录选取（纯函数，有单测）
       hit-area.ts       气泡区点击判定（纯函数，有单测）
     dashboard/          小屋面板（状态、语录、提醒、设置、重置）
     debug/              调试叠加层（开发者模式：判定带 / 行走范围 / 桌宠与气泡尺寸 / 点击热点区）
@@ -120,7 +120,7 @@ npm run doctor         # 环境诊断
 npm run package:win / make:win / portable:win   # 打包 / 安装包 / 绿色版
 ```
 
-> 打包产物自带瘦身：`package` 后自动清理 Electron 冗余运行时文件（除`en-US.pak` 外的语言包、SwiftShader 软件渲染、Chromium LICENSE），比未瘦身小约 15MB。运行时 154 帧为索引色 PNG，合计 **6.3 MiB**（PNG-32 为 21.9 MiB）。
+> 打包产物自带瘦身：`package` 后自动清理 Electron 冗余运行时文件（除`en-US.pak` 外的语言包、SwiftShader 软件渲染、Chromium LICENSE），比未瘦身小约 15MB。运行时 143 帧为索引色 PNG，合计 **5.9 MiB**（PNG-32 为 18.2 MiB）。
 
 ## 配置（pet-spec.json）
 
@@ -128,21 +128,23 @@ npm run package:win / make:win / portable:win   # 打包 / 安装包 / 绿色版
 
 - `character`：显示名、个性、核心素材帧。
 
-- `states`：18 个状态，各自 `frames`、`triggers`、`canInterrupt`（可打断名单）、`interrupt`、`cooldownMs`、`anchor`、`segments`（分段播放区间）等。
+- `states`：18 个状态，各自 `frames`、`triggers`、`canInterrupt`（可打断名单）、`interrupt`、`cooldownMs`、`anchor`、`segments`（分段播放区间）、`breathing`（自带的呼吸参数）等。
 
-- `idleRotation`：待机轮播池（动作 id + 权重）与待机间歇 `gap`。待机时按权重随机挑一个动作单轮播放，播完进入 `gap.stateId` 指定的静态帧停顿整数个呼吸周期，再续接下一个动作；新增待机动作只需在 `states` 里加状态、再到此处登记权重。`gap.levels` 按随机行走挡位（0–4）给出**呼吸次数**区间，间歇时长 = 次数 × `motion.breathing.periodMs`，挡位越高次数越少。时长恒为呼吸周期的整数倍，因此间歇结束时呼吸正好走完整数个周期、回到缩放 1 的相位，摘下呼吸动画时不会出现半相位回落。间歇期间叠一层缓慢呼吸（`motion.breathing`）；该呼吸同时用于定格末帧的常驻状态（`sad`），两者都是静止画面。
+- `idleRotation`：待机轮播池（动作 id + 权重）与待机间歇 `gap`。待机时按权重随机挑一个动作单轮播放，播完进入 `gap.stateId` 指定的静态帧停顿整数个呼吸周期，再续接下一个动作；新增待机动作只需在 `states` 里加状态、再到此处登记权重。`gap.levels` 按随机行走挡位（0–4）给出**呼吸次数**区间，间歇时长 = 次数 × `motion.breathing.periodMs`，挡位越高次数越少。时长恒为呼吸周期的整数倍，因此间歇结束时呼吸正好走完整数个周期、回到缩放 1 的相位，摘下呼吸动画时不会出现半相位回落。间歇期间叠一层缓慢呼吸（参数取 `motion.breathing` 的默认值）；该呼吸同时用于定格末帧的常驻状态（`sad`，以及单帧的 `sleep`——它自带一套更慢更深的参数），两者都是静止画面。
 
-- `experience.quotes` / `interactions[].feedback`：状态语录与互动语录**默认文本**；运行时以 `userData/quotes.json` 为唯一数据源。
+- `experience.quotes`：**全部语录**的默认文本，键为状态 id，每项给出 `label` / `emoji` / `quotes`。状态语录与互动语录同表——互动动作的 `id` 与其状态 id 相同，其语录即该状态的语录组。运行时以 `userData/quotes.json` 为唯一数据源。
+
+- `experience.interactions`：4 个角色专属互动的行为定义（`id` / `stateId` / `durationMs` / `affectionGain`）；显示名、emoji 与回复语录取自 `experience.quotes[id]`，菜单与语录页共用同一处。
 
 - `experience.clickZone`：单击热点区，键名即区域名，每项给出命中后改播的 `stateId`、坐标参照的 `referenceStateId`，以及相对该状态首帧归一化的 `x` / `y` / `width` / `height`（0–1，框内为命中）。单击时先判热点区，未命中则回落 `pointer:tap` 对应状态。
 
 - `experience.theme`：主题色（小屋面板）。
 
-- `motion.walk`：随机行走 5 档的**默认**参数（游走半径、间隔区间、单次位移区间、每帧位移与帧间隔）；运行时可在开发者面板覆盖，覆盖值存 `userData/tuning.json`，不写回 spec。`motion.breathing` / `motion.squashStretch` 同段。
+- `motion.walk`：随机行走 5 档的**默认**参数（游走半径、间隔区间、单次位移区间、每帧位移与帧间隔）；运行时可在开发者面板覆盖，覆盖值存 `userData/tuning.json`，不写回 spec。`motion.breathing`（呼吸总开关与默认周期/幅度；状态可在自己的 `breathing` 里按字段覆盖，如 `sleep` 用更慢更深的睡息）、`motion.squashStretch` 同段。
 
 - `assetPipeline`：素材处理阈值（背景抠除、占用率、画布、交付编码颜色数等唯一权威配置）。
 
-> 全部语录的默认文本来自这里，首次启动据此生成 `userData/quotes.json`，之后语录页与桌宠都读写这份运行时文件。
+> 全部语录的默认文本来自 `experience.quotes` 这一处，首次启动据此生成 `userData/quotes.json`，之后语录页与桌宠都读写这份运行时文件。
 
 ## 数据持久化
 
@@ -206,7 +208,7 @@ QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）�
 
 ## 状态机行为（帧数 / 帧率 / 打断优先级）
 
-帧率：默认 250ms/帧（**4 FPS**），`feed` 用 200ms/帧（5 FPS）、`sleep` / `sad` 用 625ms（**1.6 FPS**）、`clap` 用 20ms/帧（50 FPS）。待机轮播动作（look / blink / belly-ok / kick）**单轮播放**、每帧只出现一次，`sad` 同为单轮播放、播完定格末帧，其余非循环动作把独立帧按序**播两遍**构成完整单次动画（如 happy 12 张 → 播放帧 24）；`clap` 是**分段播放**的例外，按下 / 抬起两段区间由 `segments` 给出、播放进度完全由输入驱动。素材共 **154 张 base 帧**（分布见下表）、无 `-r2` 副本。
+帧率：默认 250ms/帧（**4 FPS**），`feed` 用 200ms/帧（5 FPS）、`sad` 用 625ms（**1.6 FPS**）、`clap` 用 20ms/帧（50 FPS）。待机轮播动作（look / blink / belly-ok / kick）**单轮播放**、每帧只出现一次，`sad` 同为单轮播放、播完定格末帧，`sleep` 是**单帧常驻**、不推进帧、起伏全由它自带的呼吸参数提供（周期 4.2s、纵向 +8%，比待机更慢更深），其余非循环动作把独立帧按序**播两遍**构成完整单次动画（如 happy 12 张 → 播放帧 24）；`clap` 是**分段播放**的例外，按下 / 抬起两段区间由 `segments` 给出、播放进度完全由输入驱动。素材共 **143 张 base 帧**（分布见下表）、无 `-r2` 副本。
 
 | 状态            | 动作    | 独立帧 | 播放帧 | 类型   | 单周期  | 触发器                       | 冷却    |
 | ------------- | ----- | --- | --- | ---- | ---- | ------------------------- | ----- |
@@ -225,12 +227,12 @@ QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）�
 | petal-spin    | 交互-花瓣转圈 | 12  | 24  | 单次    | 6.0s  | interaction:petal-spin    | ½周期   |
 | starfish-wave | 交互-海星招手 | 12  | 24  | 单次    | 6.0s  | interaction:starfish-wave | ½周期   |
 | walk          | 走路      | 12  | 12  | 循环    | 3.0s  | state:walk                | —     |
-| sleep         | 睡觉      | 12  | 12  | 循环    | 7.5s  | state:sleep（3 分钟无互动）      | —     |
+| sleep         | 睡觉      | 1   | 1   | 定格末帧  | 0.6s  | state:sleep（3 分钟无互动）      | —     |
 | sad           | 沮丧      | 8   | 8   | 定格末帧  | 5.0s  | state:sad（心情↓25）          | —     |
 | clap          | 拍手      | 6   | 6   | 单次·分段 | 0.12s | typing:activity（敲字母键）     | —     |
 
 > 待机不是单一状态，而是 `idleRotation` 池中四个动作的随机轮播 + 每轮之后的间歇：动作播完先进入间歇（单帧静态母版 `core-ip`，按挡位停顿整数个呼吸周期 = 呼吸次数 × `motion.breathing.periodMs`，期间叠一层缓慢呼吸），再按权重随机续接下一个动作（允许连续两次是同一动作）。池成员与间歇都可被任意其它状态打断，池成员之间互不打断、切换由状态机自行推进。
-> 周期 = 播放帧数 × 对应 `frameDurationMs`（各状态帧率见表上方说明）；`sad` 是**定格末帧**状态：心情跌破阈值时播一遍沮丧动画、播完停在末帧（末帧叠呼吸），期间单击桌宠重播一遍，心情回升才回待机；`feed` 与 `clap` 是**定向状态**：`feed` 由文件拖入正向播放并**定格末帧**，放手收纳 / 拖离后**倒序播放**一轮、播完回到拖入前的状态（`idle` / sad / sleep / notify；正放未完则先播完再倒放，倒放中途又拖入则从当前帧转回正向）；`clap` 由敲键驱动按下 / 抬起两段，各按 `segments` 给出的区间播到 `holdFrame` 定格，前段未完就抬起则直接跳到后段起点、不补播中间帧。各状态的 `anchor` / `mirrorSafe` / `interrupt` 等配置全部收敛在 `pet-spec.json`。
+> 周期 = 播放帧数 × 对应 `frameDurationMs`（各状态帧率见表上方说明）；`sad` 是**定格末帧**状态：心情跌破阈值时播一遍沮丧动画、播完停在末帧（末帧叠呼吸），期间单击桌宠重播一遍，心情回升才回待机；`sleep` 同为**定格末帧**但只有一帧：进入即静止睡姿，起伏全交给呼吸动效（与待机间歇同一套机制，但自带更慢更深的 `breathing` 参数），故 spec 里它只引用一张 `sleep.png`；`feed` 与 `clap` 是**定向状态**：`feed` 由文件拖入正向播放并**定格末帧**，放手收纳 / 拖离后**倒序播放**一轮、播完回到拖入前的状态（`idle` / sad / sleep / notify；正放未完则先播完再倒放，倒放中途又拖入则从当前帧转回正向）；`clap` 由敲键驱动按下 / 抬起两段，各按 `segments` 给出的区间播到 `holdFrame` 定格，前段未完就抬起则直接跳到后段起点、不补播中间帧。各状态的 `anchor` / `mirrorSafe` / `interrupt` 等配置全部收敛在 `pet-spec.json`。
 
 ### 打断优先级（canInterrupt 名单）
 
@@ -305,20 +307,20 @@ QA 与校验脚本统一在 `tools/`（详见 **taozi-pet/tools/README.md**）�
 | 动作                 | 自动触发间隔          | 气泡内容                  | 气泡方式                |
 | ------------------ | --------------- | --------------------- | ------------------- |
 | 待机轮播 look / blink / belly-ok / kick | 一个动作播完 → 间歇（按挡位 0.8–12s）→ 随机续接下一个 | 进入待机动作时取**该动作**的一句语录（间歇期不发声） | 普通 3s                |
-| 开心 happy                            | 用户单击                              | 「点击」语录（`__click__` 组）        | 普通 5s                |
+| 开心 happy                            | 用户单击                              | 「开心」语录（`happy` 组）             | 普通 5s                |
 | 提醒 notify                           | 定时提醒到点                            | **该条提醒文本**                   | **常驻**，直到单击/互动/喂食才消失 |
 | 贴边窥视 peek                           | 吸附到屏幕边缘                           | 「贴边窥视」语录                     | 普通 3s                |
-| 交互-捏捏脸 pet-face                     | 右键 → 捏捏脸                          | 「交互-捏捏脸」互动语录                 | 普通 5s                |
+| 交互-捏捏脸 pet-face                     | 右键 → 捏捏脸                          | 「捏捏脸」语录                       | 普通 5s                |
 | 点击-摸摸头 pet-head                     | 单击头部区域                            | 「点击-摸摸头」语录（`pet-head` 组）       | 普通 5s                |
-| 交互-掏南瓜包 pumpkin-bag                 | 右键 → 掏南瓜包                         | 「交互-掏南瓜包」互动语录                | 普通 5s                |
-| 交互-花瓣转圈 petal-spin                  | 右键 → 花瓣转圈                         | 「交互-花瓣转圈」互动语录                | 普通 5s                |
-| 交互-海星招手 starfish-wave               | 右键 → 海星招手                         | 「交互-海星招手」互动语录                | 普通 5s                |
+| 交互-掏南瓜包 pumpkin-bag                 | 右键 → 掏南瓜包                         | 「掏南瓜包」语录                       | 普通 5s                |
+| 交互-花瓣转圈 petal-spin                  | 右键 → 花瓣转圈                         | 「花瓣转圈」语录                       | 普通 5s                |
+| 交互-海星招手 starfish-wave               | 右键 → 海星招手                         | 「海星招手」语录                       | 普通 5s                |
 | 走路 walk                             | 按随机行走挡位的游走间隔                      | 「走路」语录                       | 普通 5s                |
 | 睡觉 sleep                            | 连续 3 分钟无互动，进入时播                   | 「睡觉」语录                       | 普通 5s                |
 | 沮丧 sad                              | 心情 < 25 进入时播一遍后停在末帧，其间单击重播        | 「沮丧」语录                       | 普通 5s                |
 | 喂食 feed                             | 文件拖入桌宠时                           | 无                            | —                    |
 
-> 语录一律来自 `experience.quotes`（运行时在 `userData/quotes.json`，可编辑）。互动反馈在 `interactions[].feedback`。
+> 语录一律来自 `experience.quotes` 这一张表（运行时在 `userData/quotes.json`，可编辑）；互动语录同表，键即该互动的状态 id。
 
 ## 重置后的默认设置
 

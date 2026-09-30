@@ -11,7 +11,7 @@
 QA 分两档：
 
 - **快速 QA**（`npm run check:quick`）：轻量必查，随开发启动自动跑。依次执行 `validate-dev-contract` + `validate-spec` + `validate-asset-links` + `qa-ui` + `qa-experience` 五个校验，**亚秒级**（不含 tsc；类型检查由两个 webpack 配置的 fork-ts-checker 在生产构建把关，`npm test` 前置亦会跑 `tsc --noEmit`）。
-- **全量 QA**（`npm run check`）：在快速 QA 之上追加 `qa-assets` 逐帧像素级质检（152 张 base 帧，较重）。**素材变更或需出完整报告时主动运行。**
+- **全量 QA**（`npm run check`）：在快速 QA 之上追加 `qa-assets` 逐帧像素级质检（143 张 base 帧，较重）。**素材变更或需出完整报告时主动运行。**
 
 ```bash
 npm run check:quick   # 平时/开发启动
@@ -83,9 +83,9 @@ npm run check          # 素材变更 / 出完整 QA 报告
 | motion | standby-gap-monotonic ⚠ | 待机间歇呼吸次数随挡位不反向变多（0 木头人最长） |
 | motion | walk-levels-shape | `motion.walk` 为 5 档、0 档木头人，各档间隔/位移区间不倒置且位移不超过游走半径 |
 | motion | walk-levels-monotonic ⚠ | 挡位越高：间隔不变长、半径与单次位移不变小 |
-| quotes | quote-sync | 状态语录与互动反馈语录均非空 |
+| quotes | quote-sync | 语录组均非空（每组 ≥1 条） |
 | quotes | quote-group-thin ⚠ | 语录组条数 ≥3，避免反馈单调 |
-| quotes | quotes-duplicate-in-group ⚠ | 同一语录组/互动反馈内无重复文本 |
+| quotes | quotes-duplicate-in-group ⚠ | 同一语录组内无重复文本 |
 | motion | interaction-duration-excess ⚠ | 互动时长不超过 3 个完整动画周期 |
 | motion | frame-duration-flicker ⚠ | 帧时长(frameDurationMs) ≥80ms，避免闪烁（分段播放的状态除外：帧时长由输入节奏决定） |
 | motion | loop-cycle-brisk ⚠ | loop 状态单轮周期 ≥1500ms，避免循环显急促 |

@@ -1,4 +1,26 @@
-import type { PetSpec } from '../../shared/contracts';
+import type { PetSpec } from './contracts';
+
+/**
+ * 语录组：状态语录与互动语录在 spec 里同表存放（`experience.quotes`，键即状态 id），
+ * 互动动作自身的 `id` 与其状态 id 相同，所以互动语录就是它那个状态的语录组。
+ */
+export interface QuoteGroup {
+  /** 键名，即状态 id（互动动作取 `interactions[].id`） */
+  key: string;
+  label: string;
+  emoji: string;
+  quotes: string[];
+}
+
+/** 全部语录组，顺序即 pet-spec.json 中的声明顺序（语录页按此渲染分组）。 */
+export function allQuoteGroups(spec: PetSpec): QuoteGroup[] {
+  return Object.entries(spec.experience.quotes ?? {}).map(([key, group]) => ({
+    key,
+    label: group.label,
+    emoji: group.emoji,
+    quotes: group.quotes ?? [],
+  }));
+}
 
 /**
  * 语录选取：优先用户自定义（userData/quotes.json，与语录页编辑同步），

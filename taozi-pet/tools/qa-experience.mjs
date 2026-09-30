@@ -191,16 +191,12 @@ checks.push(makeCheck({
 checks.push(makeCheck({
   id: 'quote-sync',
   gate: 'quotes',
-  describe: '状态语录与互动反馈语录均非空（每组 ≥1 条）',
+  describe: '语录组均非空（每组 ≥1 条）',
   run: () => {
-    const emptyGroups = Object.entries(spec.experience?.quotes ?? {})
+    const empty = Object.entries(spec.experience?.quotes ?? {})
       .filter(([, group]) => !Array.isArray(group.quotes) || group.quotes.length === 0)
       .map(([key]) => key);
-    const emptyFeedback = (spec.experience?.interactions ?? [])
-      .filter((it) => !Array.isArray(it.feedback) || it.feedback.length === 0)
-      .map((it) => it.id);
-    const problems = [...emptyGroups.map((k) => `语录组 ${k}`), ...emptyFeedback.map((k) => `互动 ${k}`)];
-    return { passed: problems.length === 0, detail: problems.length ? `空语录: ${problems.join(', ')}` : '语录组均非空' };
+    return { passed: empty.length === 0, detail: empty.length ? `空语录组: ${empty.join(', ')}` : '语录组均非空' };
   },
 }));
 
@@ -215,10 +211,7 @@ checks.push(makeCheck({
   run: () => {
     const thin = [];
     for (const [key, group] of Object.entries(spec.experience?.quotes ?? {})) {
-      if (Array.isArray(group.quotes) && group.quotes.length >= 1 && group.quotes.length < 3) thin.push(`状态语录 ${key}(${group.quotes.length})`);
-    }
-    for (const it of spec.experience?.interactions ?? []) {
-      if (Array.isArray(it.feedback) && it.feedback.length >= 1 && it.feedback.length < 3) thin.push(`互动反馈 ${it.id}(${it.feedback.length})`);
+      if (Array.isArray(group.quotes) && group.quotes.length >= 1 && group.quotes.length < 3) thin.push(`${key}(${group.quotes.length})`);
     }
     return { passed: thin.length === 0, detail: thin.length ? `条数偏少: ${thin.join('; ')}` : '语录组均 ≥3 条' };
   },
@@ -294,16 +287,12 @@ checks.push(makeCheck({
   id: 'quotes-duplicate-in-group',
   gate: 'quotes',
   severity: 'warning',
-  describe: '同一语录组/互动反馈内不存在重复文本',
+  describe: '同一语录组内不存在重复文本',
   run: () => {
     const duplicated = [];
     for (const [key, group] of Object.entries(spec.experience?.quotes ?? {})) {
       const items = Array.isArray(group.quotes) ? group.quotes : [];
-      if (new Set(items).size !== items.length) duplicated.push(`状态语录 ${key}`);
-    }
-    for (const it of spec.experience?.interactions ?? []) {
-      const items = Array.isArray(it.feedback) ? it.feedback : [];
-      if (new Set(items).size !== items.length) duplicated.push(`互动反馈 ${it.id}`);
+      if (new Set(items).size !== items.length) duplicated.push(key);
     }
     return { passed: duplicated.length === 0, detail: duplicated.length ? `存在重复文本: ${duplicated.join(', ')}` : '语录组内无重复' };
   },

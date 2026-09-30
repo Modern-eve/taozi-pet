@@ -1,5 +1,6 @@
 import type { InteractionResult, PetState } from '../shared/contracts';
 import { isIdlePresentation, stateCanInterrupt } from '../shared/contracts';
+import { pickQuote } from '../shared/quotes';
 import { broadcastToWindows } from './broadcast';
 import type { MainContext } from './context';
 import { checkMoodState } from './mood';
@@ -44,10 +45,8 @@ export async function triggerInteraction(ctx: MainContext, id: string): Promise<
   resetActivityTimer(ctx);
   applyReward(ctx, interaction.id, interaction.affectionGain);
   ctx.stats.todayInteractions += 1;
-  // 互动语录以运行时语录（userData/quotes.json，与语录页编辑同步）为准
-  const customList = ctx.quotes[interaction.id];
-  const list = customList && customList.length > 0 ? customList : interaction.feedback;
-  const feedback = list[Math.floor(Math.random() * list.length)] ?? interaction.label;
+  // 互动语录与状态语录同源：都是该状态在语录表里的那一组（自定义优先 → spec 内置）
+  const feedback = pickQuote(ctx.spec, ctx.quotes, interaction.id);
   await persistStats(ctx);
   const result: InteractionResult = { interaction, feedback, stats: publicStats(ctx) };
   // 用户触发互动即消费当前待处理的队首提醒；等本互动播完再播放下一条

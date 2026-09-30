@@ -284,7 +284,11 @@ checks.push(makeCheck({
   describe: '系统与互动菜单使用语义 emoji',
   run: () => {
     const systemEmojis = ['⏰', '🏠', '🖱️', '🙈', '🐾', '🚪'].every((emoji) => mainProcess.includes(emoji));
-    const interactionEmojis = (spec.experience?.interactions ?? []).every((it) => typeof it.emoji === 'string' && it.emoji.length > 0);
+    // 互动菜单的 emoji 取自该互动状态的语录组（experience.quotes[id]）
+    const interactionEmojis = (spec.experience?.interactions ?? []).every((it) => {
+      const group = spec.experience?.quotes?.[it.id];
+      return typeof group?.emoji === 'string' && group.emoji.length > 0;
+    });
     const ok = systemEmojis && interactionEmojis;
     return { passed: ok, detail: ok ? '菜单 emoji 齐全' : '缺少系统或互动菜单 emoji' };
   },
