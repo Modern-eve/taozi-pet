@@ -76,7 +76,7 @@ export interface PetSpec {
     };
     /**
      * 点击热点区域：区域按「参照状态」的帧归一化（x/y/width/height 均相对帧边长），
-     * 命中即改播 interactionId 指向的互动，未命中则走普通点击。
+     * 命中即改播 stateId 指向的状态，未命中则走普通点击。
      */
     clickZone?: Record<string, ClickZoneSpec>;
     rewards: {
@@ -359,6 +359,15 @@ export interface BubbleBox {
   height: number;
 }
 
+/** 叠加层要画的一个点击热点区：屏幕矩形 + 命中后改播的状态，供开发者核对区域位置。 */
+export interface ClickZoneBox {
+  /** spec.experience.clickZone 里的键名 */
+  id: string;
+  /** 命中后改播的状态 id */
+  stateId: string;
+  rect: { left: number; top: number; width: number; height: number };
+}
+
 /**
  * 调试叠加层（开发者模式）的绘制数据：屏幕坐标（绝对像素）。
  * 吸附判定带为固定宽度（见 drag.ts 的 SNAP_BAND_PX / CURSOR_BAND_PX），
@@ -373,6 +382,13 @@ export interface DebugOverlayPayload {
   scale: number;
   /** 人物可见范围的横向位置：未贴边时居中于窗口，贴边时正好落在屏幕边缘 */
   character: { left: number; width: number };
+  /**
+   * 精灵方框（屏幕坐标）：宽度与高度都等于桌宠大小（= 窗口高 - 气泡区高），横向居中于窗口，
+   * 精灵比窗口宽时两侧对称溢出、由窗口裁掉。点击判定即以此框归一化，clickZone 的归一化坐标乘它得到屏幕矩形。
+   */
+  sprite: { left: number; top: number; size: number };
+  /** 点击热点区（屏幕坐标）；spec 未声明 clickZone 时为空数组 */
+  clickZones: ClickZoneBox[];
   /** 气泡实际盒子（屏幕坐标）；未显示气泡时为 null */
   bubble: BubbleBox | null;
   snap: { enabled: boolean; side: SnapSide; band: number; cursorBand: number };

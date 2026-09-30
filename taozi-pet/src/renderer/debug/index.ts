@@ -15,6 +15,9 @@ const COLORS = {
   petWindow: 'rgba(255, 255, 255, 0.55)',
   character: '#34d399',
   characterFill: 'rgba(52, 211, 153, 0.14)',
+  spriteFrame: 'rgba(244, 114, 182, 0.45)',
+  clickZone: '#f472b6',
+  clickZoneFill: 'rgba(244, 114, 182, 0.20)',
   bubbleZone: 'rgba(251, 191, 36, 0.5)',
   bubble: '#fbbf24',
   snapFill: 'rgba(56, 189, 248, 0.10)',
@@ -117,6 +120,30 @@ function drawSizes(payload: DebugOverlayPayload, origin: { x: number; y: number 
   );
 }
 
+/**
+ * 点击热点区：区域坐标相对「精灵方框」归一化，所以先画出基准框，再逐个画命中区。
+ * 精灵方框与「人物」框不是同一个——人物只占精灵中间一条，贴边时还会再内缩，两者横向位置并不相等。
+ */
+function drawClickZones(payload: DebugOverlayPayload, origin: { x: number; y: number }): void {
+  const { left, top, size } = payload.sprite;
+  const spriteX = left - origin.x;
+  const spriteY = top - origin.y;
+  make('rect', {
+    x: spriteX, y: spriteY, width: size, height: size,
+    fill: 'none', stroke: COLORS.spriteFrame, 'stroke-width': 1, 'stroke-dasharray': '3 3',
+  });
+  label(spriteX + 4, spriteY + size - 6, `精灵方框 ${size}px`, 'start', COLORS.spriteFrame);
+  for (const zone of payload.clickZones) {
+    const x = zone.rect.left - origin.x;
+    const y = zone.rect.top - origin.y;
+    make('rect', {
+      x, y, width: zone.rect.width, height: zone.rect.height,
+      fill: COLORS.clickZoneFill, stroke: COLORS.clickZone, 'stroke-width': 2,
+    });
+    label(x, y + zone.rect.height + 14, `${zone.id} → ${zone.stateId}`, 'start', COLORS.clickZone);
+  }
+}
+
 function render(payload: DebugOverlayPayload): void {
   const { workArea } = payload;
   overlay.replaceChildren(); // 节点少，整体重画比逐点更新更简单可靠
@@ -126,6 +153,7 @@ function render(payload: DebugOverlayPayload): void {
   drawSnapBands(payload, workArea.width, workArea.height);
   drawWalkRange(payload, origin);
   drawSizes(payload, origin);
+  drawClickZones(payload, origin);
   const petSize = payload.pet.height - PET_BUBBLE_ZONE;
   const scale = `${Math.round(payload.scale * 100)}%`;
   label(

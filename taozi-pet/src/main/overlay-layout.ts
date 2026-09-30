@@ -1,4 +1,4 @@
-import type { BubbleBox, DebugOverlayPayload, SnapSide } from '../shared/contracts';
+import type { BubbleBox, ClickZoneBox, ClickZoneSpec, DebugOverlayPayload, SnapSide } from '../shared/contracts';
 import { PET_BUBBLE_ZONE } from '../shared/contracts';
 import type { Point, Rect } from './drag';
 
@@ -18,6 +18,8 @@ export interface DebugOverlayInput {
   snapWidth: number;
   /** 气泡实际盒子（桌宠窗口内坐标）；未显示气泡时为 null */
   bubble: BubbleBox | null;
+  /** 点击热点区声明（spec.experience.clickZone），坐标相对精灵方框归一化 */
+  clickZones: Record<string, ClickZoneSpec>;
   snapEnabled: boolean;
   snapSide: SnapSide;
   snapBand: number;
@@ -31,12 +33,15 @@ export interface DebugOverlayInput {
 
 export function debugOverlayLayout(input: DebugOverlayInput): DebugOverlayPayload {
   const characterLeft = characterLeftOf(input);
+  const sprite = spriteFrameOf(input.pet);
   return {
     visible: input.visible,
     workArea: input.workArea,
     pet: input.pet,
     scale: input.scale,
     character: { left: characterLeft, width: input.characterWidth },
+    sprite,
+    clickZones: clickZoneBoxes(input.clickZones, sprite),
     // 气泡盒子上报的是窗口内坐标，叠加层画在屏幕上要加上窗口原点
     bubble: input.bubble
       ? {
@@ -81,4 +86,30 @@ function bodyCenter(pet: Rect, characterLeft: number, characterWidth: number): P
     x: Math.round(characterLeft + characterWidth / 2),
     y: Math.round(pet.y + pet.height - spriteSize / 2),
   };
+}
+
+/**
+ * 精灵方框：贴底的正方形，边长 = 窗口高 - 气泡区高。
+ * 横向由 CSS 的居中裁剪决定，与窗口宽无关——精灵宽于窗口时两侧对称溢出。
+ */
+function spriteFrameOf(pet: Rect): DebugOverlayPayload['sprite'] {
+  const size = Math.max(0, pet.height - PET_BUBBLE_ZONE);
+  return { left: pet.x + (pet.width - size) / 2, top: pet.y + PET_BUBBLE_ZONE, size };
+}
+
+/** 把每个热点区的归一化坐标乘到精灵方框上，得到叠加层直接可画的屏幕矩形。 */
+function clickZoneBoxes(
+  zones: Record<string, ClickZoneSpec>,
+  sprite: DebugOverlayPayload['sprite'],
+): ClickZoneBox[] {
+  return Object.entries(zones).map(([id, zone]) => ({
+    id,
+    stateId: zone.stateId,
+    rect: {
+      left: sprite.left + zone.x * sprite.size,
+      top: sprite.top + zone.y * sprite.size,
+      width: zone.width * sprite.size,
+      height: zone.height * sprite.size,
+    },
+  }));
 }

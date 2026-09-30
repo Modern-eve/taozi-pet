@@ -23,6 +23,7 @@ export function debugOverlayPayload(ctx: MainContext): DebugOverlayPayload {
     // 用上次贴边实际采用的基准框宽度：叠加层画的是人物此刻的真实横向位置
     snapWidth: ctx.snapWidth,
     bubble: ctx.bubbleBox,
+    clickZones: ctx.spec.experience.clickZone ?? {},
     snapEnabled: ctx.settings.edgeSnap,
     snapSide: ctx.snapSide,
     snapBand: SNAP_BAND_PX,
