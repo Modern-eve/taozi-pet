@@ -108,6 +108,8 @@ export class PetStateMachine {
     // 显式 0 时长 = 无限循环（用于 notify 提醒，直到被更高优先级动作打断）
     if (requested !== undefined && Number.isFinite(requested) && requested === 0) return 0;
     if (requested !== undefined && Number.isFinite(requested) && requested > 0) return requested;
+    // 定格末帧的状态同样不定时结束：帧推进按非循环规则停在末帧，末帧即常驻画面
+    if (state.holdLastFrame) return 0;
     // 未指定时长：播放一轮全部帧，每帧只出现一次
     return Math.max(1, state.frames.length * state.frameDurationMs);
   }
@@ -254,10 +256,10 @@ export class PetStateMachine {
     return active.frameIndex >= frameCount - 1 && now - active.startedAt >= frameCount * frameMs;
   }
 
-  /** 倒序播放结束后的恢复目标：循环状态（sad/sleep/notify/walk）按常驻无限循环恢复，其余回到待机轮播。 */
+  /** 倒序播放结束后的恢复目标：常驻状态（循环播放或定格末帧，如 sleep/notify/walk/sad）按常驻恢复，其余回到待机轮播。 */
   private resumeAfterFeed(resumeId: string | undefined, now: number): ActiveState {
     const state = resumeId ? this.states.get(resumeId) : undefined;
-    if (state && state.loop) return this.makeActive(state, now, 0);
+    if (state && (state.loop || state.holdLastFrame)) return this.makeActive(state, now, 0);
     return this.makeActive(this.pick(), now);
   }
 

@@ -13,3 +13,9 @@ taozi-pet/src/renderer/dashboard/assets/
 
 # 防御性兜底：process-assets 不产出该诊断文件，正常流程不会有它
 taozi-pet/src/assets/pet/asset-processing-report.json
+
+# Windows 资源管理器为目录生成的配置（含视图设置，与项目无关）
+desktop.ini
+
+# 会话工作目录：素材流水线的孤儿产物备份等本地恢复材料
+.workbuddy/

@@ -61,6 +61,16 @@
       "defaultScale": 0.8,
       "contentWidthRatio": 0.62
     },
+    "clickZone": {
+      "head": {
+        "stateId": "pet-head",
+        "referenceStateId": "standby-gap",
+        "x": 0.402,
+        "y": 0.149,
+        "width": 0.217,
+        "height": 0.205
+      }
+    },
     "rewards": {
       "feed": {
         "affectionGain": 3
@@ -171,22 +181,33 @@
           "今天有点难过...",
           "可以陪陪我吗？有你在就好了"
         ]
-      }
-    },
-    "interactions": [
-      {
-        "id": "pet-head",
+      },
+      "pet-head": {
+        "label": "点击-摸摸头",
         "emoji": "💗",
-        "label": "摸摸头",
-        "stateId": "pet-head",
-        "durationMs": 6000,
-        "affectionGain": 3,
-        "feedback": [
+        "quotes": [
           "嘿嘿，别乱摸啦~",
           "头发会乱的！",
           "好舒服呀~",
           "被摸摸头好幸福~",
           "多摸摸嘛~"
+        ]
+      }
+    },
+    "interactions": [
+      {
+        "id": "pet-face",
+        "emoji": "🤏",
+        "label": "捏捏脸",
+        "stateId": "pet-face",
+        "durationMs": 6000,
+        "affectionGain": 3,
+        "feedback": [
+          "唔……脸要被捏扁啦",
+          "别捏别捏，会变形的！",
+          "脸颊软软的，只给你捏哦",
+          "捏够了没有呀~",
+          "手感是不是很好？"
         ]
       },
       {
@@ -242,10 +263,34 @@
       "frameMs": 16,
       "levels": [
         null,
-        { "range": 220, "intervalMin": 14000, "intervalMax": 30000, "distMin": 60, "distMax": 140 },
-        { "range": 320, "intervalMin": 10000, "intervalMax": 20000, "distMin": 120, "distMax": 260 },
-        { "range": 400, "intervalMin": 6000, "intervalMax": 14000, "distMin": 200, "distMax": 320 },
-        { "range": 480, "intervalMin": 4000, "intervalMax": 12000, "distMin": 300, "distMax": 400 }
+        {
+          "range": 220,
+          "intervalMin": 14000,
+          "intervalMax": 30000,
+          "distMin": 60,
+          "distMax": 140
+        },
+        {
+          "range": 320,
+          "intervalMin": 10000,
+          "intervalMax": 20000,
+          "distMin": 120,
+          "distMax": 260
+        },
+        {
+          "range": 400,
+          "intervalMin": 6000,
+          "intervalMax": 14000,
+          "distMin": 200,
+          "distMax": 320
+        },
+        {
+          "range": 480,
+          "intervalMin": 4000,
+          "intervalMax": 12000,
+          "distMin": 300,
+          "distMax": 400
+        }
       ]
     },
     "breathing": {
@@ -584,9 +629,51 @@
       "mirrorSafe": false
     },
     {
+      "id": "pet-face",
+      "triggers": [
+        "interaction:pet-face"
+      ],
+      "frames": [
+        "pet-face-01.png",
+        "pet-face-02.png",
+        "pet-face-03.png",
+        "pet-face-04.png",
+        "pet-face-05.png",
+        "pet-face-06.png",
+        "pet-face-01.png",
+        "pet-face-02.png",
+        "pet-face-03.png",
+        "pet-face-04.png",
+        "pet-face-05.png",
+        "pet-face-06.png"
+      ],
+      "frameDurationMs": 250,
+      "loop": false,
+      "canInterrupt": [
+        "happy",
+        "notify",
+        "peek",
+        "pumpkin-bag",
+        "petal-spin",
+        "starfish-wave",
+        "walk",
+        "sleep",
+        "sad",
+        "clap"
+      ],
+      "interrupt": "restart",
+      "cooldownMs": 0,
+      "direction": "neutral",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.95
+      },
+      "mirrorSafe": true
+    },
+    {
       "id": "pet-head",
       "triggers": [
-        "interaction:pet-head"
+        "state:pet-head"
       ],
       "frames": [
         "pet-head-01.png",
@@ -595,24 +682,12 @@
         "pet-head-04.png",
         "pet-head-05.png",
         "pet-head-06.png",
-        "pet-head-07.png",
-        "pet-head-08.png",
-        "pet-head-09.png",
-        "pet-head-10.png",
-        "pet-head-11.png",
-        "pet-head-12.png",
         "pet-head-01.png",
         "pet-head-02.png",
         "pet-head-03.png",
         "pet-head-04.png",
         "pet-head-05.png",
-        "pet-head-06.png",
-        "pet-head-07.png",
-        "pet-head-08.png",
-        "pet-head-09.png",
-        "pet-head-10.png",
-        "pet-head-11.png",
-        "pet-head-12.png"
+        "pet-head-06.png"
       ],
       "frameDurationMs": 250,
       "loop": false,
@@ -674,6 +749,7 @@
         "happy",
         "notify",
         "peek",
+        "pet-face",
         "pet-head",
         "petal-spin",
         "starfish-wave",
@@ -728,6 +804,7 @@
         "happy",
         "notify",
         "peek",
+        "pet-face",
         "pet-head",
         "pumpkin-bag",
         "starfish-wave",
@@ -782,6 +859,7 @@
         "happy",
         "notify",
         "peek",
+        "pet-face",
         "pet-head",
         "pumpkin-bag",
         "petal-spin",
@@ -879,21 +957,18 @@
         "sad-05.png",
         "sad-06.png",
         "sad-07.png",
-        "sad-08.png",
-        "sad-09.png",
-        "sad-10.png",
-        "sad-11.png",
-        "sad-12.png"
+        "sad-08.png"
       ],
       "frameDurationMs": 625,
-      "loop": true,
+      "loop": false,
+      "holdLastFrame": true,
       "canInterrupt": [
         "walk",
         "peek",
         "happy",
         "clap"
       ],
-      "interrupt": "resume",
+      "interrupt": "restart",
       "cooldownMs": 0,
       "direction": "neutral",
       "anchor": {

@@ -74,7 +74,11 @@ export interface PetSpec {
       /** 人物在精灵帧内的横向占比上限：窗口宽度与贴边基准都据此派生（QA 依素材实测校验） */
       contentWidthRatio: number;
     };
-    /** 非菜单互动（点击桌宠 / 喂食 / 贴边窥视）的好感增益 */
+    /**
+     * 点击热点区域：区域按「参照状态」的帧归一化（x/y/width/height 均相对帧边长），
+     * 命中即改播 interactionId 指向的互动，未命中则走普通点击。
+     */
+    clickZone?: Record<string, ClickZoneSpec>;
     rewards: {
       feed: {
         affectionGain: number;
@@ -138,6 +142,21 @@ export interface QuoteGroupSpec {
 }
 
 /**
+ * 点击热点区域：区域取自 referenceStateId 那一帧的像素位置并按帧边长归一化，
+ * 因此只对「该帧的姿态」有意义（人物摆别的姿势时那块区域未必落在同一部位）。
+ */
+export interface ClickZoneSpec {
+  /** 命中该区域后改播的状态 id */
+  stateId: string;
+  /** 取区域的参照状态，其首帧即区域的坐标基准 */
+  referenceStateId: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
  * 「回到待机」的调度信号：待机由 idleRotation 池中的动作轮播呈现，没有独立的待机状态，
  * 因此用这个 id 表达「脱离当前动作、回到待机轮播」，不指向任何一个可播放状态。
  */
@@ -194,6 +213,11 @@ export interface PetState {
   frameDurationMs: number;
   /** 是否循环播放；待机轮播成员一律单轮播放（每帧只出现一次，播完续接下一个待机动作） */
   loop: boolean;
+  /**
+   * 播放一遍后定格在最后一帧（不定时结束），末帧持续呼吸。
+   * 用于常驻的情绪状态：播完不再循环，画面停在末帧保持情绪，需外部信号才能离开。与 loop 互斥。
+   */
+  holdLastFrame?: boolean;
   /** 本状态可打断（压过）的状态 id 名单；'*' 表示可打断一切；待机轮播动作是抢占基底，默认可被任意状态打断，无需列入 */
   canInterrupt: string[];
   interrupt: string;

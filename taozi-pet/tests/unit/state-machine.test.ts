@@ -259,14 +259,43 @@ test('feed 倒放过程中再次拖入：以当前帧转回正向继续', () => 
   assert.equal(machine.currentStateId(), 'feed');
 });
 
-test('feed 倒放结束恢复循环状态（sad/sleep/notify 常驻）', () => {
-  const sad = state('sad', { triggers: ['state:sad'], loop: true });
-  const machine = new PetStateMachine([look, blink, gap, feed, sad], rotation([['look', 1], ['blink', 1]]), 0, BREATH_MS);
-  machine.feedForward(0);
-  machine.tick(600);
-  machine.feedReverse(600, 'sad');
-  machine.tick(1201); // 倒放完成
+test('feed 倒放结束恢复常驻状态（循环播放或定格末帧）', () => {
+  const sleep = state('sleep', { triggers: ['state:sleep'], loop: true });
+  const sad = state('sad', { triggers: ['state:sad'], holdLastFrame: true });
+  for (const persistent of [sleep, sad]) {
+    const machine = new PetStateMachine([look, blink, gap, feed, sleep, sad], rotation([['look', 1], ['blink', 1]]), 0, BREATH_MS);
+    machine.feedForward(0);
+    machine.tick(600);
+    machine.feedReverse(600, persistent.id);
+    machine.tick(1201); // 倒放完成
+    assert.equal(machine.currentStateId(), persistent.id);
+  }
+});
+
+// ---- 定格末帧（holdLastFrame）：播完停在末帧常驻，需外部信号才离开 ----
+const sadHold = state('sad', {
+  triggers: ['state:sad'],
+  frames: ['sad-01.png', 'sad-02.png', 'sad-03.png'],
+  holdLastFrame: true,
+});
+
+test('定格末帧的状态播完停在末帧常驻，不自行回到待机', () => {
+  const machine = new PetStateMachine([look, blink, gap, sadHold], rotation([['look', 1], ['blink', 1]]), 0, BREATH_MS);
+  assert.equal(machine.start('sad', 0), true);
+  assert.deepEqual(
+    [0, 100, 200, 10_000].map((at) => machine.tick(at).frameIndex),
+    [0, 1, 2, 2],
+  );
   assert.equal(machine.currentStateId(), 'sad');
+  assert.equal(machine.isStandby(), false);
+});
+
+test('定格末帧的状态被再次下发时重新播放（interrupt=restart）', () => {
+  const machine = new PetStateMachine([look, blink, gap, sadHold], rotation([['look', 1], ['blink', 1]]), 0, BREATH_MS);
+  machine.start('sad', 0);
+  machine.tick(200); // 已定格末帧
+  assert.equal(machine.start('sad', 300), true);
+  assert.equal(machine.tick(300).frameIndex, 0); // 从第 0 帧重新播放
 });
 
 // ---- 分段播放（键盘监听）：按下播前段、抬起播后段，各自定格在段末帧 ----

@@ -114,6 +114,7 @@ checks.push(makeCheck({
         if (typeof frame !== 'string' || /^[A-Za-z]:|^[/\\]|(?:^|[/\\])\.\.(?:[/\\]|$)/.test(frame)) problems.push(`不安全的帧路径: ${frame}`);
       }
       if (!Array.isArray(state.triggers) || !state.triggers.length) problems.push(`状态无运行时触发: ${state.id}`);
+      if (state.holdLastFrame && state.loop) problems.push(`状态 ${state.id} 的 loop 与 holdLastFrame 互斥（不能既循环播放又定格末帧）`);
     }
     for (const frame of sharedFrames) problems.push(`帧 ${frame} 归属多个状态（跨状态共享帧冲突）`);
     const triggerToState = new Map();
@@ -190,6 +191,17 @@ checks.push(makeCheck({
     for (const trigger of ['pointer:tap', 'reminder:due', 'window:edge-snap', 'ambient:random']) {
       const state = states.get(triggers.get(trigger));
       if (state && (state.frames.length < 5 || state.frames.length > 24)) problems.push(`「${trigger}」状态 ${state.id} 帧数必须为 5-24`);
+    }
+    // 点击热点区：区域按参照状态首帧归一化，须落在 0-1 内、非空、且指向已声明的状态
+    for (const [key, zone] of Object.entries(spec.experience?.clickZone ?? {})) {
+      if (!states.has(zone.stateId)) problems.push(`点击热点区 ${key} 引用不存在的命中状态 ${zone.stateId}`);
+      if (!states.has(zone.referenceStateId)) problems.push(`点击热点区 ${key} 引用不存在的参照状态 ${zone.referenceStateId}`);
+      for (const field of ['x', 'y', 'width', 'height']) {
+        const value = zone[field];
+        if (typeof value !== 'number' || value < 0 || value > 1) problems.push(`点击热点区 ${key}.${field} 必须为 0-1 的数值`);
+      }
+      if (zone.width <= 0 || zone.height <= 0) problems.push(`点击热点区 ${key} 的宽高必须大于 0`);
+      if (zone.x + zone.width > 1 || zone.y + zone.height > 1) problems.push(`点击热点区 ${key} 超出帧范围`);
     }
     return { passed: problems.length === 0, detail: problems.length ? problems.join('; ') : `${interactions.size} interactions 合法` };
   },

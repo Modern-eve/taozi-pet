@@ -2,7 +2,7 @@ import spec from '../../../pet-spec.json';
 import type { PetSpec, StateActivity, StateSegment } from '../../shared/contracts';
 import { PET_BUBBLE_ZONE, STANDBY_SIGNAL } from '../../shared/contracts';
 import { exceedsDragThreshold } from '../../main/drag';
-import { inBubbleZone } from './hit-area';
+import { inBubbleZone, inZone } from './hit-area';
 import { pickQuote } from './quotes';
 import { PetStateMachine } from './state-machine';
 import type { StateFrame } from './state-machine';
@@ -45,11 +45,15 @@ const stateMachine = new PetStateMachine(
   petSpec.motion.breathing.periodMs,
 );
 
-// 呼吸动效：只服务待机间歇（单帧静态母版），间歇期间的全部动感来自这层缓慢缩放。
+// 呼吸动效：服务待机间歇（单帧静态母版）与定格末帧的常驻状态（末帧是静止画面，靠这层缓慢缩放保持生命感）。
 // 动画挂在帧容器上、挤压回弹挂在精灵自身，两层元素各持一个 transform，互不覆盖，
 // 因此点击的挤压播完后不会顶掉呼吸，下一次进入间歇照常呼吸。
 const breathing = petSpec.motion.breathing;
 const breathStateId = petSpec.idleRotation.gap.stateId;
+// 定格末帧的状态只在末帧呼吸：播放期间帧本身在动，停下之后才需要呼吸续命
+const holdLastFrameIds = new Set(
+  petSpec.states.filter((state) => state.holdLastFrame).map((state) => state.id),
+);
 // 气泡区高度由 shared 常量注入 CSS 变量；CSS 里的初值只是脚本执行前的回退
 document.documentElement.style.setProperty('--pet-bubble-zone', `${PET_BUBBLE_ZONE}px`);
 if (breathing.enabled) {
@@ -59,14 +63,21 @@ if (breathing.enabled) {
 }
 let breathingActive = false;
 
-function applyBreathing(stateId: string): void {
-  const on = breathing.enabled && stateId === breathStateId;
+function isBreathFrame(stateId: string, frameIndex: number): boolean {
+  if (stateId === breathStateId) return true;
+  if (!holdLastFrameIds.has(stateId)) return false;
+  const frames = assetFrames.get(stateId);
+  return frames !== undefined && frameIndex >= frames.length - 1;
+}
+
+function applyBreathing(stateId: string, frameIndex: number): void {
+  const on = breathing.enabled && isBreathFrame(stateId, frameIndex);
   if (on === breathingActive) return; // 状态未变则不重挂，避免动画反复重头播放
   breathingActive = on;
   spriteFrame.classList.toggle('breathing', on);
 }
 
-applyBreathing(stateMachine.currentStateId());
+applyBreathing(stateMachine.currentStateId(), 0);
 
 // 挤压回弹
 function playSquash(): void {
@@ -169,6 +180,8 @@ const missingFrames = new Set<string>();
 function showFrame(snapshot: StateFrame): void {
   // dataset.state 是对外暴露的状态观测点（dev-smoke 探针按它读当前动作，见 tools/dev-smoke-client.mjs）。
   container.dataset.state = snapshot.stateId;
+  // 呼吸随帧落地同步：定格末帧的状态要在末帧这一帧挂上，切走或重播时摘下
+  applyBreathing(snapshot.stateId, snapshot.frameIndex);
   // 状态落地即回报事实：渲染层掌握帧推进与轮播选择，是状态的真源；
   // 主进程据此镜像当前状态，不再靠「自己发过什么」自持副本。
   if (snapshot.stateId !== reportedStateId) {
@@ -210,7 +223,6 @@ function animate(timestamp: number): void {
   const snapshot = stateMachine.tick(timestamp);
   if (snapshot.stateChanged) {
     showFrame(snapshot);
-    applyBreathing(snapshot.stateId);
     // peek 和 walk 状态保持镜像，切回其他状态时重置
     if (snapshot.stateId !== 'peek' && snapshot.stateId !== 'walk') {
       container.style.transform = '';
@@ -281,6 +293,20 @@ function getQuote(stateId: string): string {
 let pendingPeekQuote: string | null = null;
 
 /**
+ * 点击热点区：区域取自 spec.experience.clickZone（参照状态的首帧像素位置归一化），
+ * 命中即改播它声明的状态，未命中走普通点击。放在 spec 里是为了调区域时只改一处。
+ */
+const headZone = petSpec.experience.clickZone?.head;
+
+/** 点击位置是否落在头部热点区内。精灵帧为正方形且贴底居中，故按帧的可见矩形换算归一化坐标。 */
+function hitsHeadZone(event: MouseEvent): boolean {
+  if (!headZone) return false;
+  const rect = sprite.getBoundingClientRect();
+  return inZone(event.clientX, event.clientY, headZone, { left: rect.left, top: rect.top, size: rect.width });
+}
+
+
+/**
  * 量一条语录在实际气泡样式下的渲染宽度（px）。
  * 气泡常驻布局（未显示时只是 opacity: 0），改写文案后同步读回即可，同一个任务内还原，不会闪出画面。
  */
@@ -300,24 +326,39 @@ function previewSnapBubble(): void {
   void window.petAPI?.bubble.previewWidth(width)
     .catch((error) => reportIssue(`bubble preview failed: ${error instanceof Error ? error.message : String(error)}`));
 }
-// 点击事件：气泡区判定见 hit-area.ts
+// 点击事件：气泡区判定见 hit-area.ts；命中头部热点区则走摸头互动（机制与 happy 一致，由主进程下发）
 container.addEventListener('click', (event) => {
-  if (inBubbleZone(event.clientY, event.isTrusted)) return;
+  if (inBubbleZone(event.clientY, event.isTrusted, PET_BUBBLE_ZONE)) return;
   if (suppressNextClick) {
     suppressNextClick = false;
     return;
   }
   playSquash();
+  // 沮丧常驻期间：点击重播一遍沮丧动画并补一句语录（同 id 重入走 interrupt=restart），
+  // 播完仍定格末帧。此时不响应点击开心与头部热点区——人物正在难过，不该切到开心的表情。
+  if (stateMachine.currentStateId() === 'sad') {
+    void window.petAPI?.reminders.ack()
+      .catch((error) => reportIssue(`reminders.ack failed: ${error instanceof Error ? error.message : String(error)}`));
+    setState('sad');
+    const sadQuote = getQuote('sad') || getQuote('__click__');
+    if (sadQuote) showFeedback(sadQuote);
+    return;
+  }
+  const zoneState = hitsHeadZone(event) ? headZone?.stateId : undefined;
+  if (zoneState) {
+    // 命中点击热点区：与普通点击同样是用户点击桌宠，同样消费待处理提醒，只是改播区域声明的状态
+    void window.petAPI?.reminders.ack()
+      .catch((error) => reportIssue(`reminders.ack failed: ${error instanceof Error ? error.message : String(error)}`));
+    setState(zoneState);
+    const zoneQuote = getQuote(zoneState) || getQuote('__click__');
+    if (zoneQuote) showFeedback(zoneQuote);
+    return;
+  }
   setState('happy');
   // 点击桌宠即消费待处理提醒（notify 循环被 happy 打断，气泡被点击语录替换）
   void window.petAPI?.reminders.ack()
     .catch((error) => reportIssue(`reminders.ack failed: ${error instanceof Error ? error.message : String(error)}`));
-  // 沮丧状态下 happy 压不过 sad（动画不切，仍是沮丧），点击不该弹兴奋语录——
-  // 此时改弹沮丧安抚语录，语气与沮丧状态一致
-  const quote = stateMachine.currentStateId() === 'sad'
-    ? (getQuote('sad') || getQuote('__click__'))
-    : getQuote('__click__');
-  showFeedback(quote);
+  showFeedback(getQuote('__click__'));
 });
 
 // 拖拽

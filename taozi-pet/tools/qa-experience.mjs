@@ -37,14 +37,14 @@ checks.push(makeCheck({
   id: 'caninterrupt-live-lock',
   gate: 'interrupt-matrix',
   severity: 'warning',
-  describe: 'loop 状态无「逃生门」（不被任何其它状态能打断）才判定卡死',
+  describe: '常驻状态（循环播放或定格末帧）无「逃生门」（不被任何其它状态能打断）才判定卡死',
   run: () => {
-    // 判定：一个有限/无限循环状态要能自拔出，必须有另一个状态（含 * 通配）能打断它。
+    // 判定：一个常驻状态要能自拔出，必须有另一个状态（含 * 通配）能打断它。
     // 只凭自身 loop+'*' 并不构成死锁——能被 happy/互动等打断即可安全退出，需反向推演。
     // 待机基底（轮播动作与间歇）由状态机自行调度，不依赖被谁打断，故不参与此判定。
     const stuck = [];
     for (const state of spec.states) {
-      if (standbyBaseIds.has(state.id) || !state.loop) continue;
+      if (standbyBaseIds.has(state.id) || !(state.loop || state.holdLastFrame)) continue;
       const escapedBy = spec.states.find((other) =>
         other.id !== state.id && ((other.canInterrupt ?? []).includes('*') || (other.canInterrupt ?? []).includes(state.id))
       );
@@ -53,8 +53,8 @@ checks.push(makeCheck({
     return {
       passed: stuck.length === 0,
       detail: stuck.length
-        ? `${stuck.join(', ')} 为 loop 且无任何状态能打断它：一旦进入将无法回待机，请补充一个可打断它的状态，或改为有限时长`
-        : '所有 loop 状态都有逃生门（可被其它状态打断回待机）',
+        ? `${stuck.join(', ')} 为常驻状态且无任何状态能打断它：一旦进入将无法回待机，请补充一个可打断它的状态，或改为有限时长`
+        : '所有常驻状态都有逃生门（可被其它状态打断回待机）',
     };
   },
 }));
