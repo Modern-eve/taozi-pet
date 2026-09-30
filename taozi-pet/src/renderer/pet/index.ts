@@ -340,7 +340,7 @@ container.addEventListener('click', (event) => {
     void window.petAPI?.reminders.ack()
       .catch((error) => reportIssue(`reminders.ack failed: ${error instanceof Error ? error.message : String(error)}`));
     setState('sad');
-    const sadQuote = getQuote('sad') || getQuote('__click__');
+    const sadQuote = getQuote('sad') || getQuote('happy');
     if (sadQuote) showFeedback(sadQuote);
     return;
   }
@@ -350,15 +350,16 @@ container.addEventListener('click', (event) => {
     void window.petAPI?.reminders.ack()
       .catch((error) => reportIssue(`reminders.ack failed: ${error instanceof Error ? error.message : String(error)}`));
     setState(zoneState);
-    const zoneQuote = getQuote(zoneState) || getQuote('__click__');
+    const zoneQuote = getQuote(zoneState) || getQuote('happy');
     if (zoneQuote) showFeedback(zoneQuote);
     return;
   }
   setState('happy');
-  // 点击桌宠即消费待处理提醒（notify 循环被 happy 打断，气泡被点击语录替换）
+  // 点击桌宠即消费待处理提醒（notify 循环被 happy 打断，气泡改为开心语录）
   void window.petAPI?.reminders.ack()
     .catch((error) => reportIssue(`reminders.ack failed: ${error instanceof Error ? error.message : String(error)}`));
-  showFeedback(getQuote('__click__'));
+  const happyQuote = getQuote('happy');
+  if (happyQuote) showFeedback(happyQuote);
 });
 
 // 拖拽
