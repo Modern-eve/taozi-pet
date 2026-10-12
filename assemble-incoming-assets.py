@@ -26,6 +26,8 @@ import shutil
 import numpy as np
 from PIL import Image
 
+from python_env import ensure_env
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
 INC = os.path.join(ROOT, "taozi-pet", "incoming-assets")            # 透明帧源 + 归一化输出（原地）
 SPEC = os.path.join(ROOT, "taozi-pet", "pet-spec.json")             # 帧清单权威来源
@@ -130,6 +132,7 @@ def build_state(frames):
 
 
 def main():
+    ensure_env(__file__, requires=('PIL', 'numpy'))
     ap = argparse.ArgumentParser(description="组装+归一化 incoming-assets（通用、数据驱动，全部状态同一套规则）")
     ap.add_argument("--states", nargs="*", default=None,
                     help="只处理这些状态（默认 pet-spec.json 里的全部状态）")

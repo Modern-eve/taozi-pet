@@ -26,6 +26,8 @@ import json
 import numpy as np
 from PIL import Image
 
+from python_env import ensure_env
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
 ASSET = os.path.join(ROOT, "taozi-pet", "src", "assets", "pet")
 QA_DIR = os.path.join(ROOT, "taozi-pet", "qa")
@@ -154,6 +156,7 @@ def fix_border(path):
 
 
 def main():
+    ensure_env(__file__, requires=('PIL', 'numpy'))
     ap = argparse.ArgumentParser(description="按 QA 报告自动修复失败帧（通用）")
     ap.add_argument("--report", default=os.path.join(QA_DIR, "assets-report.json"))
     ap.add_argument("--assets", default=ASSET)

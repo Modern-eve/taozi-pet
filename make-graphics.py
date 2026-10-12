@@ -9,7 +9,8 @@
     sleep-ip.jpg → taozi-pet/src/renderer/dashboard/assets/avatar-sleep.png 「睡眠」
 
 头部裁剪后各自等比缩放、居中；只截头部/光环的取舍与整帧产线互不影响。
-运行前提：与 preprocess-v7 相同的 torch/CUDA 环境（conda activate my_project）。
+运行环境：需要 torch/CUDA。脚本自动定位 my_project 环境（见 python_env.py），
+无需预先 conda activate。
 
 用法:
   python make-graphics.py               # 仅生成托盘图标
@@ -23,6 +24,8 @@ import sys
 
 import numpy as np
 from PIL import Image
+
+from python_env import ensure_env
 
 DEFAULT_CORE = "core-ip.jpg"
 DEFAULT_OUT = os.path.join("taozi-pet", "src", "assets", "tray", "tray-icon.png")
@@ -177,6 +180,7 @@ def render_icon(core_path, out_path, size, inner, crop, ratio):
 
 
 def main():
+    ensure_env(__file__)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--core", default=DEFAULT_CORE, help=f"托盘源图路径（默认 {DEFAULT_CORE}）")
     parser.add_argument("--out", default=DEFAULT_OUT, help=f"托盘输出路径（默认 {DEFAULT_OUT}）")

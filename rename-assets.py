@@ -29,6 +29,8 @@ import os
 import re
 import argparse
 
+from python_env import ensure_env
+
 DEFAULT_DIR = r'D:\Documents\Doubao\chats\2026-08-12\new-chat\assets-raw'
 
 # 可识别的源格式（扩展名不可信，真实格式由文件头魔数判定）
@@ -148,6 +150,7 @@ def do_convert(d, converts, deletes, quality, apply):
 
 
 def main():
+    ensure_env(__file__, requires=('PIL',))
     ap = argparse.ArgumentParser(
         description=f"assets-raw 帧整理（流水线第 1 步）：统一转 {TARGET_EXT} + 连续编号")
     ap.add_argument("--dir", default=DEFAULT_DIR,

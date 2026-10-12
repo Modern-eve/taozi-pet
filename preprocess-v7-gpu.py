@@ -41,7 +41,9 @@ GPU 抠白底：assets-raw/ → taozi-pet/incoming-assets/（透明 PNG，默认
   流水线跑满后主线程只剩推理时间，GPU 与 CPU 并行工作；此时瓶颈完全落在 GPU
   推理上，再快需要动模型或输入分辨率。
 
-环境: conda activate my_project（torch + CUDA）
+环境: 需要 torch + CUDA。脚本自动定位 my_project 环境（见 python_env.py），
+  无需预先 conda activate；环境名/安装位置变动时可设 TAOZI_CONDA_ENV /
+  TAOZI_CONDA_ROOT / TAOZI_PYTHON 覆盖。
 模型: ZhengPeng7/BiRefNet + ToonOut 微调权重（设 USE_TOONOUT=0 可回退原版做 A/B）
 """
 import os
@@ -63,6 +65,7 @@ from preprocess_common import (
     refine_alpha,
     select_frames,
 )
+from python_env import ensure_env
 
 # 模型输入边长。官方在 1024×1024 方形上训练/推理，见 prepare_input 的补边逻辑。
 MODEL_SIZE = 1024
@@ -305,6 +308,7 @@ def process_image(input_path, output_path):
 
 
 def main():
+    ensure_env(__file__)
     import argparse
     ap = argparse.ArgumentParser(description="GPU 抠图：assets-raw → taozi-pet/incoming-assets（默认全量）")
     ap.add_argument('files', nargs='*', help='指定文件（默认处理 --states 全部）')
