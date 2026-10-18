@@ -69,6 +69,22 @@
         "y": 0.149,
         "width": 0.217,
         "height": 0.205
+      },
+      "belly": {
+        "stateId": "belly-ok",
+        "referenceStateId": "standby-gap",
+        "x": 0.432,
+        "y": 0.365,
+        "width": 0.119,
+        "height": 0.174
+      },
+      "pumpkin-bag": {
+        "stateId": "pumpkin-bag",
+        "referenceStateId": "standby-gap",
+        "x": 0.561,
+        "y": 0.453,
+        "width": 0.146,
+        "height": 0.113
       }
     },
     "rewards": {
@@ -112,7 +128,7 @@
         ]
       },
       "belly-ok": {
-        "label": "拍拍肚",
+        "label": "点击-拍拍肚",
         "emoji": "🤗",
         "quotes": [
           "这里是为主人准备的~",
@@ -194,7 +210,7 @@
         ]
       },
       "pumpkin-bag": {
-        "label": "掏南瓜包",
+        "label": "点击-掏南瓜包",
         "emoji": "🎃",
         "quotes": [
           "主人，今天用哪个？",
@@ -224,6 +240,17 @@
           "主人，套套的小手准备好咯~",
           "空气中都带着主人的甜味呢~"
         ]
+      },
+      "hug": {
+        "label": "求抱抱",
+        "emoji": "🫂",
+        "quotes": [
+          "主人，可以抱抱套套吗？",
+          "张开手手，求主人抱抱~",
+          "套套的怀抱，只留给主人哦~",
+          "抱紧一点，就能感受更多啦~",
+          "主人暖暖的，套套不想放开啦~"
+        ]
       }
     },
     "interactions": [
@@ -234,21 +261,15 @@
         "affectionGain": 3
       },
       {
-        "id": "pumpkin-bag",
-        "stateId": "pumpkin-bag",
-        "durationMs": 6000,
-        "affectionGain": 2
-      },
-      {
         "id": "petal-spin",
         "stateId": "petal-spin",
         "durationMs": 6000,
         "affectionGain": 2
       },
       {
-        "id": "starfish-wave",
-        "stateId": "starfish-wave",
-        "durationMs": 6000,
+        "id": "kick",
+        "stateId": "kick",
+        "durationMs": 3500,
         "affectionGain": 2
       }
     ]
@@ -312,11 +333,11 @@
         "weight": 1
       },
       {
-        "id": "belly-ok",
+        "id": "hug",
         "weight": 1
       },
       {
-        "id": "kick",
+        "id": "starfish-wave",
         "weight": 1
       }
     ],
@@ -425,8 +446,19 @@
       ],
       "frameDurationMs": 250,
       "loop": false,
-      "canInterrupt": [],
-      "interrupt": "resume",
+      "canInterrupt": [
+        "happy",
+        "notify",
+        "peek",
+        "pumpkin-bag",
+        "petal-spin",
+        "walk",
+        "sleep",
+        "sad",
+        "clap",
+        "kick"
+      ],
+      "interrupt": "restart",
       "cooldownMs": 0,
       "direction": "neutral",
       "anchor": {
@@ -438,7 +470,7 @@
     {
       "id": "kick",
       "triggers": [
-        "ambient:kick"
+        "interaction:kick"
       ],
       "frames": [
         "kick-01.png",
@@ -447,7 +479,49 @@
         "kick-04.png",
         "kick-05.png",
         "kick-06.png",
+        "kick-07.png",
+        "kick-01.png",
+        "kick-02.png",
+        "kick-03.png",
+        "kick-04.png",
+        "kick-05.png",
+        "kick-06.png",
         "kick-07.png"
+      ],
+      "frameDurationMs": 250,
+      "loop": false,
+      "canInterrupt": [
+        "happy",
+        "notify",
+        "peek",
+        "pumpkin-bag",
+        "petal-spin",
+        "walk",
+        "sleep",
+        "sad",
+        "clap"
+      ],
+      "interrupt": "restart",
+      "cooldownMs": 0,
+      "direction": "neutral",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.95
+      },
+      "mirrorSafe": true
+    },
+    {
+      "id": "hug",
+      "triggers": [
+        "ambient:hug"
+      ],
+      "frames": [
+        "hug-01.png",
+        "hug-02.png",
+        "hug-03.png",
+        "hug-04.png",
+        "hug-05.png",
+        "hug-06.png"
       ],
       "frameDurationMs": 250,
       "loop": false,
@@ -467,7 +541,7 @@
         "state:standby-gap"
       ],
       "frames": [
-        "core-ip.png"
+        "core-ip-01.png"
       ],
       "frameDurationMs": 250,
       "loop": false,
@@ -651,11 +725,11 @@
         "peek",
         "pumpkin-bag",
         "petal-spin",
-        "starfish-wave",
         "walk",
         "sleep",
         "sad",
-        "clap"
+        "clap",
+        "kick"
       ],
       "interrupt": "restart",
       "cooldownMs": 0,
@@ -693,11 +767,11 @@
         "peek",
         "pumpkin-bag",
         "petal-spin",
-        "starfish-wave",
         "walk",
         "sleep",
         "sad",
-        "clap"
+        "clap",
+        "kick"
       ],
       "interrupt": "restart",
       "cooldownMs": 0,
@@ -711,7 +785,7 @@
     {
       "id": "pumpkin-bag",
       "triggers": [
-        "interaction:pumpkin-bag"
+        "state:pumpkin-bag"
       ],
       "frames": [
         "pumpkin-bag-01.png",
@@ -745,14 +819,12 @@
         "happy",
         "notify",
         "peek",
-        "pet-face",
-        "pet-head",
         "petal-spin",
-        "starfish-wave",
         "walk",
         "sleep",
         "sad",
-        "clap"
+        "clap",
+        "kick"
       ],
       "interrupt": "restart",
       "cooldownMs": 0,
@@ -803,11 +875,11 @@
         "pet-face",
         "pet-head",
         "pumpkin-bag",
-        "starfish-wave",
         "walk",
         "sleep",
         "sad",
-        "clap"
+        "clap",
+        "kick"
       ],
       "interrupt": "restart",
       "cooldownMs": 0,
@@ -821,21 +893,9 @@
     {
       "id": "starfish-wave",
       "triggers": [
-        "interaction:starfish-wave"
+        "ambient:starfish-wave"
       ],
       "frames": [
-        "starfish-wave-01.png",
-        "starfish-wave-02.png",
-        "starfish-wave-03.png",
-        "starfish-wave-04.png",
-        "starfish-wave-05.png",
-        "starfish-wave-06.png",
-        "starfish-wave-07.png",
-        "starfish-wave-08.png",
-        "starfish-wave-09.png",
-        "starfish-wave-10.png",
-        "starfish-wave-11.png",
-        "starfish-wave-12.png",
         "starfish-wave-01.png",
         "starfish-wave-02.png",
         "starfish-wave-03.png",
@@ -851,20 +911,8 @@
       ],
       "frameDurationMs": 250,
       "loop": false,
-      "canInterrupt": [
-        "happy",
-        "notify",
-        "peek",
-        "pet-face",
-        "pet-head",
-        "pumpkin-bag",
-        "petal-spin",
-        "walk",
-        "sleep",
-        "sad",
-        "clap"
-      ],
-      "interrupt": "restart",
+      "canInterrupt": [],
+      "interrupt": "resume",
       "cooldownMs": 0,
       "direction": "neutral",
       "anchor": {
@@ -910,7 +958,7 @@
         "state:sleep"
       ],
       "frames": [
-        "sleep.png"
+        "sleep-01.png"
       ],
       "frameDurationMs": 625,
       "loop": false,

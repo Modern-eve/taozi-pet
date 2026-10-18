@@ -199,6 +199,8 @@ const missingFrames = new Set<string>();
 function showFrame(snapshot: StateFrame): void {
   // dataset.state 是对外暴露的状态观测点（dev-smoke 探针按它读当前动作，见 tools/dev-smoke-client.mjs）。
   container.dataset.state = snapshot.stateId;
+  // 离开点击动作即本次播放会话结束：下次再点它要重新记一次账（会话期间状态不变，故连点不重复记账）
+  if (ackedClickActionId !== null && !clickActionStateIds.has(snapshot.stateId)) ackedClickActionId = null;
   // 呼吸随帧落地同步：定格末帧的状态要在末帧这一帧挂上，切走或重播时摘下
   applyBreathing(snapshot.stateId, snapshot.frameIndex);
   // 状态落地即回报事实：渲染层掌握帧推进与轮播选择，是状态的真源；
@@ -217,10 +219,12 @@ function showFrame(snapshot: StateFrame): void {
   }
 }
 
-function setState(stateId: string, durationMs?: number, mirror = false): void {
+/** 切换状态；返回渲染层是否采纳（被拒为 false，调用方据此决定弹语录与记账）。 */
+function setState(stateId: string, durationMs?: number, mirror = false): boolean {
   applyMirror(mirror);
-  if (!stateMachine.start(stateId, performance.now(), durationMs)) return;
+  if (!stateMachine.start(stateId, performance.now(), durationMs)) return false;
   showFrame(stateMachine.tick(performance.now()));
+  return true;
 }
 
 // 进入待机：'idle' 是调度信号而非可播放状态，实际播放哪个动作由状态机按权重随机决定
@@ -314,14 +318,22 @@ let pendingPeekQuote: string | null = null;
 /**
  * 点击热点区：区域取自 spec.experience.clickZone（参照状态的首帧像素位置归一化），
  * 命中即改播它声明的状态，未命中走普通点击。放在 spec 里是为了调区域时只改一处。
+ * 多块区域按 spec 键序判定，命中优先级即键序；增删热区只改 spec，代码不写死键名。
  */
-const headZone = petSpec.experience.clickZone?.head;
+const clickZones = Object.values(petSpec.experience.clickZone ?? {});
+/** 点击动作集合：命中热区会切到这些状态，它们播放期间整个动画窗口都是热区（见点击处理段）。 */
+const clickActionStateIds = new Set(clickZones.map((zone) => zone.stateId));
+/**
+ * 本次点击动作播放会话是否已记账：同一动作的一次连续播放（含被重播延长的部分）只记第一次，
+ * 连点只重播、不再重复消费待处理提醒与好感/心情；离开该动作即会话结束（见 showFrame）。
+ */
+let ackedClickActionId: string | null = null;
 
-/** 点击位置是否落在头部热点区内。精灵帧为正方形且贴底居中，故按帧的可见矩形换算归一化坐标。 */
-function hitsHeadZone(event: MouseEvent): boolean {
-  if (!headZone) return false;
+/** 首个命中的热区（按 spec 键序），未命中返回 undefined。精灵帧为正方形且贴底居中，故按帧的可见矩形换算归一化坐标。 */
+function hitZone(event: MouseEvent) {
   const rect = sprite.getBoundingClientRect();
-  return inZone(event.clientX, event.clientY, headZone, { left: rect.left, top: rect.top, size: rect.width });
+  const frame = { left: rect.left, top: rect.top, size: rect.width };
+  return clickZones.find((zone) => inZone(event.clientX, event.clientY, zone, frame));
 }
 
 
@@ -345,7 +357,14 @@ function previewSnapBubble(): void {
   void window.petAPI?.bubble.previewWidth(width)
     .catch((error) => reportIssue(`bubble preview failed: ${error instanceof Error ? error.message : String(error)}`));
 }
-// 点击事件：气泡区判定见 hit-area.ts；命中头部热点区则走摸头互动（机制与 happy 一致，由主进程下发）
+/** 点击桌宠的记账：消费队首待处理提醒，并让主进程按 happy 记好感（每日首次 +2）与心情（每次 +2）。 */
+function ackClick(): void {
+  void window.petAPI?.reminders.ack()
+    .catch((error) => reportIssue(`reminders.ack failed: ${error instanceof Error ? error.message : String(error)}`));
+}
+
+// 点击事件：气泡区判定见 hit-area.ts。判定顺序 = 点击动作整窗重播 → 热区命中 → 开心。
+// 记账（消费待处理提醒 + 好感/心情 +2）只在画面真的被采纳时发生：被拒的点击不记账、不弹语录。
 container.addEventListener('click', (event) => {
   if (inBubbleZone(event.clientY, event.isTrusted, PET_BUBBLE_ZONE)) return;
   if (suppressNextClick) {
@@ -354,31 +373,44 @@ container.addEventListener('click', (event) => {
   }
   playSquash();
   // 沮丧常驻期间：点击重播一遍沮丧动画并补一句语录（同 id 重入走 interrupt=restart），
-  // 播完仍定格末帧。此时不响应点击开心与头部热点区——人物正在难过，不该切到开心的表情。
+  // 播完仍定格末帧。此时不响应点击开心与点击热点区——人物正在难过，不该切到开心的表情。
   if (stateMachine.currentStateId() === 'sad') {
-    void window.petAPI?.reminders.ack()
-      .catch((error) => reportIssue(`reminders.ack failed: ${error instanceof Error ? error.message : String(error)}`));
+    ackClick();
     setState('sad');
     const sadQuote = getQuote('sad') || getQuote('happy');
     if (sadQuote) showFeedback(sadQuote);
     return;
   }
-  const zoneState = hitsHeadZone(event) ? headZone?.stateId : undefined;
-  if (zoneState) {
-    // 命中点击热点区：与普通点击同样是用户点击桌宠，同样消费待处理提醒，只是改播区域声明的状态
-    void window.petAPI?.reminders.ack()
-      .catch((error) => reportIssue(`reminders.ack failed: ${error instanceof Error ? error.message : String(error)}`));
-    setState(zoneState);
-    const zoneQuote = getQuote(zoneState) || getQuote('happy');
-    if (zoneQuote) showFeedback(zoneQuote);
+  // 点击动作播放期间整个动画窗口都是热区：不查 clickZone，一律重播当前动作。
+  // 同一次播放会话只记第一次账（连点会不断重播、延长会话，但提醒与好感/心情只算一次）。
+  const currentStateId = stateMachine.currentStateId();
+  if (clickActionStateIds.has(currentStateId)) {
+    if (ackedClickActionId !== currentStateId) {
+      ackedClickActionId = currentStateId;
+      ackClick();
+    }
+    setState(currentStateId);
+    const replayQuote = getQuote(currentStateId) || getQuote('happy');
+    if (replayQuote) showFeedback(replayQuote);
     return;
   }
-  setState('happy');
-  // 点击桌宠即消费待处理提醒（notify 循环被 happy 打断，气泡改为开心语录）
-  void window.petAPI?.reminders.ack()
-    .catch((error) => reportIssue(`reminders.ack failed: ${error instanceof Error ? error.message : String(error)}`));
-  const happyQuote = getQuote('happy');
-  if (happyQuote) showFeedback(happyQuote);
+  const zone = hitZone(event);
+  if (zone) {
+    // 命中点击热点区：同样是用户点击桌宠，只是改播区域声明的状态；画面被采纳才记账并弹该区语录
+    if (setState(zone.stateId)) {
+      ackedClickActionId = zone.stateId;
+      ackClick();
+      const zoneQuote = getQuote(zone.stateId) || getQuote('happy');
+      if (zoneQuote) showFeedback(zoneQuote);
+    }
+    return;
+  }
+  // 未命中热区：回落开心；被拒（如捏脸 / 喂食播放中）则完全无反馈，也不消费提醒
+  if (setState('happy')) {
+    ackClick();
+    const happyQuote = getQuote('happy');
+    if (happyQuote) showFeedback(happyQuote);
+  }
 });
 
 // 拖拽

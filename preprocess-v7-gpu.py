@@ -45,6 +45,9 @@ GPU 抠白底：assets-raw/ → taozi-pet/incoming-assets/（透明 PNG，默认
   无需预先 conda activate；环境名/安装位置变动时可设 TAOZI_CONDA_ENV /
   TAOZI_CONDA_ROOT / TAOZI_PYTHON 覆盖。
 模型: ZhengPeng7/BiRefNet + ToonOut 微调权重（设 USE_TOONOUT=0 可回退原版做 A/B）
+  HF 缓存就绪后即可离线运行：权重加载优先走 local_files_only，缓存缺失才联网（首次下载）。
+  默认联网路径会为每个文件发 HEAD 校验请求并重试 5 次（指数退避），镜像/网络不可达时
+  会白等近 2 分钟，而缓存其实一直是齐的。
 """
 import os
 import sys
@@ -160,9 +163,19 @@ def get_models():
         print(f'  [model] loading BiRefNet on cuda ({torch.cuda.get_device_name(0)}, {cap:.1f}GB) ...')
     else:
         print('  [model] loading BiRefNet on CPU (no CUDA) ...')
-    model = AutoModelForImageSegmentation.from_pretrained(
-        'ZhengPeng7/BiRefNet', trust_remote_code=True
-    )
+    # 优先走本地缓存：缓存就绪时完全不发网络请求。
+    # 默认（联网）路径会为 config / 远程代码 / 权重逐个发 HEAD 校验请求，每个失败的请求重试
+    # 5 次（1+2+4+8+8s 指数退避）——网络不通或镜像不可达时实测白等 ~106s（近 2 分钟），
+    # 而缓存其实一直是齐的。缓存缺失（首次运行）才回退联网，行为与改动前一致。
+    try:
+        model = AutoModelForImageSegmentation.from_pretrained(
+            'ZhengPeng7/BiRefNet', trust_remote_code=True, local_files_only=True
+        )
+    except Exception as exc:
+        print(f'  [model] 本地缓存未就绪（{type(exc).__name__}），回退联网获取 ...')
+        model = AutoModelForImageSegmentation.from_pretrained(
+            'ZhengPeng7/BiRefNet', trust_remote_code=True
+        )
     model.float()  # 权重可能以 fp16 载入，统一转 fp32 避免 half/float 不匹配
     model.eval()
     main = copy.deepcopy(model)         # 兜底权重保持原版，微调只灌进主权重

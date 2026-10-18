@@ -86,7 +86,19 @@ function ensureOverlayWindow(ctx: MainContext): BrowserWindow {
   // 桌宠移动/缩放都会改变叠加层要画的内容（窗口位置、贴边与否、尺寸决定的判定带）
   ctx.petWindow?.on('move', () => syncDebugOverlay(ctx));
   ctx.petWindow?.on('resize', () => syncDebugOverlay(ctx));
+  // 桌宠被点击激活或重新置顶后会在 topmost 组内前移，叠加层随之被压到下面，这里把它提回来
+  ctx.petWindow?.on('focus', () => raiseOverlay(ctx));
   return window;
+}
+
+/**
+ * 把叠加层重新提到桌宠之上：两个窗口都是常驻置顶（Windows 上同属 topmost 组，组内按后到的在上），
+ * 桌宠每次激活/重设置顶都会盖住叠加层，故在它变化后重排一次 z 序。
+ */
+function raiseOverlay(ctx: MainContext): void {
+  const window = ctx.debugOverlayWindow;
+  if (!window || window.isDestroyed() || !window.isVisible()) return;
+  window.moveTop();
 }
 
 /** 重画叠加层：不可见时是空操作，开发者模式关闭时自动撤下。 */
@@ -107,6 +119,8 @@ export function syncDebugOverlay(ctx: MainContext, force = false): void {
     window.setBounds(bounds, false);
   }
   window.webContents.send('debug:overlay-push', debugOverlayPayload(ctx));
+  // 拖动/缩放桌宠都会让它激活并前移到叠加层之上，重画后顺带把叠加层提回最前
+  raiseOverlay(ctx);
 }
 
 /** 显示 / 隐藏叠加层并返回最新绘制数据；开启需要开发者模式。 */

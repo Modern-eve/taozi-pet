@@ -20,6 +20,9 @@ rename-assets.py — assets-raw 帧整理（流水线第 1 步）：统一转 .j
   3. 去多余尾缀：文件名形如 <state>-NN-<尾缀>...（尾缀可含连字符/数字/点）统一收敛为
      <state>-NN（仅保留「前缀-帧号」两段），例如 look-01-extra-2.jpg → look-01.jpg。
      与编号收拢共用：尾缀帧按其帧号入桶，输出标准名即自动去掉尾缀（mtime 冲突裁决规则一致）。
+  4. 补帧号：不带帧号的单帧文件（文件名恰为 <state>.<ext>，即无常规「-编号」段）
+     视为首帧，补 01 → <state>-01.jpg，例如 core-ip.jpg → core-ip-01.jpg。
+     若同帧号另有带号源（core-ip.jpg 与 core-ip-1.jpg 并存），一并入 01 桶按 mtime 裁决。
 
 命名冲突（同帧号多源文件）：保留**源文件修改日期最新者**，落败者被覆盖，不报错中止。
 
@@ -50,6 +53,12 @@ FRAME_RE_TAIL = re.compile(
     re.IGNORECASE,
 )
 
+# 补帧号：<前缀>.<ext>（整名无「-编号」段，即不带帧号）→ 视为首帧，补 01
+BARE_RE = re.compile(
+    r'^(?P<prefix>.+)\.(?P<ext>' + '|'.join(IMG_EXTS) + r')$',
+    re.IGNORECASE,
+)
+
 
 def real_ext(path):
     """读文件头魔数判定真实格式，返回 'png'/'jpg'/'webp'/'bmp'；识别不出返回 None。"""
@@ -70,16 +79,18 @@ def real_ext(path):
 
 
 def collect(prefix, names):
-    """返回 (items, tail_origins)。
+    """返回 (items, tail_origins, bare_origins)。
 
-    items: {帧号(float): [原始文件名, ...]}，匹配 <prefix>-<num>.<ext> 或
-           <prefix>-<num>-<尾缀>.<ext>（去尾缀）的帧。
+    items: {帧号(float): [原始文件名, ...]}，匹配 <prefix>-<num>.<ext>、
+           <prefix>-<num>-<尾缀>.<ext>（去尾缀）、或 <prefix>.<ext>（无帧号，补 01）。
     源导出文件名常带空格（" blink - 1 .png"），匹配前先去空格；
     同一帧号多文件（多格式/带尾缀并存）全部收集，冲突在 plan 阶段按 mtime 裁决。
     tail_origins: set，记录带尾缀的源文件名（供预览标注「去尾缀」）。
+    bare_origins: set，记录不带帧号、补 01 的源文件名（供预览标注「补帧号」）。
     """
     items = {}
     tail_origins = set()
+    bare_origins = set()
     for orig in names:
         base, ext = os.path.splitext(orig.strip())
         if not ext or ext[1:].lower() not in IMG_EXTS:
@@ -90,11 +101,19 @@ def collect(prefix, names):
             m = FRAME_RE_TAIL.match(cleaned)
             if m:
                 tail_origins.add(orig.strip())
-        if not m or m.group('prefix').lower() != prefix.lower():
+        if m:
+            num = float(m.group('num'))
+        else:
+            # 整名恰为 <prefix>.<ext>（不带帧号）→ 视为首帧
+            m = BARE_RE.match(cleaned)
+            if not m:
+                continue
+            num = 1.0
+            bare_origins.add(orig.strip())
+        if m.group('prefix').lower() != prefix.lower():
             continue
-        num = float(m.group('num'))
         items.setdefault(num, []).append(orig.strip())
-    return items, tail_origins
+    return items, tail_origins, bare_origins
 
 
 def plan(prefix, items, d):
@@ -172,7 +191,7 @@ def main():
     short = os.path.basename(d.rstrip('/\\')) or d
 
     for prefix in args.prefix:
-        items, tail_origins = collect(prefix, os.listdir(d))
+        items, tail_origins, bare_origins = collect(prefix, os.listdir(d))
         if not items:
             print(f"[{prefix}] {short} · 未找到该前缀的帧")
             continue
@@ -183,6 +202,8 @@ def main():
                 "转 jpg" if real_ext(os.path.join(d, src)) != TARGET_EXT else "改名")
             if src in tail_origins:
                 tag = "去尾缀" if tag == "保留" else f"去尾缀·{tag}"
+            elif src in bare_origins:
+                tag = "补帧号" if tag == "保留" else f"补帧号·{tag}"
             print(f"  · {src} → {dst}   [{tag}]")
         for name in deletes:
             if name in tail_origins:

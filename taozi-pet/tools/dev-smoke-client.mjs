@@ -74,7 +74,7 @@ const interactions = await evaluate(pet, 'window.petAPI.interactions.list()');
 if (!Array.isArray(interactions) || interactions.length < 1) throw new Error('No interactions are available.');
 const interaction = await evaluate(pet, `window.petAPI.interactions.trigger(${JSON.stringify(interactions[0].id)})`);
 if (!interaction?.stats || interaction.stats.todayInteractions < 1) throw new Error('Interaction did not update stats.');
-// 互动结束后状态机自行流转：可能回到待机轮播（look / blink / belly-ok 之一），
+// 互动结束后状态机自行流转：可能回到待机轮播（look / blink / hug / starfish-wave 之一），
 // 也可能进入伤心 / 走路等其他动作，所以只要求「离开互动动作」并落在
 // pet-spec.json 声明的某个动作上，不限定具体是哪一个。
 const recoveredState = await evaluate(pet, `new Promise((resolve)=>{

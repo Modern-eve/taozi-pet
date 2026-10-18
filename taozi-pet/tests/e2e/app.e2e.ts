@@ -24,7 +24,7 @@ try {
       (stateId) => document.getElementById('pet-container')?.dataset.state === stateId,
       interaction.stateId,
     );
-    // 互动结束后状态机自行流转：回到待机轮播（look / blink / belly-ok 之一），
+    // 互动结束后状态机自行流转：回到待机轮播（look / blink / hug / starfish-wave 之一），
     // 或进入伤心 / 走路等其他动作，因此只等「离开该互动动作」，不限定落回哪一个。
     await windows.pet.waitForFunction(
       (stateId) => document.getElementById('pet-container')?.dataset.state !== stateId,
