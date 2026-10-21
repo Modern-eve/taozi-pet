@@ -14,9 +14,9 @@ rename-assets.py — assets-raw 帧整理（流水线第 1 步）：统一转 .j
      RGBA 源按 RGB 落盘（白底图无透明信息需保留）。
   2. 编号收拢：按帧号排序后重映射为连续整数，收拢数字缺口、把 x.5 过渡帧
      各自并入连续序列、消除文件名空格（" blink - 1 .png" → "blink-01.jpg"）。
-     落盘按**升序执行**（先写低编号）：目标编号恒 ≤ 该帧的源编号（收拢只会前移），
-     而占着编号 i 的文件其源编号必 ≤ i，轮到 i 时它已经腾走，故不会覆盖真实帧；
-     降序执行会在写高编号目标时压掉尚未处理的低编号源。
+     落盘分两阶段：先把所有需要改名的源搬到临时名，再统一落到目标名。
+     x.5 过渡帧占一个序号后，其目标编号可能**大于**源编号（5.5 → 06），
+     单阶段原地改名会覆盖尚未搬走的高编号源（06 → 07），导致真实帧被删。
   3. 去多余尾缀：文件名形如 <state>-NN-<尾缀>...（尾缀可含连字符/数字/点）统一收敛为
      <state>-NN（仅保留「前缀-帧号」两段），例如 look-01-extra-2.jpg → look-01.jpg。
      与编号收拢共用：尾缀帧按其帧号入桶，输出标准名即自动去掉尾缀（mtime 冲突裁决规则一致）。
@@ -140,9 +140,9 @@ def plan(prefix, items, d):
 def do_convert(d, converts, deletes, quality, apply):
     """转 jpg + 覆盖冲突。默认 dry-run 不落盘。
 
-    按**升序**执行（先写低编号）：目标编号恒 ≤ 该帧的源编号（收拢只会前移），
-    而占着编号 i 的文件其源编号必 ≤ i（编号序列严格递增，第 k 项的源 ≥ k），
-    轮到 i 时它已经腾走。降序执行会在写高编号目标时压掉尚未处理的低编号源。
+    分两阶段落盘：源文件先全部搬到临时名，再从临时名落到目标名。
+    收拢只会前移编号的假设对 x.5 过渡帧不成立（5.5 的目标是 06，源编号更小），
+    升序原地改名会让它覆盖尚未搬走的 jump-06 源，使真实帧被静默删除。
     """
     from PIL import Image
     if not apply:
@@ -152,10 +152,20 @@ def do_convert(d, converts, deletes, quality, apply):
         p = os.path.join(d, name)
         if os.path.exists(p):
             os.remove(p)
-    # 再把每个 NN 的最新源落到目标（升序执行；降序会压掉尚未处理的低编号源）
-    for src, dst in converts:
-        sp, dp = os.path.join(d, src), os.path.join(d, dst)
+    # 先把每个要改名的源搬到临时名，腾空所有目标编号（避免 x.5 帧覆盖尚未搬走的高编号源）
+    staged = []
+    for i, (src, dst) in enumerate(converts):
+        sp = os.path.join(d, src)
         if src.lower() == dst.lower():
+            staged.append((sp, dst))
+            continue
+        tmp = os.path.join(d, f'.__rename_{i:03d}{os.path.splitext(src)[1].lower()}')
+        os.rename(sp, tmp)
+        staged.append((tmp, dst))
+    # 再从临时名落到目标名（真 jpg 仅改名；其余解码后存 jpg）
+    for sp, dst in staged:
+        dp = os.path.join(d, dst)
+        if sp.lower() == dp.lower():
             continue  # 最新者已是目标名，无需改动
         if real_ext(sp) == TARGET_EXT:
             if os.path.exists(dp):

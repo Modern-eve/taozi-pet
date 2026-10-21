@@ -11,7 +11,7 @@
 QA 分两档：
 
 - **快速 QA**（`npm run check:quick`）：轻量必查，随开发启动自动跑。依次执行 `validate-dev-contract` + `validate-spec` + `validate-asset-links` + `qa-ui` + `qa-experience` 五个校验，**亚秒级**（不含 tsc；类型检查由两个 webpack 配置的 fork-ts-checker 在生产构建把关，`npm test` 前置亦会跑 `tsc --noEmit`）。
-- **全量 QA**（`npm run check`）：在快速 QA 之上追加 `qa-assets` 逐帧像素级质检（149 张 base 帧，较重）。**素材变更或需出完整报告时主动运行。**
+- **全量 QA**（`npm run check`）：在快速 QA 之上追加 `qa-assets` 逐帧像素级质检（165 张 base 帧，较重）。**素材变更或需出完整报告时主动运行。**
 
 ```bash
 npm run check:quick   # 平时/开发启动

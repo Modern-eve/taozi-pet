@@ -85,6 +85,14 @@
         "y": 0.453,
         "width": 0.146,
         "height": 0.113
+      },
+      "leg": {
+        "stateId": "jump",
+        "referenceStateId": "standby-gap",
+        "x": 0.43,
+        "y": 0.652,
+        "width": 0.143,
+        "height": 0.295
       }
     },
     "rewards": {
@@ -250,6 +258,17 @@
           "套套的怀抱，只留给主人哦~",
           "抱紧一点，就能感受更多啦~",
           "主人暖暖的，套套不想放开啦~"
+        ]
+      },
+      "jump": {
+        "label": "点击-跳一跳",
+        "emoji": "🦘",
+        "quotes": [
+          "主人快看，套套跳得高高的！",
+          "一、二、三……跳！",
+          "跳起来就能碰到主人的手啦~",
+          "蹦蹦跳跳，最喜欢主人啦！",
+          "主人，接着套套一下嘛~"
         ]
       }
     },
@@ -450,16 +469,19 @@
         "happy",
         "notify",
         "peek",
+        "pet-head",
         "pumpkin-bag",
+        "jump",
+        "pet-face",
         "petal-spin",
+        "kick",
         "walk",
         "sleep",
         "sad",
-        "clap",
-        "kick"
+        "clap"
       ],
       "interrupt": "restart",
-      "cooldownMs": 0,
+      "cooldownMs": 750,
       "direction": "neutral",
       "anchor": {
         "x": 0.5,
@@ -494,7 +516,11 @@
         "happy",
         "notify",
         "peek",
+        "pet-head",
+        "belly-ok",
         "pumpkin-bag",
+        "jump",
+        "pet-face",
         "petal-spin",
         "walk",
         "sleep",
@@ -617,10 +643,18 @@
       "frameDurationMs": 250,
       "loop": false,
       "canInterrupt": [
-        "walk",
-        "sleep",
         "notify",
         "peek",
+        "pet-head",
+        "belly-ok",
+        "pumpkin-bag",
+        "jump",
+        "pet-face",
+        "petal-spin",
+        "kick",
+        "walk",
+        "sleep",
+        "sad",
         "clap"
       ],
       "interrupt": "restart",
@@ -723,13 +757,16 @@
         "happy",
         "notify",
         "peek",
+        "pet-head",
+        "belly-ok",
         "pumpkin-bag",
+        "jump",
         "petal-spin",
+        "kick",
         "walk",
         "sleep",
         "sad",
-        "clap",
-        "kick"
+        "clap"
       ],
       "interrupt": "restart",
       "cooldownMs": 0,
@@ -765,16 +802,19 @@
         "happy",
         "notify",
         "peek",
+        "belly-ok",
         "pumpkin-bag",
+        "jump",
+        "pet-face",
         "petal-spin",
+        "kick",
         "walk",
         "sleep",
         "sad",
-        "clap",
-        "kick"
+        "clap"
       ],
       "interrupt": "restart",
-      "cooldownMs": 0,
+      "cooldownMs": 1500,
       "direction": "neutral",
       "anchor": {
         "x": 0.5,
@@ -819,21 +859,90 @@
         "happy",
         "notify",
         "peek",
+        "pet-head",
+        "belly-ok",
+        "jump",
+        "pet-face",
         "petal-spin",
+        "kick",
         "walk",
         "sleep",
         "sad",
-        "clap",
-        "kick"
+        "clap"
       ],
       "interrupt": "restart",
-      "cooldownMs": 0,
+      "cooldownMs": 3000,
       "direction": "neutral",
       "anchor": {
         "x": 0.5,
         "y": 0.95
       },
       "mirrorSafe": false
+    },
+    {
+      "id": "jump",
+      "triggers": [
+        "state:jump"
+      ],
+      "frames": [
+        "jump-01.png",
+        "jump-02.png",
+        "jump-03.png",
+        "jump-04.png",
+        "jump-05.png",
+        "jump-06.png",
+        "jump-07.png",
+        "jump-08.png",
+        "jump-09.png",
+        "jump-10.png",
+        "jump-11.png",
+        "jump-12.png",
+        "jump-13.png",
+        "jump-14.png",
+        "jump-15.png",
+        "jump-16.png",
+        "jump-01.png",
+        "jump-02.png",
+        "jump-03.png",
+        "jump-04.png",
+        "jump-05.png",
+        "jump-06.png",
+        "jump-07.png",
+        "jump-08.png",
+        "jump-09.png",
+        "jump-10.png",
+        "jump-11.png",
+        "jump-12.png",
+        "jump-13.png",
+        "jump-14.png",
+        "jump-15.png",
+        "jump-16.png"
+      ],
+      "frameDurationMs": 250,
+      "loop": false,
+      "canInterrupt": [
+        "happy",
+        "notify",
+        "peek",
+        "pet-head",
+        "belly-ok",
+        "pumpkin-bag",
+        "pet-face",
+        "petal-spin",
+        "kick",
+        "walk",
+        "sleep",
+        "sad",
+        "clap"
+      ],
+      "interrupt": "restart",
+      "cooldownMs": 4000,
+      "direction": "neutral",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.95
+      },
+      "mirrorSafe": true
     },
     {
       "id": "petal-spin",
@@ -872,14 +981,16 @@
         "happy",
         "notify",
         "peek",
-        "pet-face",
         "pet-head",
+        "belly-ok",
         "pumpkin-bag",
+        "jump",
+        "pet-face",
+        "kick",
         "walk",
         "sleep",
         "sad",
-        "clap",
-        "kick"
+        "clap"
       ],
       "interrupt": "restart",
       "cooldownMs": 0,
