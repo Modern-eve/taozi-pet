@@ -296,8 +296,11 @@ if (!failures.length) {
         const targetHeight = correctedBounds.height;
         const anchorX = Math.round(state.anchor.x * 511);
         const anchorY = Math.round(state.anchor.y * 511);
+        // verticalLift（如跳跃）：spec 逐帧声明抬离基线的比例（占 512 画布），
+        // 让滞空动作真正离地；未声明的帧一律让主体底边贴住 anchor 基线。
+        const lift = Math.round((state.verticalLift?.[asset.name] ?? 0) * 512);
         const left = Math.round(anchorX - targetWidth / 2);
-        const top = Math.round(anchorY - targetHeight);
+        const top = Math.round(anchorY - targetHeight - lift);
         if (left < 0 || top < 0 || left + targetWidth > 512 || top + targetHeight > 512) throw new Error(`${asset.name}: normalized frame exceeds canvas; regenerate with consistent framing`);
         const destination = path.join(outputDir, asset.name);
         await mkdir(path.dirname(destination), { recursive: true });

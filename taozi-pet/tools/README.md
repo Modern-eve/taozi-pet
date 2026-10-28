@@ -11,7 +11,7 @@
 QA 分两档：
 
 - **快速 QA**（`npm run check:quick`）：轻量必查，随开发启动自动跑。依次执行 `validate-dev-contract` + `validate-spec` + `validate-asset-links` + `qa-ui` + `qa-experience` 五个校验，**亚秒级**（不含 tsc；类型检查由两个 webpack 配置的 fork-ts-checker 在生产构建把关，`npm test` 前置亦会跑 `tsc --noEmit`）。
-- **全量 QA**（`npm run check`）：在快速 QA 之上追加 `qa-assets` 逐帧像素级质检（165 张 base 帧，较重）。**素材变更或需出完整报告时主动运行。**
+- **全量 QA**（`npm run check`）：在快速 QA 之上追加 `qa-assets` 逐帧像素级质检（172 张 base 帧，较重）。**素材变更或需出完整报告时主动运行。**
 
 ```bash
 npm run check:quick   # 平时/开发启动
@@ -102,7 +102,7 @@ npm run check          # 素材变更 / 出完整 QA 报告
 - **单帧**：尺寸/透明/贴边/锚点漂移/占用率
 - **交付编码**：按 `assetPipeline.paletteColours` 反查 PNG 实际编码（索引色 + PLTE 条目数 / 32 位 RGBA）
 - **地面残留**：连通域悬空地面、贴地均匀色带、饱和色带
-- **跨帧稳定**：同一状态内主体缩放/中心/底基线漂移
+- **跨帧稳定**：同一状态内主体缩放/中心/底基线漂移；spec 声明 `verticalLift` 的状态（如 `jump`）豁免底边漂移与底边贴合基线两项，只拦「沉到基线以下」——滞空高度逐帧不同是动画语义，不是抖动
 - **重复帧**：sha256 去重，复制帧不算动画
 - **回归基线**：`qa/asset-hashes.json` 记录每帧哈希，检测 PNG 静默漂移
 - 产物：`qa/contact-sheet.png` + `qa/assets-report.json`

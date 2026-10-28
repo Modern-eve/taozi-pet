@@ -118,6 +118,14 @@ checks.push(makeCheck({
       }
       if (!Array.isArray(state.triggers) || !state.triggers.length) problems.push(`状态无运行时触发: ${state.id}`);
       if (state.holdLastFrame && state.loop) problems.push(`状态 ${state.id} 的 loop 与 holdLastFrame 互斥（不能既循环播放又定格末帧）`);
+      // 逐帧竖向抬升（滞空动作）：键必须是本状态的帧，值是占画布的比例
+      if (state.verticalLift !== undefined) {
+        if (typeof state.verticalLift !== 'object' || Array.isArray(state.verticalLift)) problems.push(`状态 ${state.id} 的 verticalLift 必须是「帧文件名 → 抬升比例」的对象`);
+        else for (const [frame, ratio] of Object.entries(state.verticalLift)) {
+          if (!Array.isArray(state.frames) || !state.frames.includes(frame)) problems.push(`状态 ${state.id} 的 verticalLift 含未在 frames 声明的帧 ${frame}`);
+          if (typeof ratio !== 'number' || !Number.isFinite(ratio) || ratio < 0 || ratio > 0.2) problems.push(`状态 ${state.id} 的 verticalLift.${frame} 必须是 0~0.2 的数值（占画布比例）`);
+        }
+      }
       // 状态级呼吸参数：只覆盖三个数值字段，逐个判范围（未知字段多为拼写错误，直接拦下）
       for (const [field, value] of Object.entries(state.breathing ?? {})) {
         const range = BREATH_FIELDS[field];

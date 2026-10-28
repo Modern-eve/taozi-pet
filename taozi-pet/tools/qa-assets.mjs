@@ -215,7 +215,10 @@ for (const state of states) {
         const centerX = ((minX + maxX) / 2) / 511;
         const bottomY = maxY / 511;
         if (Math.abs(centerX - state.anchor.x) > 0.04) addDiagnostic(errors, diagnostics, 'ANCHOR_DRIFT', `horizontal anchor drift: ${centerX.toFixed(3)}`);
-        if (Math.abs(bottomY - state.anchor.y) > 0.02) addDiagnostic(errors, diagnostics, 'ANCHOR_DRIFT', `bottom anchor drift: ${bottomY.toFixed(3)}`);
+        // 声明 verticalLift 的状态（跳跃等）允许逐帧抬离基线表示滞空，只拦"沉到基线以下"；
+        // 其余状态仍要求底边贴合 anchor 基线。
+        const bottomDrift = state.verticalLift ? bottomY - state.anchor.y : Math.abs(bottomY - state.anchor.y);
+        if (bottomDrift > 0.02) addDiagnostic(errors, diagnostics, 'ANCHOR_DRIFT', `bottom anchor drift: ${bottomY.toFixed(3)}`);
         const occupancy = Math.max(maxX - minX + 1, maxY - minY + 1) / 512;
         if (occupancy > targetOccupancy + occupancyTolerance) addDiagnostic(errors, diagnostics, 'OCCUPANCY_TOO_LARGE', `visible subject exceeds target occupancy: ${occupancy.toFixed(3)}`);
       }
@@ -290,7 +293,8 @@ for (const state of states) {
       else addDiagnostic(record.errors, record.diagnostics, 'ANCHOR_DRIFT', message);
     }
   }
-  if (bottoms.length > 1 && Math.max(...bottoms) - Math.min(...bottoms) > maximumBottomDrift) {
+  // 声明 verticalLift 的状态（跳跃等）逐帧底边高度本就不同，滞空是动画语义，故跳过底边漂移判定
+  if (bottoms.length > 1 && !state.verticalLift && Math.max(...bottoms) - Math.min(...bottoms) > maximumBottomDrift) {
     const message = `bottom anchor drifts too much within ${state.id}`;
     for (const record of stateRecords) {
       if (regressionFixture) record.warnings.push(message);

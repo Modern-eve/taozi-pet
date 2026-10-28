@@ -42,13 +42,12 @@ CAP = _pipeline.get("sourceScaleAxisCap", 0.01784)                  # 每轴相�
 
 
 def load_states():
-    """返回 {state_id: [去重后的帧文件名, 如 'look-01.png']}，顺序按文件名。
+    """返回 {state_id: 去重后的帧文件名列表}，顺序按文件名。
     注：帧名与状态 id 无强绑定（idle 状态用的是 look-* 素材），一切以 spec.frames 为准。"""
     spec = json.load(open(SPEC, encoding="utf-8"))
     out = {}
     for st in spec["states"]:
-        frames = sorted({f for f in st["frames"] if f.endswith(".png")})
-        out[st["id"]] = frames
+        out[st["id"]] = sorted({f for f in st["frames"] if f.endswith(".png")})
     return out
 
 
@@ -70,7 +69,7 @@ def _target_size(w, h):
 
 
 def render_matted(src_name, ref_size):
-    """从 incoming 读透明帧，裁 bbox(+PAD)，按有界非等比缩放并居中+底部对齐到统一画布，原地写回。
+    """从 incoming 读透明帧，裁 bbox(+PAD)，按有界非等比缩放并居中到统一画布，原地写回。
     - ref_size=(W_ref,H_ref)：状态内中位数帧的缩放后尺寸。
     - 每轴相对统一因子 su（对齐参考面积）的偏差不超过 CAP；姿态不变时该钳制自然不生效。
     """
@@ -102,7 +101,8 @@ def render_matted(src_name, ref_size):
 
     sub = Image.fromarray(arr).crop((l, t, r + 1, btm + 1)).resize((nw2, nh2), Image.LANCZOS)
     cv = Image.new("RGBA", (CANVAS, CANVAS), (0, 0, 0, 0))
-    px, py = (CANVAS - nw2) // 2, CANVAS - MARGIN - nh2
+    px = (CANVAS - nw2) // 2
+    py = max(MARGIN, CANVAS - MARGIN - nh2)
     cv.paste(sub, (px, py), sub)
     return cv
 

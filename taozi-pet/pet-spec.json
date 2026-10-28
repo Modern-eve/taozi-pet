@@ -3,7 +3,7 @@
   "app": {
     "name": "套子桌宠",
     "appId": "com.taozi.pet",
-    "version": "4.2.2",
+    "version": "5.0.0",
     "language": "zh-CN"
   },
   "character": {
@@ -155,6 +155,17 @@
           "主人主人，我的腿能掰到这里哦~"
         ]
       },
+      "eat": {
+        "label": "吃东西",
+        "emoji": "🍰",
+        "quotes": [
+          "主人给的点心最甜啦~",
+          "唔唔…套套在认真吃东西哦",
+          "吃饱了才有力气帮主人呀~",
+          "这一口是留给主人的份哦~",
+          "嘿嘿，嘴角好像沾到渣渣了…"
+        ]
+      },
       "peek": {
         "label": "贴边窥视",
         "emoji": "👀",
@@ -264,11 +275,10 @@
         "label": "点击-跳一跳",
         "emoji": "🦘",
         "quotes": [
-          "主人快看，套套跳得高高的！",
-          "一、二、三……跳！",
-          "跳起来就能碰到主人的手啦~",
-          "蹦蹦跳跳，最喜欢主人啦！",
-          "主人，接着套套一下嘛~"
+          "主人快看，套套活力满满的！",
+          "跳起来就能碰到主人的嘴啦~",
+          "主人，想要套套不落地吗？",
+          "主人，套套对准了直接坐咯~"
         ]
       }
     },
@@ -276,7 +286,7 @@
       {
         "id": "pet-face",
         "stateId": "pet-face",
-        "durationMs": 6000,
+        "durationMs": 3000,
         "affectionGain": 3
       },
       {
@@ -288,6 +298,12 @@
       {
         "id": "kick",
         "stateId": "kick",
+        "durationMs": 3500,
+        "affectionGain": 2
+      },
+      {
+        "id": "eat",
+        "stateId": "eat",
         "durationMs": 3500,
         "affectionGain": 2
       }
@@ -522,6 +538,55 @@
         "jump",
         "pet-face",
         "petal-spin",
+        "eat",
+        "walk",
+        "sleep",
+        "sad",
+        "clap"
+      ],
+      "interrupt": "restart",
+      "cooldownMs": 0,
+      "direction": "neutral",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.95
+      },
+      "mirrorSafe": true
+    },
+    {
+      "id": "eat",
+      "triggers": [
+        "interaction:eat"
+      ],
+      "frames": [
+        "eat-01.png",
+        "eat-02.png",
+        "eat-03.png",
+        "eat-04.png",
+        "eat-05.png",
+        "eat-06.png",
+        "eat-07.png",
+        "eat-01.png",
+        "eat-02.png",
+        "eat-03.png",
+        "eat-04.png",
+        "eat-05.png",
+        "eat-06.png",
+        "eat-07.png"
+      ],
+      "frameDurationMs": 250,
+      "loop": false,
+      "canInterrupt": [
+        "happy",
+        "notify",
+        "peek",
+        "pet-head",
+        "belly-ok",
+        "pumpkin-bag",
+        "jump",
+        "pet-face",
+        "petal-spin",
+        "kick",
         "walk",
         "sleep",
         "sad",
@@ -763,6 +828,7 @@
         "jump",
         "petal-spin",
         "kick",
+        "eat",
         "walk",
         "sleep",
         "sad",
@@ -937,6 +1003,24 @@
       ],
       "interrupt": "restart",
       "cooldownMs": 4000,
+      "verticalLift": {
+        "jump-01.png": 0,
+        "jump-02.png": 0,
+        "jump-03.png": 0,
+        "jump-04.png": 0,
+        "jump-05.png": 0.03,
+        "jump-06.png": 0.065,
+        "jump-07.png": 0.1,
+        "jump-08.png": 0.07,
+        "jump-09.png": 0.03,
+        "jump-10.png": 0,
+        "jump-11.png": 0.03,
+        "jump-12.png": 0.065,
+        "jump-13.png": 0.1,
+        "jump-14.png": 0.045,
+        "jump-15.png": 0,
+        "jump-16.png": 0
+      },
       "direction": "neutral",
       "anchor": {
         "x": 0.5,
@@ -987,6 +1071,7 @@
         "jump",
         "pet-face",
         "kick",
+        "eat",
         "walk",
         "sleep",
         "sad",
